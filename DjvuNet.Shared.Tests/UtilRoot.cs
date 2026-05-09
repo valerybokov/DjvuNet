@@ -7,6 +7,6 @@ namespace DjvuNet.Tests
 {
     public static partial class Util
     {
-        public static string RepoRoot { get { return @"E:\src\tools\sci\know\FKnowSci\external\DjvuNet\"; } }
+        public static string RepoRoot { get { return @"E:\src\.net\DjvuNet\"; } }
     }
 }

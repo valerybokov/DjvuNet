@@ -159,7 +159,9 @@ namespace DjvuNet.Graphics.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void SetOffsetTest001()
         {
             int width = 32;
@@ -185,7 +187,9 @@ namespace DjvuNet.Graphics.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void SetOffsetTest002()
         {
             int width = 32;

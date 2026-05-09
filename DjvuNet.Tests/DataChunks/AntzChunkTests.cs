@@ -50,7 +50,9 @@ namespace DjvuNet.DataChunks.Tests
 
         [DjvuTheory]
         [MemberData(nameof(AntzTestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void AntzChunk_Theory(string fileName, string filePath)
         {
             using (FileStream stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))

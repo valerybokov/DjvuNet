@@ -71,7 +71,7 @@ namespace DjvuNet.Wavelet.Tests
         {
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(EncodeImageTestData))]
         public void EncodeImage_Theory(string fileName)
         {

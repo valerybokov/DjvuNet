@@ -60,7 +60,9 @@ namespace DjvuNet.Wavelet.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void DuplicateTest002()
         {
             InterWaveBlock block = new InterWaveBlock();
@@ -95,7 +97,9 @@ namespace DjvuNet.Wavelet.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void GetBlockTest()
         {
             InterWaveBlock block = new InterWaveBlock();
@@ -106,7 +110,9 @@ namespace DjvuNet.Wavelet.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void GetInitializedBlockTest()
         {
             InterWaveBlock block = new InterWaveBlock();
@@ -242,7 +248,9 @@ namespace DjvuNet.Wavelet.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void ClearBlockTest()
         {
             InterWaveBlock block = new InterWaveBlock();

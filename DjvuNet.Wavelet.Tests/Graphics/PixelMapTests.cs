@@ -18,7 +18,9 @@ namespace DjvuNet.Graphics.Tests
         int shdBytesPerPixel = 4;
         int testCount = 1;
 
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public static sbyte[] GetRandomData(int width, int height, int bytesPerPixel)
         {
             long length = width * height * bytesPerPixel;
@@ -33,7 +35,9 @@ namespace DjvuNet.Graphics.Tests
             return data;
         }
 
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public static void WritePixelMap(int width, int height, IPixelMap bmp)
         {
             string formatIndex = "x4";
@@ -335,7 +339,9 @@ namespace DjvuNet.Graphics.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void BenchmarkApplyGammaCorrection()
         {
             sbyte[] data = GetRandomData(shdWidth, shdHeight, shdBytesPerPixel);
@@ -359,7 +365,9 @@ namespace DjvuNet.Graphics.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void BenchmarkApplyGammaCorrectionFastMT()
         {
             sbyte[] data = GetRandomData(shdWidth, shdHeight, shdBytesPerPixel);
@@ -381,7 +389,9 @@ namespace DjvuNet.Graphics.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void BenchmarkApplyGammaCorrectionFastST()
         {
             sbyte[] data = GetRandomData(shdWidth, shdHeight, shdBytesPerPixel);

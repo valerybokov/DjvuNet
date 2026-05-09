@@ -14,6 +14,7 @@
     <NETStandardImplicitPackageVersion>$(NETStandardPackageVersion)</NETStandardImplicitPackageVersion>
     <!--<TargetFramework Condition="$(TargetFramework) == ''">$(DotNetCoreFrameworkVersion)</TargetFramework>-->
     <IsDjvuNetTestProject>false</IsDjvuNetTestProject>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
   <PropertyGroup>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
@@ -50,10 +51,20 @@
 
   <ItemGroup>
     <PackageReference Include="LibGit2Sharp" Version="$(LibGit2SharpPackageVersion)" />
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="$(MicrosoftNETCoreAppPackageVersion)" />
     <PackageReference Include="Microsoft.Build" Version="$(MicrosoftBuildPackageVersion)" />
     <PackageReference Include="Microsoft.Build.Framework" Version="$(MicrosoftBuildPackageVersion)" />
     <PackageReference Include="Microsoft.Build.Tasks.Core" Version="$(MicrosoftBuildPackageVersion)" />
     <PackageReference Include="Microsoft.Build.Utilities.Core" Version="$(MicrosoftBuildPackageVersion)" />
   </ItemGroup>
+
+  <Target Name="CopyTasksAssemblyToTools" AfterTargets="Build" Inputs="$(TargetPath)" Outputs="$(RepoRootDir)Tools\DjvuNet\$(TargetFramework)\$(TargetFileName)">
+    <MakeDir Directories="$(RepoRootDir)Tools\DjvuNet\$(TargetFramework)" />
+    <ItemGroup>
+      <_OutputFiles Include="$(TargetDir)**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_OutputFiles)" DestinationFolder="$(RepoRootDir)Tools/DjvuNet/$(TargetFramework)/%(RecursiveDir)" SkipUnchangedFiles="true" />
+  </Target>
+
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.targets))\DjvuNetBuild.targets" />
 </Project>

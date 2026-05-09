@@ -52,9 +52,11 @@ namespace DjvuNet
         //
         //   context:
         //     The contextual information about the source or destination.
+#if !NETCOREAPP
         protected DjvuFormatException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context):
             base (info, context)
         {
         }
+#endif
     }
 }

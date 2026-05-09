@@ -145,7 +145,9 @@ namespace DjvuNet.DataChunks.Tests
 
         [DjvuTheory]
         [MemberData(nameof(TH44TestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void TH44Chunk_Theory(string fileName, string filePath)
         {
             using (FileStream stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))

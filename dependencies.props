@@ -3,9 +3,6 @@
   <!-- NuGet package restore sources. -->
   <PropertyGroup>
     <RestoreSources>
-      https://myget.org/F/djvunet/api/v3/index.json;
-      https://dotnetfeed.blob.core.windows.net/dotnet-core/index.json;
-      https://dotnet.myget.org/F/dotnet-core/api/v3/index.json;
       https://api.nuget.org/v3/index.json;
       $(RestoreSources)
     </RestoreSources>
@@ -13,21 +10,22 @@
 
   <!-- Project dependency versions. -->
   <PropertyGroup>
-    <MicrosoftNETCorePlatformsPackageVersion>3.0.100</MicrosoftNETCorePlatformsPackageVersion>
-    <MicrosoftNETCoreAppPackageVersion>3.0.0</MicrosoftNETCoreAppPackageVersion>
+    <MicrosoftNETCorePlatformsPackageVersion>10.0.7</MicrosoftNETCorePlatformsPackageVersion>
+    <MicrosoftNETCoreAppPackageVersion>10.0.7</MicrosoftNETCoreAppPackageVersion>
     <MicrosoftNETCoreRuntimeCoreCLRPackageVersion>$(MicrosoftNETCoreAppPackageVersion)</MicrosoftNETCoreRuntimeCoreCLRPackageVersion>
     <MicrosoftNETCoreDotNetAppHostPackageVersion>$(MicrosoftNETCoreAppPackageVersion)</MicrosoftNETCoreDotNetAppHostPackageVersion>
     <MicrosoftNETCoreDotnetHostResolverPackageVersion>$(MicrosoftNETCoreAppPackageVersion)</MicrosoftNETCoreDotnetHostResolverPackageVersion>
     <MicrosoftNETCoreDotnetHostPolicyPackageVersion>$(MicrosoftNETCoreAppPackageVersion)</MicrosoftNETCoreDotnetHostPolicyPackageVersion>
-    <XunitPackageVersion>2.4.1</XunitPackageVersion>
-    <MoqPackageVersion>4.12.0</MoqPackageVersion>
-    <NewtonSoftJsonPackageVersion>12.0.2</NewtonSoftJsonPackageVersion>
-    <MicrosoftBuildPackageVersion>16.3.0</MicrosoftBuildPackageVersion>
-    <LibGit2SharpPackageVersion>0.26.1</LibGit2SharpPackageVersion>
-    <LibGit2SharpNativeBinariesPackageVersion>2.0.289</LibGit2SharpNativeBinariesPackageVersion>
-    <SystemDrawingCommonPackageVersion>4.6.0</SystemDrawingCommonPackageVersion>
-    <SystemRuntimeCompilerServicesUnsafePackageVersion>4.6.0</SystemRuntimeCompilerServicesUnsafePackageVersion>
-    <SkiaSharpPackageVersion>1.68.0</SkiaSharpPackageVersion>
+    <XunitPackageVersion>3.2.2</XunitPackageVersion>
+    <MoqPackageVersion>4.20.72</MoqPackageVersion>
+    <NewtonSoftJsonPackageVersion>13.0.3</NewtonSoftJsonPackageVersion>
+    <MicrosoftBuildPackageVersion>18.4.0</MicrosoftBuildPackageVersion>
+    <LibGit2SharpPackageVersion>0.31.0</LibGit2SharpPackageVersion>
+    <LibGit2SharpNativeBinariesPackageVersion>2.0.322</LibGit2SharpNativeBinariesPackageVersion>
+    <SystemDrawingCommonPackageVersion Condition="'$(OS)' == 'Windows_NT'">$(MicrosoftNETCoreAppPackageVersion)</SystemDrawingCommonPackageVersion>
+    <SystemDrawingCommonPackageVersion Condition="'$(OS)' != 'Windows_NT'">6.0.0</SystemDrawingCommonPackageVersion>
+    <SystemRuntimeCompilerServicesUnsafePackageVersion>6.1.2</SystemRuntimeCompilerServicesUnsafePackageVersion>
+    <SkiaSharpPackageVersion>2.88.9</SkiaSharpPackageVersion>
   </PropertyGroup>
 
   <!-- ILLink.Tasks package version -->
@@ -37,13 +35,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <XUnitDependency Include="xunit"/>
-    <XUnitDependency Include="xunit.assert"/>
-    <XUnitDependency Include="xunit.core"/>
-    <XUnitDependency Include="xunit.extensibility.core" />
-    <XUnitDependency Include="xunit.runner.console"/>
-    <XUnitDependency Include="xunit.runner.msbuild"/>
-    <XUnitDependency Include="xunit.runner.utility"/>
+    <XUnitDependency Include="xunit.v3"/>
+    <XUnitDependency Include="xunit.v3.assert"/>
+    <XUnitDependency Include="xunit.v3.core"/>
+    <XUnitDependency Include="xunit.v3.extensibility.core" />
     <StaticDependency Include="@(XUnitDependency)">
       <Version>$(XunitPackageVersion)</Version>
     </StaticDependency>

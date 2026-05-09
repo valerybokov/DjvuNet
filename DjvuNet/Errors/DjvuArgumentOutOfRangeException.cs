@@ -21,10 +21,12 @@ namespace DjvuNet.Errors
         {
         }
 
+#if !NETCOREAPP
         public DjvuArgumentOutOfRangeException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
             : base (info, context)
         {
         }
+#endif
 
         public DjvuArgumentOutOfRangeException(string paramName, object actualValue, string message)
             : base(paramName, actualValue, message)

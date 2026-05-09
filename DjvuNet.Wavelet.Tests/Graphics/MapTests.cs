@@ -101,7 +101,7 @@ namespace DjvuNet.Graphics.Tests
             }
         }
 
-        [Fact(), Trait("Category", "SkipNetCoreApp")]
+        [WindowsOnlyFact, SkipOnTargetFramework("netcoreapp")]
         public void ToImageTest008()
         {
             int width = 32;
@@ -119,7 +119,7 @@ namespace DjvuNet.Graphics.Tests
             }
         }
 
-        [Fact(), Trait("Category", "SkipNetCoreApp")]
+        [WindowsOnlyFact, SkipOnTargetFramework("netcoreapp")]
         public void ToImageTest006()
         {
             int width = 32;

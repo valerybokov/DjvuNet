@@ -206,9 +206,11 @@ namespace DjvuNet.Compression.Tests
                 Assert.Equal<byte>(expected[i], data[i]);
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(StringTestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void BlockSortData_Theory01(string testStr)
         {
             UTF8Encoding enc = new UTF8Encoding(false);
@@ -220,9 +222,11 @@ namespace DjvuNet.Compression.Tests
             BlockSort.BlockSortData(buffer, buffer.Length, ref markpos);
         }
 
-        [DjvuTheory]
-        [MemberData(nameof(StringEncodingTestData))]
+        [Theory]
+        [MemberData(nameof(StringEncodingTestData), DisableDiscoveryEnumeration = true)]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void BlockSortData_Theory02(Encoding enc, string testStr)
         {
             // TODO Find reason for failing tests with Big Endian multibyte
@@ -238,7 +242,9 @@ namespace DjvuNet.Compression.Tests
 
         [DjvuTheory, Trait("Category", "BugTrack")]
         [MemberData(nameof(StringEncodingCrashTestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void BlockSortData_Theory03(Encoding enc, string testStr)
         {
 
@@ -258,9 +264,11 @@ namespace DjvuNet.Compression.Tests
             markpos = byteStr.Length;
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(BlockSortValidateData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void BlockSortValidate_Theory(string source, string expected)
         {
             byte[] sourceData = Util.ReadFileToEnd(source);

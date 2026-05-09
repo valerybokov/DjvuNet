@@ -3,7 +3,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>$(DotNetCoreFrameworkVersion)</TargetFrameworks>
+    <TargetFrameworks>$(DotNetCoreFrameworkVersion);$(NetFXTargetFrameworkVersion)</TargetFrameworks>
     <NETStandardImplicitPackageVersion>$(NETStandardPackageVersion)</NETStandardImplicitPackageVersion>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>DjvuNetTest</RootNamespace>
@@ -15,9 +15,9 @@
     <_HasReferenceToSystemRuntime>true</_HasReferenceToSystemRuntime>
   </PropertyGroup>
 
-  <ItemGroup>
+  <!-- <ItemGroup>
     <Compile Include="Program.cs" />
-  </ItemGroup>
+  </ItemGroup> -->
 
   <ItemGroup>
     <None Include="TestFiles\Mcguffey%27s_Primer.djvu" />
@@ -26,13 +26,11 @@
   <ItemGroup>
     <PackageReference Include="LibGit2Sharp" Version="$(LibGit2SharpPackageVersion)" />
     <PackageReference Include="Newtonsoft.Json" Version="$(NewtonSoftJsonPackageVersion)" />
-    <PackageReference Include="xunit" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.runner.console" Version="$(XunitPackageVersion)" />
-    <!-- Avoid multiple entry points compile errors by excluding .NETFramework specific executable references -->
-    <PackageReference Condition="$(TargetFramework) == $(NetFXTargetFrameworkVersion)" Include="xunit.runner.msbuild" Version="$(XunitPackageVersion)" />
-    <PackageReference Condition="$(TargetFramework) == $(NetFXTargetFrameworkVersion)" Include="xunit.runner.visualstudio" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.runner.reporters" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.runner.utility" Version="$(XunitPackageVersion)" />
+    <PackageReference Include="System.Drawing.Common" Version="$(SystemDrawingCommonPackageVersion)" Condition="'$(OS)' == 'Windows_NT'" />
+    <Reference Include="System.Drawing.Common, Version=6.0.0.0, Culture=neutral, PublicKeyToken=9a0646c3e445b595" Condition="'$(OS)' != 'Windows_NT'">
+      <HintPath>$(RepoRootDir)deps/$(Platform)/$(Configuration)/Unix/System.Drawing.Common.dll</HintPath>
+    </Reference>
+    <PackageReference Include="xunit.v3" Version="$(XunitPackageVersion)" />
   </ItemGroup>
 
   <ItemGroup>

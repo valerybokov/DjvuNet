@@ -36,9 +36,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(DeserializeTestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void Deserialize_Theory(string fileName, string filePath)
         {
             JsonConverter[] converters = new JsonConverter[]

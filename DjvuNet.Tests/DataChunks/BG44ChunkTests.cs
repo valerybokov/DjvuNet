@@ -43,7 +43,9 @@ namespace DjvuNet.DataChunks.Tests
 
         [DjvuTheory]
         [MemberData(nameof(BG44TestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void ProgressiveDecodeBackground_Theory(string file, long length)
         {
             using (FileStream fs = File.Open(file, FileMode.Open, FileAccess.Read, FileShare.Read))

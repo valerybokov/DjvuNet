@@ -41,7 +41,9 @@ namespace DjvuNet.Compression.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void BSOutputStreamTest001()
         {
             using(BSOutputStream outStream = new BSOutputStream())
@@ -55,7 +57,9 @@ namespace DjvuNet.Compression.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void BSOutputStreamTest002()
         {
             using (MemoryStream stream = new MemoryStream())
@@ -110,7 +114,9 @@ namespace DjvuNet.Compression.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void InitTest002()
         {
             byte[] buffer = new byte[16];
@@ -134,7 +140,9 @@ namespace DjvuNet.Compression.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void WriteTest001()
         {
             string filePath = Path.Combine(Util.ArtifactsDataPath, "testhello.obz");
@@ -178,7 +186,9 @@ namespace DjvuNet.Compression.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void WriteTest002()
         {
             string filePath = Path.Combine(Util.ArtifactsDataPath, "DjvuNet.pdb");
@@ -345,9 +355,11 @@ namespace DjvuNet.Compression.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(WriteTestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void Write_Theory(string fileName, string filePath, string outFilePath)
         {
             try

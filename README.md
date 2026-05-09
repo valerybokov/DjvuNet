@@ -14,15 +14,14 @@ DjvuNet is an open source library designed to process and create documents encod
 no external dependencies. Library supports Djvu format specification version 3 up to the minor version 26 (v3.26).
 The so called "Secure DjVu" format is not supported as this specification was never published. Project was started several years ago
 by [Telavian](https://github.com/Telavian) and after remaining inactive for some time currently is continued at new
-[GitHub DjvuNet](https://github.com/DjvuNet) repo location. *Code is not production ready.* There are known bugs but it should work on large number of djvu
-files (obviously it's still only a subset of all DjVu files which can be found out in the wild). Therefore, use it at your own risk and do not blame us for any of your problems.
+[GitHub DjvuNet](https://github.com/DjvuNet) repo location. *Code is not production ready and still early in development. You should expect bugs, incomplete features, and API breakage as we work to improve it.* There are known bugs but anyway it should work on large number of djvu files (obviously it's still only a subset of all DjVu files which can be found out in the wild). Therefore, use it at your own risk and do not blame us for any of your problems.
 
 ## Current Status
 
-*DjvuNet library is not ready for production use*. There are several known bugs which need to be fixed and missing features which need to be implemented first
-before library could be treated as production ready or fully functional. Furthermore, there are some bugs in image decoder that leave some of images distorted making them useless.
+*DjvuNet library is not ready for production use and is still in early development.* There are several known bugs which need to be fixed and missing features which need to be implemented first
+before library could be treated as production ready or fully functional. Furthermore, there are some bugs in image decoder that leave some of images distorted.
 
-Library supports full .NET Framework 4.7.2 or newer on Windows and .NET Core 3.0.0 or newer on Windows, Linux, macOS.
+Library supports full .NET Framework 4.7.2 or newer on Windows and .NET Core 10.0.0 or newer on Windows, Linux, macOS.
 
 Project undergoes several architectural and implementations changes, which are done in "dev" branch.
 
@@ -49,7 +48,7 @@ around 85% code coverage using 2 586 test cases with implementation target being
 
 ## DjVu Format Support Validation
 
-Full library format handling validation is realized by using [DjVuLibre](http://djvu.sourceforge.net/) reference library implementation of DjVu format and supporting tools.
+Full library format handling validation is realized by using [DjVuLibre](http://djvu.sourceforge.net/) reference library implementation of DjVu format and supporting tools. Our github mirror of DjVuLibre is available here: [DjVuLibre for DjvuNet](https://github.com/DjvuNet/DjVuLibre).
 .NET Bindings for majority of C API are available in DjvuNet.DjvuLibre project. It builds for
 x86 and x64 targets only. Perhaps AnyCPU target will be available via NuGet packaging or alternatively via embedding of native binaries
 in managed assembly - the issue is still open.
@@ -62,25 +61,15 @@ Modified library used for testing DjvuNet implementation of DjVu format is avail
 
 Due to more restrictive licensing conditions of DjVuLibre .NET bindings project DjvuNet.DjvuLibre is double licensed under MIT and GPL v2 licenses.
 
-DjvuNet is developed as part of larger effort to create scientific information analysis and understanding framework.
-
-Steps in data analysis comprise data retrieval, reading of data and data conversion into format which later can be processed further. This project covers ssmall part of the pipline dealing with input of data encoded in DjVu format.
-
-## License
-
-DjvuNet is licensed under [MIT license](https://opensource.org/licenses/mit-license.php).
-
-DjvuNet.DjvuLibre is double licensed under [MIT license](https://opensource.org/licenses/mit-license.php) and [GPL v2](https://opensource.org/licenses/GPL-2.0) or later.
-
-DjVuLibre used for format support validation is licensed under [GPL v2](https://opensource.org/licenses/GPL-2.0) or later.
-
 ## Building
 
-### Windows for .NET Core 3.0 and later
+### Windows for .NET Core 10.0 LTS
 
 #### Prerequisites
 
-- Visual Studio 2019 RTM v16.3 with at least following workloads: .NET desktop development, desktop development with C++, .NET Core cross-platform development
+- Visual Studio 2026 v18 with at least following workloads: .NET desktop development, desktop development with C++, .NET Core cross-platform development
+
+- or alternatively to Visual Studio 2026 v18 one can use .NET Core SDK command line tools with any code editor and Visual Studio build tools (tested with Visual Studio Build Tools 2026 v18.4)
 
 - Git
 
@@ -88,9 +77,11 @@ DjVuLibre used for format support validation is licensed under [GPL v2](https://
 
 #### Building
 
-Building from command line on Windows (tested on Windows 10 with Visual Studio 2019 v16.3 installed).
+* Building and testing is easily done with help of build.sh / build.cmd scripts which are located in root directory of DjvuNet repository. It accepts multiple configuration parameters and can be used to build and test all targets with one command line. It automatically clones and downloads all required repos and dependencies.*
 
-Open Visual Studio 2019 developer command prompt and clone repository
+Building from command line on Windows (tested on Windows 11 with Visual Studio 2026 v18.4 installed).
+
+Open Visual Studio 2026 developer command prompt and clone repository
 `````
 git clone https://github.com/DjvuNet/DjvuNet.git
 `````
@@ -100,16 +91,16 @@ cd djvunet
 `````
 Here one can run build.cmd script from command line (command accepts multiple configuration parameters)
 `````
-build -p x86 -c Release -t Rebuild -Test -f netcoreapp3.0 (execute build -h to see all available options)
+build -p x64 -c Release -t Rebuild -Test -f netcoreapp10.0 (execute build -h to see all available options)
 `````
 Available configurations:
 `````
 Debug, Release  (example: -c Debug),  default value Debug
 `````
 Available platforms:
-DjvuNet.DjvuLibre and libdjvulibre are built only for x86 and x64 platforms
+DjvuNet.DjvuLibre and libdjvulibre are built only for x64 platforms - x86 is no longer tested and is not supported by CI builds, however, it should be possible to build locally.
 `````
-x86, x64, arm, arm64 (example -p x64, default value AnyCPU is temporarily not supported for CI builds)
+x64, x86, arm64, arm (example -p x64, default dotnet value AnyCPU is not supported for CI builds)
 `````
 Available targets:
 `````
@@ -134,14 +125,14 @@ All tests should pass except for skipped.
 
 Performance tests can be run with help of DjvuNetTest project.
 
-### Windows for netstandard2.1 or netcoreapp3.0 target
+### Windows for netcoreapp10.0 target
 
 #### Prerequisites
 
-Visual Studio 2019 v16.3 with the following workloads: .NET desktop development, desktop development with C++, .NET Core cross-platform development
-VS 2019 versions can be installed side by side and preview version can be safely used side by side with RTM versions.
+Visual Studio 2026 v18 with the following workloads: .NET desktop development, desktop development with C++, .NET Core cross-platform development
+VS 2026 versions can be installed side by side and preview version can be safely used side by side with RTM versions.
 
-- .NET Core 3.0.100 SDK
+- .NET Core 10.0.203 SDK
 
 - Git
 
@@ -149,9 +140,9 @@ VS 2019 versions can be installed side by side and preview version can be safely
 
 #### Building
 
-Building from command line on Windows (tested on Windows 10 with Visual Studio 2019 v16.3 installed).
+Building from command line on Windows (tested on Windows 11 with Visual Studio 2026 v18.4 installed).
 
-Open Visual Studio 2019 developer command prompt and clone repository
+Open Visual Studio 2026 developer command prompt and clone repository
 `````
 git clone https://github.com/DjvuNet/DjvuNet.git
 `````
@@ -183,55 +174,17 @@ command line switches to build script:
 build -c {Configuration} -p {Platform} -f {Framework} -Test -sn
 `````
 
-### Linux for netstandard2.1 / netcoreapp3.0 target
-
-### Temporarily not supported by scripts, however, one can build manually (below instructions are out of date)
+### Linux for netcoreapp10.0 target
 
 #### Prerequisites
 
-Tested on Ubuntu 18.04.
+Tested on Ubuntu 24.04 and 26.04, however, it should work on other distributions as well.
 
 Install required tools and dependencies:
 
 `````
 sudo apt-get update
 sudo apt-get install git zip unzip curl libgdiplus
-`````
-
-Install .NET Core 3.0.100 SDK (check for latest instructions [here](https://github.com/dotnet/docs/blob/master/docs/core/linux-prerequisites.md#install-net-core-for-ubuntu-1404-ubuntu-1604-ubuntu-1610--linux-mint-17-linux-mint-18-64-bit)):
-
-1. Remove any previous preview versions of .NET Core from your system.
-2. Register the Microsoft Product key as trusted.
-`````
-curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > microsoft.gpg
-sudo mv microsoft.gpg /etc/apt/trusted.gpg.d/microsoft.gpg
-`````
-3. Set up the desired version host package feed.
-
-Ubuntu 17.04
-`````
-sudo sh -c 'echo "deb [arch=amd64] https://packages.microsoft.com/repos/microsoft-ubuntu-zesty-prod zesty main" > /etc/apt/sources.list.d/dotnetdev.list'
-sudo apt-get update
-`````
-
-Ubuntu 16.04 / Linux Mint 18
-`````
-sudo sh -c 'echo "deb [arch=amd64] https://packages.microsoft.com/repos/microsoft-ubuntu-xenial-prod xenial main" > /etc/apt/sources.list.d/dotnetdev.list'
-sudo apt-get update
-`````
-
-Ubuntu 14.04 / Linux Mint 17
-`````
-sudo sh -c 'echo "deb [arch=amd64] https://packages.microsoft.com/repos/microsoft-ubuntu-trusty-prod trusty main" > /etc/apt/sources.list.d/dotnetdev.list'
-sudo apt-get update
-`````
-4. Install .NET Core.
-`````
-sudo apt-get install dotnet-sdk-2.0.0
-`````
-5. Run the dotnet --version command to prove the installation succeeded.
-`````
-dotnet --version
 `````
 
 #### Building
@@ -246,50 +199,51 @@ Change directory to cloned DjvuNet repo:
 cd DjvuNet
 `````
 
-Restore dependencies
-`````
-dotnet restore DjvuNet.Core.sln
-`````
+Use build script * build.sh * which will automatically install required .NET Core SDK version in repo for local use or install .NET Core 10.0.203 SDK manually. Provided .build.sh script will default to installed .NET Core SDK if version is compatible with required version for building defined global.json file and SDK tools are in PATH, otherwise, it will install required version locally in repo in Tools/dotnetcli directoryand use it for building. Build script accepts multiple configuration parameters and can be used to build and test all targets with one command line - run *./build.sh -h* to see all available options and defaults.
 
-Build either netstandard2.0 or netcoreapp2.0 target
+Building with script:
 `````
-# For netstandard2.0 build
-cd DjvuNet.NETStandard2.0
-dotnet build -c Release
-
-# For netcoreapp2.0 build
-cd DjvuNet.Core
-dotnet build -c Release
+./build.sh -t Rebuild -c Release -p x64 -f netcoreapp10.0
 `````
 
 #### Testing
 
-Download required test artifacts into DjvuNet repository root and extract them to artifacts directory:
+The easiest way to run tests is to use build.sh script with -Test command line switch. Script will automatically download required test artifacts if not present, build the repository, and run tests:
 `````
-curl -L -o artifacts.zip -s https://github.com/DjvuNet/artifacts/releases/download/v0.7.0.11/artifacts.zip
+./build.sh -t Build -c Release -p x64 -f netcoreapp10.0 -Test
+`````
+
+If you want to build tests only and run them manually use -BuildTests switch:
+`````
+./build.sh -t Build -c Release -p x64 -f netcoreapp10.0 -BuildTests
+`````
+
+Required for tests data and files can be downloaded manually - use latest available release.
+`````
+curl -L -o artifacts.zip -s https://github.com/DjvuNet/artifacts/releases/download/{latest}/artifacts.zip
 unzip -q artifacts.zip -d artifacts
 `````
 
 Build and run DjvuNet tests (commands are starting from repo root):
 `````
-cd DjvuNet.Tests.Core
+cd DjvuNet.Tests
 dotnet build -c Release
-dotnet xunit -configuration Release -parallel none -nobuild -notrait Category=SkipNetCoreApp -framework netcoreapp2.0
+dotnet publish -c Release
+dotnet publish/path/DjvuNet.Tests.dll
 
 # Return to repo root
 cd ..
 
-cd DjvuNet.Wavelet.Tests.Core
+cd DjvuNet.Wavelet.Tests
 dotnet build -c Release
-dotnet xunit -configuration Release -parallel none -nobuild -notrait Category=SkipNetCoreApp -framework netcoreapp2.0
+dotnet publish -c Release
+dotnet publish/path/DjvuNet.Wavelet.Tests.dll
 `````
 
 
-### macOS for netstandard2.1 / netcoreapp3.0 target
+### macOS for netcoreapp10.0 target
 
-### Temporarily not supported by scripts, however, one can build manually (below instructions are out of date)
-
-Supported on macOS 10.12 "Sierra" and later versions
+### Temporarily not supported by scripts and not tested after dependency updates, however, one can try to build manually following Linux instructions as there should be no significant differences in build and test process on macOS. We will try to fix scripts and test on macOS as soon as possible.
 
 #### Prerequisites
 
@@ -334,11 +288,6 @@ using(DjvuDocument doc = new DjvuDocument("Mcguffey's_Primer.djvu"))
     }
 }
 `````
-## Known Issues
-
-- Tests for .NET Core cannot be run from Visual Studio
-
-- Tests for .NET Standard targeting libraries have to be compiled as netcoreapp3.0 binaries as xunit does not support netstandard2.1 binaries testing
 
 ## Reporting Issues
 
@@ -346,3 +295,11 @@ In case of build, test or DjvuNet library usage problems open new issue in [GitH
 detailed information on error (logs, command line output, stack trace, minidump) and used system.
 
 We will try to adress all problems quickly unless they depend on missing features or known bugs which will be implemented or fixed according to our roadmap.
+
+## License
+
+DjvuNet is licensed under [MIT license](https://opensource.org/licenses/mit-license.php).
+
+DjvuNet.DjvuLibre is double licensed under [MIT license](https://opensource.org/licenses/mit-license.php) and [GPL v2](https://opensource.org/licenses/GPL-2.0) or later.
+
+DjVuLibre used for format support validation is licensed under [GPL v2](https://opensource.org/licenses/GPL-2.0) or later.

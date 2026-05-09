@@ -75,9 +75,11 @@ namespace DjvuNet.Wavelet.Tests.Graphics
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(ReadHeaderData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void ReadHeader_Theory(string fileFormat, byte[] headerBuffer)
         {
             using (MemoryStream ms = new MemoryStream(headerBuffer))
@@ -87,9 +89,11 @@ namespace DjvuNet.Wavelet.Tests.Graphics
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(ReadHeaderDataWithErrors))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void ReadHeaderWithError_Theory(string fileFormat, byte[] headerBuffer)
         {
             using (MemoryStream ms = new MemoryStream(headerBuffer))

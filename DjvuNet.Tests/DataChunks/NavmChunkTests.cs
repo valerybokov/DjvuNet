@@ -38,7 +38,9 @@ namespace DjvuNet.DataChunks.Tests
 
         [DjvuTheory]
         [MemberData(nameof(NavmTestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void NavmChunk_Theory(string file)
         {
             Mock<IDjvuDocument> docMock = new Mock<IDjvuDocument>();

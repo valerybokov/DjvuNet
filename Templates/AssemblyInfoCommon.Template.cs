@@ -17,6 +17,6 @@ using System.Runtime.InteropServices;
 
 
 [assembly: AssemblyVersion("__LIBRARY_VERSION__")]
-[assembly: AssemblyFileVersion("__LIBRARY_FULL_VERSION__")]
+[assembly: AssemblyFileVersion("__LIBRARY_VERSION__")]
 [assembly: AssemblyInformationalVersion("__LIBRARY_FULL_VERSION__ @Branch: __LIBRARY_REPO_BRANCH__ @SrcCode: https://github.com/DjvuNet/DjvuNet/tree/__LIBRARY_COMMIT__")]
 

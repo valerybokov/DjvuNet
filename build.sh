@@ -5,23 +5,39 @@
 
 usage()
 {
-    echo "Usage: $0 [BuildArch] [BuildType] [-verbose] [-coverage] [-cross] [-clangx.y] [-ninja] [-skipnative] [-skiptests] [-bindir]"
-    echo "BuildArch can be: -x64, -x86, -arm, -armel, -arm64"
-    echo "BuildType can be: -debug, -release"
-    echo "-clangx.y - optional argument to build using clang version x.y."
-    echo "-cross - optional argument to signify cross compilation,"
-    echo "       - will use ROOTFS_DIR environment variable if set."
-    echo "-skipnative - do not build native components."
-    echo "-skiptests - skip the tests in the 'tests' subdirectory."
-    echo "-skipcrossgen - skip native image generation"
-    echo "-verbose - optional argument to enable verbose build output."
-    echo "-skiprestore: skip restoring packages ^(default: packages are restored during build^)."
-    echo "-Rebuild: passes /t:rebuild to the build projects."
-    echo "-skipgenerateversion - disable version generation even if MSBuild is supported."
-    echo "-ignorewarnings - do not treat warnings as errors - default true"
-    echo "-bindir - output directory (defaults to $__ProjectRoot/bin)"
-    echo "-numproc - set the number of build processes."
-    exit 1
+    echo ""
+    echo "Usage: $0 [options]"
+    echo ""
+    echo "Options:"
+    echo ""
+    echo "  -c, -Configuration <config>    Build configuration (Debug, Release, Checked). Default: Debug."
+    echo ""
+    echo "  -p, -Platform <platform>       Build platform (x64, x86, arm, armel, arm64, anycpu). Default: x64."
+    echo ""
+    echo "  -t, -Target <target>           MSBuild target (Build, Rebuild, Clean, Pack). Default: Build."
+    echo ""
+    echo "  -f, -Framework <tfm>           Target framework (net10.0, netstandard2.1, net472). Default: net10.0."
+    echo ""
+    echo "  -DjvuNet, -BuildDjvuNet        Build the core DjvuNet managed projects. Default: True."
+    echo ""
+    echo "  -bt, -BuildTests               Build the test projects. Default: False."
+    echo ""
+    echo "  -rt, -RunTests                 Build and run the test projects. Default: False."
+    echo ""
+    echo "  -Test                          Alias for -RunTests. Build and run the test projects."
+    echo ""
+    echo "  -sn, -SkipNative               Skip cloning, building, and testing of native components"
+    echo "                                 (libdjvulibre) and its managed wrapper (DjvuNet.DjvuLibre)."
+    echo "                                 When omitted, native dependencies are processed (SkipNative=False)."
+    echo ""
+    echo "  -v, -Verbosity <level>         Verbosity (q[uiet], m[inimal], n[ormal], d[etailed], diag[nostic]). Default: normal."
+    echo ""
+    echo "  -proc, -Processors <count>     Number of build processes. Default: number of logical processors."
+    echo ""
+    echo "  -OS <os>                       Target OS (Windows_NT, Linux, OSX). Default: Linux."
+    echo ""
+    echo "  -h, --help                     Show this usage message."
+    echo ""
 }
 
 initHostDistroRid()
@@ -54,7 +70,7 @@ initHostDistroRid()
 
 initTargetDistroRid()
 {
-    if [ $__CrossBuild == 1 ]; then
+    if [ "$__CrossBuild" == "1" ]; then
         if [ "$__BuildOS" == "Linux" ]; then
             if [ ! -e $ROOTFS_DIR/etc/os-release ]; then
                 if [ -e $ROOTFS_DIR/android_platform ]; then
@@ -94,7 +110,7 @@ setup_dirs()
     mkdir -p "$__LogsDir"
     mkdir -p "$__IntermediatesDir"
 
-    if [ $__CrossBuild == 1 ]; then
+    if [ "$__CrossBuild" == "1" ]; then
         mkdir -p "$__CrossComponentBinDir"
         mkdir -p "$__CrossCompIntermediatesDir"
     fi
@@ -108,41 +124,37 @@ check_prereqs()
 
     success=1
 
-    # Check presence of dotnet sdk at least 2.0
-    hash dotnet 2>/dev/null
-    if ! [[ $? -eq 0 ]]; then
-        echo "dotnet not installed";
-        success=0;
+    # Check if system dotnet exists AND satisfies global.json
+    __LocalDotNet=1
+    if ! hash dotnet 2>/dev/null; then
+        __LocalDotNet=0
     else
-        __DotnetVer=$(dotnet --version)
-        printf -v int '%d\n' $__DotnetVer 2>/dev/null
-        if [[ $int -ge 2 ]]; then
-            echo "dotnet $__DotnetVer installed"
-            __MSBuildVer=$(dotnet msbuild /nologo /version)
-            if [[ -z $__MSBuildVer ]]; then
-                echo "dotnet sdk not installed $__MSBuildVer"
-                success=0
-            else
-                versionLines=$(echo $__MSBuildVer | tr "." "\n")
-                index=0
-                for d in $versionLines
-                do
-                    verDigits[$index]=$d
-                    index=$(( $index + 1 ))
-                done
-
-                if [[ ( ${verDigits[0]} -eq 15 && ${verDigits[1]} -ge 3 ) || ${verDigits[0]} -gt 15 ]]; then
-                    echo "msbuild $__MSBuildVer installed"
-                else
-                    echo "Please install newer dotnet sdk. Current MSBuild version $__MSBuildVer."
-                    success=0
-                fi
-            fi
-        else
-            echo "Please install dotnet sdk version 2.0.0 or newer before running this script."
-            echo "Current dotnet version: $__DotnetVer"
-            success=0
+        # dotnet --version respects global.json. It returns 0 if satisfied, 1 if not.
+        if ! __DotnetVer=$(dotnet --version 2>/dev/null); then
+            __LocalDotNet=0
         fi
+    fi
+if [ "$__LocalDotNet" == "0" ]; then
+    echo "System dotnet is missing or does not satisfy global.json. Falling back to local tools..."
+    # Let init-tools.sh determine the highly specific directory name or calculate it here
+    __LocalDotNetDir="$__ProjectRoot/Tools/coreclr/dotnetcli/$__OSName/$__Libc/$__ArchName"
+    bash "$__ProjectRoot/init-tools.sh" "$__LocalDotNetDir"
+    if [ $? -ne 0 ]; then
+        echo "Error initializing tools."
+        exit 1
+    fi
+    export PATH="${__LocalDotNetDir}:$PATH"
+    __DotnetVer=$(dotnet --version)
+fi
+export __DotnetCmd="dotnet"
+
+echo "dotnet $__DotnetVer installed"
+    __MSBuildVer=$(dotnet msbuild /nologo /version)
+    if [[ -z "$__MSBuildVer" ]]; then
+        echo "dotnet sdk not installed $__MSBuildVer"
+        success=0
+    else
+        echo "msbuild $__MSBuildVer installed"
     fi
 
     # Check presence of git on the path
@@ -224,7 +236,7 @@ build_native()
         fi
     fi
 
-    if [ $__SkipConfigure == 0 ]; then
+    if [ "$__SkipConfigure" == "0" ]; then
         # if msbuild is not supported, then set __SkipGenerateVersion to 1
         if [ $__isMSBuildOnNETCoreSupported == 0 ]; then __SkipGenerateVersion=1; fi
         # Drop version.cpp file
@@ -399,7 +411,7 @@ generate_NugetPackages()
     fi
 }
 
-echo ; echo "Commencing DjvuNet Repo build"; date; echo "";
+echo ; echo "BUILD: Starting Build of DjvuNet at $(date +"%Y-%m-%d %H:%M:%S.%2N")"; echo "";
 
 # Argument types supported by this script:
 #
@@ -411,130 +423,70 @@ echo ; echo "Commencing DjvuNet Repo build"; date; echo "";
 # Obtain the location of the bash script to figure out where the root of the repo is.
 __ProjectRoot="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Use uname to determine what the CPU is.
-CPUName=$(uname -p)
-# Some Linux platforms report unknown for platform, but the arch for machine.
-if [ "$CPUName" == "unknown" ]; then
-    CPUName=$(uname -m)
+# Detect OS Family based on TestPlatforms matrix
+__UnameOS=$(uname -s | tr '[:upper:]' '[:lower:]')
+case $__UnameOS in
+    linux)   
+        # Differentiate Android from standard Linux
+        if [ -n "$ANDROID_STORAGE" ] || [ -d "/system/app" ]; then __OSName="android"; else __OSName="linux"; fi 
+        ;;
+    darwin)  
+        # Differentiate iOS/tvOS/MacCatalyst from OSX natively if possible, default to osx
+        if [ "$TARGET_OS" == "ios" ]; then __OSName="ios"; 
+        elif [ "$TARGET_OS" == "tvos" ]; then __OSName="tvos";
+        elif [ "$TARGET_OS" == "maccatalyst" ]; then __OSName="maccatalyst";
+        else __OSName="osx"; fi
+        ;;
+    freebsd) __OSName="freebsd" ;;
+    netbsd)  __OSName="netbsd" ;;
+    openbsd) __OSName="openbsd" ;;
+    sunos)   
+        # Differentiate illumos from legacy Solaris
+        if uname -v | grep -qi "illumos"; then __OSName="illumos"; else __OSName="solaris"; fi
+        ;;
+    haiku)   __OSName="haiku" ;;
+    wasi)    __OSName="wasi" ;;
+    *)       __OSName="$__UnameOS" ;;
+esac
+
+# Detect Libc Variant (Crucial for Linux permutations)
+__Libc="gnu"
+if [ "$__OSName" == "linux" ]; then
+    if [ -f /etc/alpine-release ] || (command -v ldd >/dev/null && ldd --version 2>&1 | grep -q "musl"); then
+        __Libc="musl"
+    elif [ -n "$ANDROID_STORAGE" ] || (command -v ldd >/dev/null && ldd --version 2>&1 | grep -q "bionic"); then
+        __Libc="bionic"
+    fi
+elif [[ "$__OSName" == "osx" || "$__OSName" == "ios" || "$__OSName" == "tvos" || "$__OSName" == "maccatalyst" ]]; then
+    __Libc="darwin"
+elif [[ "$__OSName" == *"bsd" ]]; then
+    __Libc="bsd"
+elif [[ "$__OSName" == "solaris" || "$__OSName" == "illumos" ]]; then
+    __Libc="sun"
+elif [ "$__OSName" == "android" ]; then
+    __Libc="bionic"
 fi
 
-case $CPUName in
-    i686)
-        echo "Unsupported CPU $CPUName detected, build might not succeed!"
-        __BuildArch=x86
-        __HostArch=x86
-        ;;
-
-    x86_64)
-        __BuildArch=x64
-        __HostArch=x64
-        ;;
-
-    armv7l)
-        echo "Unsupported CPU $CPUName detected, build might not succeed!"
-        __BuildArch=arm
-        __HostArch=arm
-        ;;
-
-    aarch64)
-        __BuildArch=arm64
-        __HostArch=arm64
-        ;;
-
-    amd64)
-        __BuildArch=x64
-        __HostArch=x64
-        ;;
-    *)
-        echo "Unknown CPU $CPUName detected, configuring as if for x64"
-        __BuildArch=x64
-        __HostArch=x64
-        ;;
+# Detect Architecture
+__UnameArch=$(uname -m | tr '[:upper:]' '[:lower:]')
+case $__UnameArch in
+    x86_64|amd64)    __ArchName="x64" ;;
+    aarch64|arm64)   __ArchName="arm64" ;;
+    armv7l|armv8l|armhf) __ArchName="arm" ;;
+    i386|i486|i586|i686) __ArchName="x86" ;;
+    s390x)           __ArchName="s390x" ;;
+    ppc64le)         __ArchName="ppc64le" ;;
+    riscv64)         __ArchName="riscv64" ;;
+    wasm32)          __ArchName="wasm" ;;
+    *)               __ArchName="$__UnameArch" ;;
 esac
 
-# Use uname to determine what the OS is.
-OSName=$(uname -s)
-case $OSName in
-    Linux)
-        __BuildOS=Linux
-        __HostOS=Linux
-        ;;
-
-    Darwin)
-        __BuildOS=OSX
-        __HostOS=OSX
-        ;;
-
-    FreeBSD)
-        __BuildOS=FreeBSD
-        __HostOS=FreeBSD
-        ;;
-
-    OpenBSD)
-        __BuildOS=OpenBSD
-        __HostOS=OpenBSD
-        ;;
-
-    NetBSD)
-        __BuildOS=NetBSD
-        __HostOS=NetBSD
-        ;;
-
-    SunOS)
-        __BuildOS=SunOS
-        __HostOS=SunOS
-        ;;
-
-    *)
-        echo "Unsupported OS $OSName detected, configuring as if for Linux"
-        __BuildOS=Linux
-        __HostOS=Linux
-        ;;
-esac
-
-__BuildType=Debug
-__CodeCoverage=
-__IncludeTests=Include_Tests
-__IgnoreWarnings=0
-
-# Set the various build properties here so that CMake and MSBuild can pick them up
-__ProjectDir="$__ProjectRoot"
-__SourceDir="$__ProjectDir/src"
-__PackagesDir="$__ProjectDir/packages"
-__RootBinDir="$__ProjectDir/bin"
-__UnprocessedBuildArgs=
-__RunArgs=
-__MSBCleanBuildArgs=
-__UseNinja=0
-__VerboseBuild=0
-__PgoInstrument=0
-__PgoOptimize=1
-__IbcTuning=""
-__ConfigureOnly=0
-__SkipConfigure=0
-__SkipRestore=""
-__SkipNuget=0
-__SkipCoreCLR=0
-__SkipMSCorLib=0
-__SkipRestoreOptData=0
-__SkipCrossgen=0
-__CrossBuild=0
-__ClangMajorVersion=0
-__ClangMinorVersion=0
-__NuGetPath="$__PackagesDir/NuGet.exe"
-__HostDistroRid=""
-__DistroRid=""
-__cmakeargs=""
-__SkipGenerateVersion=0
-__DoCrossArchBuild=0
-__PortableBuild=1
-__msbuildonunsupportedplatform=0
-__PgoOptDataVersion=""
-__IbcOptDataVersion=""
+__BuildOS=$__OSName
+__HostOS=$__OSName
+__BuildArch=$__ArchName
+__HostArch=$__ArchName
 
 # Get the number of processors available to the scheduler
-# Other techniques such as `nproc` only get the number of
-# processors available to a single process.
 if [ `uname` = "FreeBSD" ]; then
   __NumProc=`sysctl hw.ncpu | awk '{ print $2+1 }'`
 elif [ `uname` = "NetBSD" ]; then
@@ -545,252 +497,114 @@ else
   __NumProc=$(nproc --all)
 fi
 
-while :; do
-    if [ $# -le 0 ]; then
-        break
-    fi
+# Set default values
+_MSB_Target="Build"
+_MSB_Configuration="Debug"
+_MSB_Platform="x64"
+_Verbosity="normal"
+_Processors=$__NumProc
+_OS="Linux"
+_SkipNative=""
+_BuildDjvuNet="1"
+_BuildTests=""
+_RunTests=""
+_Test=""
+_Pack=""
+_DefaultNetCoreApp="net10.0"
+_NetCoreAppId=".NETCoreApp"
+_NetCoreAppTFM=".NETCoreApp,Version=v10.0"
+_DefaultNetStandard="netstandard2.1"
+_NetStandardId=".NETStandard"
+_NetStandardTFM=".NETStandard,Version=v2.1"
+_Framework="$_DefaultNetCoreApp"
 
-    lowerI="$(echo $1 | awk '{print tolower($0)}')"
-    case $lowerI in
-        -\?|-h|--help)
-            usage
-            exit 1
-            ;;
-
-        x86|-x86)
-            __BuildArch=x86
-            ;;
-
-        x64|-x64)
-            __BuildArch=x64
-            ;;
-
-        arm|-arm)
-            __BuildArch=arm
-            ;;
-
-        armel|-armel)
-            __BuildArch=armel
-            ;;
-
-        arm64|-arm64)
-            __BuildArch=arm64
-            ;;
-
-        debug|-debug)
-            __BuildType=Debug
-            ;;
-
-        checked|-checked)
-            __BuildType=Checked
-            ;;
-
-        release|-release)
-            __BuildType=Release
-            ;;
-
-        coverage|-coverage)
-            __CodeCoverage=Coverage
-            ;;
-
-        cross|-cross)
-            __CrossBuild=1
-            ;;
-
-        -portablebuild=false)
-            __PortableBuild=0
-            ;;
-
-        verbose|-verbose)
-            __VerboseBuild=1
-            ;;
-
-        stripsymbols|-stripsymbols)
-            __cmakeargs="$__cmakeargs -DSTRIP_SYMBOLS=true"
-            ;;
-
-        clang3.5|-clang3.5)
-            __ClangMajorVersion=3
-            __ClangMinorVersion=5
-            ;;
-
-        clang3.6|-clang3.6)
-            __ClangMajorVersion=3
-            __ClangMinorVersion=6
-            ;;
-
-        clang3.7|-clang3.7)
-            __ClangMajorVersion=3
-            __ClangMinorVersion=7
-            ;;
-
-        clang3.8|-clang3.8)
-            __ClangMajorVersion=3
-            __ClangMinorVersion=8
-            ;;
-
-        clang3.9|-clang3.9)
-            __ClangMajorVersion=3
-            __ClangMinorVersion=9
-            ;;
-
-        clang4.0|-clang4.0)
-            __ClangMajorVersion=4
-            __ClangMinorVersion=0
-            ;;
-
-        clang5.0|-clang5.0)
-            __ClangMajorVersion=5
-            __ClangMinorVersion=0
-            ;;
-
-        clang6.0|-clang6.0)
-            __ClangMajorVersion=6
-            __ClangMinorVersion=0
-            ;;
-
-        clang7.0|-clang7.0)
-            __ClangMajorVersion=7
-            __ClangMinorVersion=0
-            ;;
-
-        ninja|-ninja)
-            __UseNinja=1
-            ;;
-
-        pgoinstrument|-pgoinstrument)
-            __PgoInstrument=1
-            ;;
-
-        nopgooptimize|-nopgooptimize)
-            __PgoOptimize=0
-            __SkipRestoreOptData=1
-            ;;
-
-        ibcinstrument|-ibcinstrument)
-            __IbcTuning="/Tuning"
-            ;;
-
-        configureonly|-configureonly)
-            __ConfigureOnly=1
-            __SkipMSCorLib=1
-            __SkipNuget=1
-            ;;
-
-        skipconfigure|-skipconfigure)
-            __SkipConfigure=1
-            ;;
-
-        skipnative|-skipnative)
-            # Use "skipnative" to use the same option name as build.cmd.
-            __SkipCoreCLR=1
-            ;;
-
-        skipcoreclr|-skipcoreclr)
-            # Accept "skipcoreclr" for backwards-compatibility.
-            __SkipCoreCLR=1
-            ;;
-
-        crosscomponent|-crosscomponent)
-            __DoCrossArchBuild=1
-            ;;
-
-        skipmscorlib|-skipmscorlib)
-            __SkipMSCorLib=1
-            ;;
-
-        skipgenerateversion|-skipgenerateversion)
-            __SkipGenerateVersion=1
-            ;;
-
-        skiprestoreoptdata|-skiprestoreoptdata)
-            __SkipRestoreOptData=1
-            ;;
-
-        skipcrossgen|-skipcrossgen)
-            __SkipCrossgen=1
-            ;;
-
-        includetests|-includetests)
-            ;;
-
-        skiptests|-skiptests)
-            __IncludeTests=
-            ;;
-
-        skipnuget|-skipnuget)
-            __SkipNuget=1
-            ;;
-
-        ignorewarnings|-ignorewarnings)
-            __IgnoreWarnings=1
-            __cmakeargs="$__cmakeargs -DCLR_CMAKE_WARNINGS_ARE_ERRORS=OFF"
-            ;;
-
-        cmakeargs|-cmakeargs)
-            if [ -n "$2" ]; then
-                __cmakeargs="$__cmakeargs $2"
-                shift
-            else
-                echo "ERROR: 'cmakeargs' requires a non-empty option argument"
-                exit 1
-            fi
-            ;;
-
-        bindir|-bindir)
-            if [ -n "$2" ]; then
-                __RootBinDir="$2"
-                if [ ! -d $__RootBinDir ]; then
-                    mkdir $__RootBinDir
-                fi
-                __RootBinParent=$(dirname $__RootBinDir)
-                __RootBinName=${__RootBinDir##*/}
-                __RootBinDir="$(cd $__RootBinParent &>/dev/null && printf %s/%s $PWD $__RootBinName)"
-                shift
-            else
-                echo "ERROR: 'bindir' requires a non-empty option argument"
-                exit 1
-            fi
-            ;;
-        buildstandalonegc|-buildstandalonegc)
-            __cmakeargs="$__cmakeargs -DFEATURE_STANDALONE_GC=1 -DFEATURE_STANDALONE_GC_ONLY=1"
-            ;;
-        msbuildonunsupportedplatform|-msbuildonunsupportedplatform)
-            __msbuildonunsupportedplatform=1
-            ;;
-        numproc|-numproc)
-            if [ -n "$2" ]; then
-              __NumProc="$2"
-              shift
-            else
-              echo "ERROR: 'numproc' requires a non-empty option argument"
-              exit 1
-            fi
-            ;;
-        osgroup|-osgroup)
-            if [ -n "$2" ]; then
-              __BuildOS="$2"
-              shift
-            else
-              echo "ERROR: 'osgroup' requires a non-empty option argument"
-              exit 1
-            fi
-            ;;
-
+# Parse command line
+while [[ $# -gt 0 ]]; do
+    key="$1"
+    case $key in
+        -Configuration|-c)
+        _MSB_Configuration="$2"; shift 2 ;;
+        -Platform|-p)
+        _MSB_Platform="$2"; shift 2 ;;
+        -Target|-t)
+        _MSB_Target="$2"; shift 2 ;;
+        -BuildDjvuNet|-DjvuNet)
+        _BuildDjvuNet=1; shift 1 ;;
+        -BuildTests|-bt)
+        _BuildTests=1; shift 1 ;;
+        -RunTests|-rt)
+        _RunTests=1; shift 1 ;;
+        -Test)
+        _Test=1; shift 1 ;;
+        -Framework|-f)
+        _Framework="$2"; shift 2 ;;
+        -SkipNative|-sn)
+        _SkipNative=1; shift 1 ;;
+        -Verbosity|-v)
+        _Verbosity="$2"; shift 2 ;;
+        -Processors|-proc)
+        _Processors="$2"; shift 2 ;;
+        -OS)
+        _OS="$2"; shift 2 ;;
+        -h|--help)
+        usage
+        exit 0 ;;
         *)
-            __UnprocessedBuildArgs="$__UnprocessedBuildArgs $1"
-            ;;
+        echo "Unknown command line parameter: $1"; usage; exit 1 ;;
     esac
-
-    shift
 done
 
-__RunArgs="-BuildArch=$__BuildArch -BuildType=$__BuildType -BuildOS=$__BuildOS"
+# check_params
+_MSB_ConfigurationLower=$(echo "$_MSB_Configuration" | tr '[:upper:]' '[:lower:]')
+if [[ "$_MSB_ConfigurationLower" == "debug" ]]; then
+    _MSB_Configuration="Debug"
+elif [[ "$_MSB_ConfigurationLower" == "release" ]]; then
+    _MSB_Configuration="Release"
+else
+    echo "Invalid command line parameter -c/-Configuration: $_MSB_Configuration"; usage; exit 1
+fi
 
-# Configure environment if we are doing a verbose build
-if [ $__VerboseBuild == 1 ]; then
-    export VERBOSE=1
-    __RunArgs="$__RunArgs -verbose"
+_MSB_Platform=$(echo "$_MSB_Platform" | tr '[:upper:]' '[:lower:]')
+
+if [[ "$_MSB_Platform" == "arm" || "$_MSB_Platform" == "arm64" || "$_MSB_Platform" == "armel" ]]; then
+    __ManagedPlatform="AnyCPU"
+    if [[ "$__HostArch" == "x64" ]]; then __SkipNativeTests=1; fi
+elif [[ "$_MSB_Platform" == "anycpu" ]]; then
+    _MSB_Platform="x64"
+    __ManagedPlatform="AnyCPU"
+elif [[ "$_MSB_Platform" == "x64" ]]; then
+    _MSB_Platform="x64"
+    __ManagedPlatform="x64"
+elif [[ "$_MSB_Platform" == "x86" ]]; then
+    _MSB_Platform="x86"
+    __ManagedPlatform="x86"
+else
+    echo "Invalid command line parameter -p/-Platform: $_MSB_Platform"; usage; exit 1
+fi
+
+if [[ -z "$__ManagedPlatform" ]]; then __ManagedPlatform="$_MSB_Platform"; fi
+_MSB_TargetLower=$(echo "$_MSB_Target" | tr '[:upper:]' '[:lower:]')
+if [[ "$_MSB_TargetLower" == "clean" ]]; then __SkipPublish=1; fi
+
+# Accepted Framework values
+_FrameworkLower=$(echo "$_Framework" | tr '[:upper:]' '[:lower:]')
+_DefaultNetCoreAppLower=$(echo "$_DefaultNetCoreApp" | tr '[:upper:]' '[:lower:]')
+_DefaultNetStandardLower=$(echo "$_DefaultNetStandard" | tr '[:upper:]' '[:lower:]')
+if [[ "$_FrameworkLower" == "netcoreapp" || "$_FrameworkLower" == "$_DefaultNetCoreAppLower" ]]; then
+    _Framework="$_DefaultNetCoreApp"
+    __TargetFrameworkMoniker="$_NetCoreAppTFM"
+elif [[ "$_FrameworkLower" == "netstandard" || "$_FrameworkLower" == "$_DefaultNetStandardLower" ]]; then
+    _Framework="$_DefaultNetStandard"
+    TargetFrameworkIdentifier=".NETStandard"
+    __TargetFrameworkMoniker="$_NetStandardTFM"
+else
+    echo "Invalid command line parameter -f/-Framework: $_Framework"; usage; exit 1
+fi
+
+if [[ -n "$_Test" ]]; then _BuildDjvuNet=1; _BuildTests=1; _RunTests=1; fi
+
+if [[ -z "$_BuildDjvuNet" ]]; then
+    if [[ -n "$_BuildTests" ]]; then _BuildDjvuNet=1; fi
 fi
 
 # Set default clang version
@@ -820,7 +634,7 @@ if [ -z "$HOME" ]; then
 fi
 
 # Configure environment if we are doing a cross compile.
-if [ $__CrossBuild == 1 ]; then
+if [ "$__CrossBuild" == "1" ]; then
     export CROSSCOMPILE=1
     if ! [[ -n "$ROOTFS_DIR" ]]; then
         export ROOTFS_DIR="$__ProjectRoot/cross/rootfs/$__BuildArch"
@@ -830,15 +644,184 @@ fi
 # Check prerequisites
 check_prereqs
 
-# Build the libdjvulibre (native) components.
-# build_native
+__RootBuildDir="${__ProjectRoot}/build/bin/"
+__RuntimeIdentifier="linux-${_MSB_Platform}"
 
-# Build cross-architecture components
-if [[ $__CrossBuild == 1 && $__DoCrossArchBuild == 1 ]]; then
-    build_cross_arch_component
+__SystemAttrProj="System.Attributes/System.Attributes.csproj"
+__DjvuNetGitTasksProj="build/tools/DjvuNet.Git.Tasks/DjvuNet.Git.Tasks.csproj"
+__DjvuNetProj="DjvuNet/DjvuNet.csproj"
+__DjvuNetDjvuLibreProj="DjvuNet.DjvuLibre/DjvuNet.DjvuLibre.csproj"
+
+__OutputDir="${__RootBuildDir}${_OS}.${__ManagedPlatform}.${_MSB_Configuration}/binaries/${_Framework}/"
+__PublishDir="${__OutputDir}${__RuntimeIdentifier}/publish/"
+__LogsDir="${__RootBuildDir}${_OS}.${_MSB_Platform}.${_MSB_Configuration}/logs/"
+
+echo "BUILD: __OutputDir [${__OutputDir}]"
+echo "BUILD: __PublishDir [${__PublishDir}]"
+
+__BuildCommandArgs=("-p:Configuration=${_MSB_Configuration}" "-p:Platform=${__ManagedPlatform}" "-p:TargetFramework=${_Framework}" "-p:RuntimeIdentifier=${__RuntimeIdentifier}" "-p:PublishDir=${__PublishDir}" "-v:${_Verbosity}" "-m:${_Processors}" "-nologo" "-nr:false")
+__RestoreCmdArgs=("${__BuildCommandArgs[@]}")
+
+mkdir -p "$__LogsDir"
+
+restore_dotnet_proj() {
+    local __DjvuTargetProject=$1
+    echo "BUILD: Restoring $__DjvuTargetProject"
+    echo "BUILD: Calling: $__DotnetCmd msbuild /t:Restore ${__RestoreCmdArgs[@]} $__DjvuTargetProject"
+    "$__DotnetCmd" msbuild /t:Restore "${__RestoreCmdArgs[@]}" "$__DjvuTargetProject"
+    if [[ $? -ne 0 ]]; then
+        echo "BUILD: Error: nuget restore of $__DjvuTargetProject returned error"
+        exit 1
+    else
+        echo "BUILD: Success: nuget restore of $__DjvuTargetProject finished"
+    fi
+}
+
+build_dotnet_proj() {
+    local __BuildProj=$1
+    local __BuildProjName=$2
+
+    local __BuildLogRootName="${__BuildProjName}.${_MSB_Target}"
+    local __BuildLog="${__LogsDir}${__BuildLogRootName}.log"
+    local __BuildWrn="${__LogsDir}${__BuildLogRootName}.wrn"
+    local __BuildErr="${__LogsDir}${__BuildLogRootName}.err"
+    local __MsbuildLogging=("/flp:Verbosity=diag;LogFile=${__BuildLog}" "/flp1:WarningsOnly;LogFile=${__BuildWrn}" "/flp2:ErrorsOnly;LogFile=${__BuildErr}")
+
+    echo ""
+    echo "BUILD: Building $__BuildProj"
+    echo "BUILD: calling $__DotnetCmd msbuild ${__BuildCommandArgs[@]} -t:${_MSB_Target} ${__MsbuildLogging[@]} ${__ProjectRoot}/${__BuildProj}"
+    "$__DotnetCmd" msbuild "${__BuildCommandArgs[@]}" -t:${_MSB_Target} "${__MsbuildLogging[@]}" "${__ProjectRoot}/${__BuildProj}"
+    if [[ $? -ne 0 ]]; then
+        echo "BUILD: Error: $__BuildProj build failed. Refer to the build log files for details:"
+        echo "    $__BuildLog"
+        echo "    $__BuildWrn"
+        echo "    $__BuildErr"
+        exit 1
+    fi
+
+    if [ -z "$__SkipPublish" ]; then
+        local __PublishLogRootName="${__BuildProjName}.Publish"
+        local __PublishLog="${__LogsDir}${__PublishLogRootName}.log"
+        local __PublishWrn="${__LogsDir}${__PublishLogRootName}.wrn"
+        local __PublishErr="${__LogsDir}${__PublishLogRootName}.err"
+        local __MsbuildPubLogging=("/flp:Verbosity=diag;LogFile=${__PublishLog}" "/flp1:WarningsOnly;LogFile=${__PublishWrn}" "/flp2:ErrorsOnly;LogFile=${__PublishErr}")
+
+        echo ""
+        echo "BUILD: Publishing $__BuildProj"
+        echo "BUILD: calling $__DotnetCmd msbuild ${__BuildCommandArgs[@]} -t:Publish ${__MsbuildPubLogging[@]} ${__ProjectRoot}/${__BuildProj}"
+        "$__DotnetCmd" msbuild "${__BuildCommandArgs[@]}" -t:Publish "${__MsbuildPubLogging[@]}" "${__ProjectRoot}/${__BuildProj}"
+        if [[ $? -ne 0 ]]; then
+            echo "BUILD: Error: $__BuildProj publish failed. Refer to the publish log files for details:"
+            echo "    $__PublishLog"
+            echo "    $__PublishWrn"
+            echo "    $__PublishErr"
+            exit 1
+        fi
+    fi
+}
+
+if [ -n "$_BuildDjvuNet" ]; then
+    # Build core projects
+    restore_dotnet_proj "$__DjvuNetGitTasksProj"
+    restore_dotnet_proj "$__SystemAttrProj"
+    restore_dotnet_proj "$__DjvuNetProj"
+    if [ -z "$_SkipNative" ]; then restore_dotnet_proj "$__DjvuNetDjvuLibreProj"; fi
+
+    build_dotnet_proj "$__DjvuNetGitTasksProj" "DjvuNet.Git.Tasks.csproj"
+    build_dotnet_proj "$__SystemAttrProj" "System.Attributes.csproj"
+    build_dotnet_proj "$__DjvuNetProj" "DjvuNet.csproj"
+    if [ -z "$_SkipNative" ]; then build_dotnet_proj "$__DjvuNetDjvuLibreProj" "DjvuNet.DjvuLibre.csproj"; fi
 fi
 
-# Build complete
+if [ -n "$_BuildTests" ]; then
+    # Clone test data
+    if [ ! -f "./artifacts/test001C.djvu" ]; then
+        echo ""
+        echo "BUILD: Cloning test data from https://github.com/DjvuNet/artifacts.git"
+        git clone --depth 1 -c core.autocrlf=false https://github.com/DjvuNet/artifacts.git
+        if [ $? -ne 0 ]; then echo "BUILD: Error: git clone returned error"; exit 1; fi
+    fi
 
-echo "Repo successfully built."
+    # Build test projects
+    __DjvuNetTestsProj="DjvuNet.Tests/DjvuNet.Tests.csproj"
+    __DjvuNetWaveletTestsProj="DjvuNet.Wavelet.Tests/DjvuNet.Wavelet.Tests.csproj"
+    __DjvuNetTestExeProj="DjvuNetTest/DjvuNetTest.csproj"
+    __DjvuNetDjvuLibreTestsProj="DjvuNet.DjvuLibre.Tests/DjvuNet.DjvuLibre.Tests.csproj"
+
+    restore_dotnet_proj "$__DjvuNetTestsProj"
+    restore_dotnet_proj "$__DjvuNetWaveletTestsProj"
+    restore_dotnet_proj "$__DjvuNetTestExeProj"
+    if [ -z "$_SkipNative" ]; then restore_dotnet_proj "$__DjvuNetDjvuLibreTestsProj"; fi
+
+    build_dotnet_proj "$__DjvuNetTestsProj" "DjvuNet.Tests.csproj"
+    build_dotnet_proj "$__DjvuNetWaveletTestsProj" "DjvuNet.Wavelet.Tests.csproj"
+    build_dotnet_proj "$__DjvuNetTestExeProj" "DjvuNetTest.csproj"
+    if [ -z "$_SkipNative" ]; then build_dotnet_proj "$__DjvuNetDjvuLibreTestsProj" "DjvuNet.DjvuLibre.Tests.csproj"; fi
+fi
+
+if [ -n "$_RunTests" ]; then
+    # Run tests
+    __TestOutputDir="$__PublishDir"
+    _DjvuNet_Tests="${__TestOutputDir}DjvuNet.Tests.dll"
+    _DjvuNet_DjvuLibre_Tests="${__TestOutputDir}DjvuNet.DjvuLibre.Tests.dll"
+    _DjvuNet_Wavelet_Tests="${__TestOutputDir}DjvuNet.Wavelet.Tests.dll"
+
+    __TestResOutputDir="TestResults/${_Framework}/"
+    mkdir -p "$__TestResOutputDir"
+
+    if [[ "$_Framework" == "$_DefaultNetCoreApp" ]]; then
+        _Test_Options="-trait- Category=skip-netcoreapp"
+        __TestOutputFormat="xml"
+    elif [[ "$_Framework" == "$_DefaultNetStandard" ]]; then
+        _Test_Options="-trait- Category=skip-netcoreapp"
+        __TestOutputFormat="xml"
+    fi
+
+    _VerbosityLower=$(echo "$_Verbosity" | tr '[:upper:]' '[:lower:]')
+    if [[ "$_VerbosityLower" == "d" || "$_VerbosityLower" == "detailed" ]]; then 
+        _Test_Options="$_Test_Options -verbose"
+    fi
+    if [[ "$_VerbosityLower" == "diag" || "$_VerbosityLower" == "diagnostic" ]]; then 
+        _Test_Options="$_Test_Options -verbose -internaldiagnostics"
+    fi
+    _Test_Options="$_Test_Options -trait- Category=Skip -nologo -nocolor"
+
+    _DjvuNet_Tests_Error="false"
+
+    echo ""
+    echo "BUILD: Running tests from DjvuNet.Tests assembly"
+    echo "BUILD: calling: \"$__DotnetCmd\" \"$_DjvuNet_Tests\" $_Test_Options -${__TestOutputFormat} \"${__TestResOutputDir}DjvuNet.Tests.${__TestOutputFormat}\""
+    "$__DotnetCmd" "$_DjvuNet_Tests" $_Test_Options -${__TestOutputFormat} "${__TestResOutputDir}DjvuNet.Tests.${__TestOutputFormat}" || _DjvuNet_Tests_Error="true"
+
+    if [ -z "$_SkipNative" ] && [ -z "$__SkipNativeTests" ]; then
+        echo ""
+        echo "BUILD: Running tests from DjvuNet.DjvuLibre.Tests assembly"
+        echo "BUILD: calling: \"$__DotnetCmd\" \"$_DjvuNet_DjvuLibre_Tests\" $_Test_Options -${__TestOutputFormat} \"${__TestResOutputDir}DjvuNet.DjvuLibre.Tests.${__TestOutputFormat}\""
+        "$__DotnetCmd" "$_DjvuNet_DjvuLibre_Tests" $_Test_Options -${__TestOutputFormat} "${__TestResOutputDir}DjvuNet.DjvuLibre.Tests.${__TestOutputFormat}" || _DjvuNet_Tests_Error="true"
+    fi
+
+    echo ""
+    echo "BUILD: Running tests from DjvuNet.Wavelet.Tests assembly"
+    echo "BUILD: calling: \"$__DotnetCmd\" \"$_DjvuNet_Wavelet_Tests\" $_Test_Options -${__TestOutputFormat} \"${__TestResOutputDir}DjvuNet.Wavelet.Tests.${__TestOutputFormat}\""
+    "$__DotnetCmd" "$_DjvuNet_Wavelet_Tests" $_Test_Options -${__TestOutputFormat} "${__TestResOutputDir}DjvuNet.Wavelet.Tests.${__TestOutputFormat}" || _DjvuNet_Tests_Error="true"
+
+    if [ "$_DjvuNet_Tests_Error" == "true" ]; then
+        echo ""
+        echo "BUILD: Error: tests failed"
+        echo ""
+        echo "BUILD: Build Failed at $(date +"%Y-%m-%d %H:%M:%S.%2N")"
+        exit 1
+    else
+        echo ""
+        echo "BUILD: Success: tests passed"
+        echo ""
+        echo "BUILD: Finished Build at $(date +"%Y-%m-%d %H:%M:%S.%2N")"
+        exit 0
+    fi
+fi
+
+echo ""
+echo "BUILD: Success: successfully built."
+echo ""
+echo "BUILD: Finished Build at $(date +"%Y-%m-%d %H:%M:%S.%2N")"
 exit 0

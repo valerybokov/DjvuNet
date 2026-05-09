@@ -231,6 +231,33 @@ namespace DjvuNet.Graphics
 
             image.RotateFlip(rotation);
 
+            if (format == PixelFormat.Format8bppIndexed)
+            {
+                System.Drawing.Imaging.ColorPalette palette = image.Palette;
+                int grays = 256;
+                if (this is Bitmap bmpObj)
+                {
+                    grays = bmpObj.Grays;
+                }
+
+                if (grays == 2)
+                {
+                    palette.Entries[0] = System.Drawing.Color.Black;
+                    palette.Entries[1] = System.Drawing.Color.White;
+                }
+                else
+                {
+                    for (int i = 0; i < 256; i++)
+                    {
+                        int g = 255 - (i * 255 / Math.Max(1, grays - 1));
+                        if (g < 0) g = 0;
+                        if (g > 255) g = 255;
+                        palette.Entries[i] = System.Drawing.Color.FromArgb(g, g, g);
+                    }
+                }
+                image.Palette = palette;
+            }
+
             return image;
         }
 

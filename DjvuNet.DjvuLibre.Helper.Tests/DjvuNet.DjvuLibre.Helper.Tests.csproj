@@ -3,7 +3,7 @@
 
   <PropertyGroup>
     <TargetFrameworks>$(DotNetCoreFrameworkVersion)</TargetFrameworks>
-    <NETStandardImplicitPackageVersion>$(NETStandardPackageVersion)</NETStandardImplicitPackageVersion>
+    <!-- <NETStandardImplicitPackageVersion>$(NETStandardPackageVersion)</NETStandardImplicitPackageVersion> -->
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>DjvuNet.DjvuLibre.Helper.Tests</RootNamespace>
@@ -36,17 +36,12 @@
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="$(NewtonSoftJsonPackageVersion)" />
-    <PackageReference Include="System.Drawing.Common" Version="$(SystemDrawingCommonPackageVersion)" />
-    <PackageReference Include="xunit" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.extensibility.core" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.extensibility.execution" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.runner.console" Version="$(XunitPackageVersion)" />
-    <PackageReference Condition="$(TargetFramework) == $(NetFXTargetFrameworkVersion)" Include="xunit.runner.msbuild" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.runner.utility" Version="$(XunitPackageVersion)" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="$(SystemDrawingCommonPackageVersion)" Condition="'$(OS)' == 'Windows_NT'" />
+    <Reference Include="System.Drawing.Common, Version=6.0.0.0, Culture=neutral, PublicKeyToken=9a0646c3e445b595" Condition="'$(OS)' != 'Windows_NT'">
+      <HintPath>$(RepoRootDir)deps/$(Platform)/$(Configuration)/Unix/System.Drawing.Common.dll</HintPath>
+    </Reference>
+    <PackageReference Include="xunit.v3.extensibility.core" Version="$(XunitPackageVersion)" />
+    <PackageReference Include="xunit.v3.assert" Version="$(XunitPackageVersion)" />
     <ProjectReference Include="$(RepoRootDir)DjvuNet.DjvuLibre\DjvuNet.DjvuLibre.csproj" />
     <ProjectReference Include="$(RepoRootDir)System.Attributes\System.Attributes.csproj" />
   </ItemGroup>

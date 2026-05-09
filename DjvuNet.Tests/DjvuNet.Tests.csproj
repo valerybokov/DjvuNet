@@ -5,7 +5,7 @@
   <PropertyGroup>
     <TargetFramework Condition="$(TargetFramework) != ''">$(TargetFramework)</TargetFramework>
     <TargetFrameworks>$(DotNetCoreFrameworkVersion)</TargetFrameworks>
-    <OutputType>Library</OutputType>
+    <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>DjvuNet.Tests</RootNamespace>
     <AssemblyName>DjvuNet.Tests</AssemblyName>
@@ -113,23 +113,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Drawing.Common" Version="$(SystemDrawingCommonPackageVersion)" />
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="$(SystemRuntimeCompilerServicesUnsafePackageVersion)" />
     <PackageReference Include="Moq" Version="$(MoqPackageVersion)" />
     <PackageReference Include="Newtonsoft.Json" Version="$(NewtonSoftJsonPackageVersion)" />
-    <PackageReference Include="xunit" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.extensibility.core" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.extensibility.execution" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.runner.console" Version="$(XunitPackageVersion)" >
-      <CopyToOutputDirectory Condition="$(TargetFramework) == $(DotNetCoreFrameworkVersion)">tools/netcoreapp2.0/*.*</CopyToOutputDirectory>
-      <!--<CopyToOutputDirectory Condition="$(TargetFramework) == $(NetFXTargetFrameworkVersion)">tools/$(NetFXTargetFrameworkVersion)/*.*</CopyToOutputDirectory>-->
-    </PackageReference>
-    <PackageReference Include="xunit.console" Version="$(XunitPackageVersion)" >
-      <CopyToOutputDirectory Condition="$(TargetFramework) == $(DotNetCoreFrameworkVersion)">tools/netcoreapp2.0/*.*</CopyToOutputDirectory>
-    </PackageReference>
-    <PackageReference Include="xunit.runner.msbuild" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.runner.utility" Version="$(XunitPackageVersion)" />
+    <PackageReference Include="System.Drawing.Common" Version="$(SystemDrawingCommonPackageVersion)" Condition="'$(OS)' == 'Windows_NT'" />
+    <Reference Include="System.Drawing.Common, Version=6.0.0.0, Culture=neutral, PublicKeyToken=9a0646c3e445b595" Condition="'$(OS)' != 'Windows_NT'">
+      <HintPath>$(RepoRootDir)deps/$(Platform)/$(Configuration)/Unix/System.Drawing.Common.dll</HintPath>
+    </Reference>
+    <PackageReference Include="xunit.v3" Version="$(XunitPackageVersion)" />
   </ItemGroup>
 
   <ItemGroup>

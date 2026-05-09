@@ -94,9 +94,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(TextContentData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void Text_Theory001(string filePath, int pageCount, int testPage, string expectedValue)
         {
             using (DjvuDocument document = new DjvuDocument(filePath))
@@ -119,7 +121,9 @@ namespace DjvuNet.Tests
             }
         }
 
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         private static void DumpPageNodes(string filePath, DjvuDocument document)
         {
             try
@@ -153,7 +157,9 @@ namespace DjvuNet.Tests
             }
         }
 
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         private static void TestPageText(string expectedValue, IDjvuPage page)
         {
             var text = page.Text;
@@ -250,9 +256,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(SubsampleTestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void GetBgPixmap_Theory(int subsample)
         {
             int pageCount = 0;
@@ -434,7 +442,9 @@ namespace DjvuNet.Tests
         }
 
         [Fact]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void GetPixelMap003()
         {
             int pageCount = 0;

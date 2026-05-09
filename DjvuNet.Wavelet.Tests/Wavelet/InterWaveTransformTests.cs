@@ -151,7 +151,9 @@ namespace DjvuNet.Wavelet.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void Rgb2YCbCrFragmentedTest()
         {
             sbyte[] data = PixelMapTests.GetRandomData(width, height, bytesPerPixel);
@@ -195,7 +197,9 @@ namespace DjvuNet.Wavelet.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void Rgb2YCbCrOptimizedTest()
         {
 

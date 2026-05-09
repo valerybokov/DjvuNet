@@ -64,7 +64,9 @@ namespace DjvuNet.DataChunks.Tests
 
         [DjvuTheory]
         [MemberData(nameof(TextChunkTestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void TxtzChunk_Theory(string file)
         {
             using (FileStream stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read))

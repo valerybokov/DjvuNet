@@ -108,7 +108,9 @@ namespace DjvuNet.DataChunks.Tests
             }
         }
 
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public static void VerifyZoneContainsText(TextZone zone, string text, ref int contains, ref int preContains, ref int postContains)
         {
             var result = zone.SearchForText(text);
@@ -151,7 +153,9 @@ namespace DjvuNet.DataChunks.Tests
 
         [DjvuTheory]
         [MemberData(nameof(TextZoneData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void TextZone_Theory(string file)
         {
             using (FileStream stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read))

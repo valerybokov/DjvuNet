@@ -55,8 +55,7 @@ namespace DjvuNet.Tests
                 var jsonDocs = UtilJson.JsonDocuments;
 
                 for (int i = 0; i < jsonDocs.Count; i++)
-                    retVal.Add(new object[] { jsonDocs[i], i + 1 });
-
+                    retVal.Add(new object[] { i + 1 });
 
                 return retVal;
             }

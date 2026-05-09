@@ -1207,5 +1207,61 @@ namespace DjvuNet.DjvuLibre.Tests
             }
         }
 
+        [Theory, Trait("Category", "DjvuLibre")]
+        [InlineData(75)]
+        [InlineData(54)]
+        [InlineData(41)]
+        [InlineData(52)]
+        public void CompareNativeAndManagedMask(int docNumber)
+        {
+            string filePath = Util.GetTestFilePath(docNumber);
+
+            using (DjvuDocumentInfo document = DjvuDocumentInfo.CreateDjvuDocumentInfo(filePath))
+            {
+                Assert.NotNull(document);
+                DjvuPageInfo page = new DjvuPageInfo(document, 0);
+
+                DjvuRectangle targetRect = new DjvuRectangle
+                {
+                    Width = (uint)page.Width,
+                    Height = (uint)page.Height
+                };
+
+                IntPtr buffer = page.RenderPage(RenderMode.MaskOnly);
+
+                using (Bitmap nativeBmp = new Bitmap((int)targetRect.Width, (int)targetRect.Height, PixelFormat.Format24bppRgb))
+                {
+                    Rectangle rect = new Rectangle(0, 0, nativeBmp.Width, nativeBmp.Height);
+                    BitmapData data = nativeBmp.LockBits(rect, ImageLockMode.ReadWrite, PixelFormat.Format24bppRgb);
+
+                    for (int i = 0; i < nativeBmp.Height; i++)
+                    {
+                        IntPtr dst = data.Scan0 + (i * data.Stride);
+                        IntPtr src = buffer + (i * nativeBmp.Width * 3);
+                        CopyMemory(dst, src, (uint)(nativeBmp.Width * 3));
+                    }
+
+                    nativeBmp.UnlockBits(data);
+                    DjvuMarshal.FreeHGlobal(buffer);
+
+                    using (DjvuNet.DjvuDocument managedDoc = new DjvuNet.DjvuDocument(filePath))
+                    {
+                        DjvuNet.DjvuPage managedPage = Assert.IsType<DjvuNet.DjvuPage>(managedDoc.FirstPage);
+                        DjvuNet.DjvuImage managedImage = Assert.IsType<DjvuNet.DjvuImage>(managedPage.Image);
+                        
+                        using (Bitmap managedBmp = managedImage.GetMaskImage(1))
+                        using (Bitmap invertedManagedBmp = DjvuImage.InvertImage(managedBmp))
+                        {
+                            double threshold = 0.05;
+                            if (docNumber == 52) threshold = 0.08;
+                            else if (docNumber == 75) threshold = 0.25;
+
+                            bool result = Util.CompareImagesForBinarySimilarity(nativeBmp, invertedManagedBmp, threshold, true, $"Testing DjvuNet vs DjvuLibre Mask for doc {docNumber}: ");
+                            Assert.True(result, $"Native and Managed masks do not match for doc {docNumber}.");
+                        }
+                    }
+                }
+            }
+        }
     }
 }

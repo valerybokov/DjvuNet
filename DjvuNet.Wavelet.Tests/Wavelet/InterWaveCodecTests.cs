@@ -13,7 +13,9 @@ namespace DjvuNet.Wavelet.Tests
     public class InterWaveCodecTests
     {
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void InterWaveCodecTest()
         {
             InterWaveMap map = new InterWaveMap();

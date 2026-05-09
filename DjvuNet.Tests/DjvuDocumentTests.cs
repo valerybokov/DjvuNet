@@ -98,7 +98,9 @@ namespace DjvuNet.Tests
 
         [DjvuTheory]
         [MemberData(nameof(DjvuArtifacts))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void IsDjvuDocument_String_Theory(string filePath, int pageCount)
         {
             Assert.True(DjvuDocument.IsDjvuDocument(filePath));
@@ -106,7 +108,9 @@ namespace DjvuNet.Tests
 
         [DjvuTheory]
         [MemberData(nameof(DjvuArtifacts))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void ctor_Theory(string filePath, int pageCount)
         {
             DjvuDocument document = null;

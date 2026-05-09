@@ -25,6 +25,9 @@ bld/
 [Dd]eps/
 [Tt]ools/
 
+# Temporary ignore for xunit v3 porting scratch directory
+DjvuNet.Shared.Tests/XunitExtensions/
+
 # Unignore build tools - does not work lol
 # ![Bb]uild/tools/**/*.csproj
 # ![Bb]uild/tools/DjvuNet.Artifacts.Build/*.cs

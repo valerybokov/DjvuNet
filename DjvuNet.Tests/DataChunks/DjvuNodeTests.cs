@@ -146,7 +146,9 @@ namespace DjvuNet.DataChunks.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void ChunkDataTest001()
         {
             Mock<DjvuNode> nodeMock = new Mock<DjvuNode>() { CallBase = true };
@@ -170,7 +172,9 @@ namespace DjvuNet.DataChunks.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void ChunkDataTest002()
         {
             Mock<DjvuNode> nodeMock = new Mock<DjvuNode>() { CallBase = true };
@@ -193,7 +197,9 @@ namespace DjvuNet.DataChunks.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void ChunkDataTest003()
         {
             Mock<DjvuNode> nodeMock = new Mock<DjvuNode>() { CallBase = true };

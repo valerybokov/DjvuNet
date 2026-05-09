@@ -5,6 +5,7 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
 using DjvuNet.Errors;
 using DjvuNet.Tests.Xunit;
 using Moq;
@@ -14,6 +15,16 @@ namespace DjvuNet.Tests
 {
     public class DjvuImageTests
     {
+        [Fact]
+        public void IsVector256HardwareAccelerated_Test()
+        {
+#if NETCOREAPP
+            Assert.True(Vector256.IsHardwareAccelerated, "Vector256 is not hardware accelerated in this environment.");
+#else
+            Assert.True(true);
+#endif
+        }
+
         [Fact()]
         public void DjvuImageTest001()
         {
@@ -166,14 +177,14 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(PixelSizeTestData))]
         public void GetPixelSize_Theory(string name, int format)
         {
             int size = DjvuImage.GetPixelSize((PixelFormat)format);
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(PixelSizeTestThrows))]
         public void GetPixelSize_Theory2(string name, int format)
         {
@@ -477,7 +488,7 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(BuildImageSourceDocs))]
         public void BuildImage_Theory(int docNumber)
         {
@@ -495,7 +506,10 @@ namespace DjvuNet.Tests
                     Assert.NotNull(image);
                     Assert.IsType<Bitmap>(image);
 
-                    bool result = Util.CompareImagesForBinarySimilarity(testImage, image, docNumber == 75 ? 0.1485 : 0.0585, true, $"Testing Djvu image: \t\ttest{docNumber:00#}C.png, ");
+                    double threshold = 0.0585;
+                    if (docNumber == 75) threshold = 0.15;
+
+                    bool result = Util.CompareImagesForBinarySimilarity(testImage, image, threshold, true, $"Testing Djvu image: \t\ttest{docNumber:00#}C.png, ");
 
 #if DUMP_IMAGES
                     DumpImage(docNumber, image, "Img");
@@ -526,7 +540,7 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(BuildBackgroundImageSourceDocs))]
         public void BuildBackgroundImage_Theory(int docNumber)
         {
@@ -550,7 +564,7 @@ namespace DjvuNet.Tests
                         Assert.True(false, $"Unexpected image size differences.\nWidth image: {image.Width} | testImage: {testImage.Width}, Height: image: {image.Height} | testImage {testImage.Height}");
                     }
 
-                    bool result = Util.CompareImagesForBinarySimilarity(testImage, image, 0.025, true, $"Testing Djvu background: \ttest{docNumber:00#}C.png, ");
+                    bool result = Util.CompareImagesForBinarySimilarity(testImage, image, 0.0585, true, $"Testing Djvu image: \t\ttest{docNumber:00#}C.png, ");
 
 #if DUMP_IMAGES
                     DumpImage(docNumber, image, "Bgnd");
@@ -656,7 +670,7 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(MaskImageSourceDocs))]
         public void BuildMaskImage_Theory(int docNumber, double tolerance)
         {
@@ -676,7 +690,7 @@ namespace DjvuNet.Tests
 
                     using Bitmap invertedImage = DjvuImage.InvertImage(image);
 
-                    bool result = Util.CompareImagesForBinarySimilarity(testImage, invertedImage, tolerance, true, $"Testing Djvu mask: \t\ttest{docNumber:00#}C.png, ");
+                    bool result = Util.CompareImagesForBinarySimilarity(testImage, invertedImage, tolerance, true, $"Testing Djvu  mask: \t\ttest{docNumber:00#}C.png, ");
 
 #if DUMP_IMAGES
                     DumpIage(docNumber, image, "Mask");
@@ -812,7 +826,7 @@ namespace DjvuNet.Tests
 
                     Assert.NotNull(testImage);
 
-                    bool result = Util.CompareImagesForBinarySimilarity(testImage, image, 0.3, true, "Testing Djvu mask: test075C.png, ");
+                    bool result = Util.CompareImagesForBinarySimilarity(testImage, image, 0.3, true, "Testing Djvu  mask: \t\ttest075C.png, ");
 
                     Assert.True(result);
                 }

@@ -73,7 +73,9 @@ namespace DjvuNet.Compression.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void ReadTest001()
         {
             const int expectedLength = 4558626;

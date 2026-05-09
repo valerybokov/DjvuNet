@@ -14,13 +14,15 @@ namespace DjvuNet.Errors
         }
 
         public DjvuInvalidOperationException(string message, Exception innerException)
-            : base (message, innerException)
+            : base(message, innerException)
         {
         }
 
+#if !NETCOREAPP
         public DjvuInvalidOperationException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
-            : base (info, context)
+            : base(info, context)
         {
         }
+#endif
     }
 }

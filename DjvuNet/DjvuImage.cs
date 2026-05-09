@@ -7,12 +7,14 @@ using System.Drawing.Imaging;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 using DjvuNet.DataChunks;
 using DjvuNet.Errors;
 using DjvuNet.JB2;
 using DjvuNet.Utilities;
 using DjvuNet.Wavelet;
 using Bitmap = System.Drawing.Bitmap;
+using ClrGraphics = System.Drawing.Graphics;
 using GMap = DjvuNet.Graphics.IMap;
 using GBitmap = DjvuNet.Graphics.Bitmap;
 using GRect = DjvuNet.Graphics.Rectangle;
@@ -284,9 +286,9 @@ namespace DjvuNet
                 byte* pixelsNativePtr = (byte*) pixelsPtr;
                 for (int y = 0; y < height; y++)
                 {
-                    var rowPtr = (int*)((byte*)bits.Scan0 + (y * bits.Stride));
-                    pixelsNativePtr += (y * bytesPerRow);
-                    MemoryUtilities.MoveMemory(rowPtr, pixelsNativePtr, bytesPerRow);
+                    var rowPtr = (byte*)bits.Scan0 + (y * bits.Stride);
+                    var srcRow = pixelsNativePtr + (y * bytesPerRow);
+                    MemoryUtilities.MoveMemory(rowPtr, srcRow, bytesPerRow);
                 }
             }
 
@@ -295,12 +297,82 @@ namespace DjvuNet
             return bmp;
         }
 
-        /// <summary>
-        /// Gets the pixel size for the pixel data
-        /// </summary>
-        /// <param name="data"></param>
-        /// <returns></returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static unsafe System.Drawing.Bitmap ConvertDataToImageVectorized(int[] pixels, int width, int height)
+        {
+            if (width <= 0 || height <= 0)
+            {
+                return null;
+            }
+
+            System.Drawing.Bitmap bmp = new System.Drawing.Bitmap(width, height, PixelFormat.Format24bppRgb);
+            BitmapData bits = null;
+            try
+            {
+                bits = bmp.LockBits(new System.Drawing.Rectangle(0, 0, width, height), ImageLockMode.ReadWrite, bmp.PixelFormat);
+
+
+                // Value of 4 is the size of PixelFormat.Format32bppArgb
+                // keep it synchronized with used Bitmap PixelFormat
+                int bytesPerRow = width * 4;
+
+                fixed (int* pixelsPtr = pixels)
+                {
+                    byte* pixelsNativePtr = (byte*)pixelsPtr;
+                    for (int y = 0; y < height; y++)
+                    {
+                        var rowPtr = (byte*)bits.Scan0 + (y * bits.Stride);
+                        var srcRow = pixelsNativePtr + (y * bytesPerRow);
+
+#if NETCOREAPP
+                        if (Vector256.IsHardwareAccelerated)
+                        {
+                            int x = 0;
+                            for (; x <= bytesPerRow - 128; x += 128)
+                            {
+                                var v0 = Vector256.Load(srcRow + x);
+                                var v1 = Vector256.Load(srcRow + x + 32);
+                                var v2 = Vector256.Load(srcRow + x + 64);
+                                var v3 = Vector256.Load(srcRow + x + 96);
+
+                                v0.Store(rowPtr + x);
+                                v1.Store(rowPtr + x + 32);
+                                v2.Store(rowPtr + x + 64);
+                                v3.Store(rowPtr + x + 96);
+                            }
+                            for (; x <= bytesPerRow - 32; x += 32)
+                            {
+                                Vector256.Load(srcRow + x).Store(rowPtr + x);
+                            }
+                            for (; x < bytesPerRow; x++)
+                            {
+                                rowPtr[x] = srcRow[x];
+                            }
+                        }
+                        else
+#endif
+                        {
+                            throw new PlatformNotSupportedException("Vectorized conversion is not supported on this platform.");
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                if (bits != null)
+                {
+                    bmp.UnlockBits(bits);
+                }
+            }
+
+            return bmp;
+        }
+
+            /// <summary>
+            /// Gets the pixel size for the pixel data
+            /// </summary>
+            /// <param name="data"></param>
+            /// <returns></returns>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static int GetPixelSize(PixelFormat data)
         {
             switch (data)
@@ -553,6 +625,7 @@ namespace DjvuNet
             //return image;
         }
 
+
         /// <summary>
         /// Gets the image for the page
         /// </summary>
@@ -614,13 +687,13 @@ namespace DjvuNet
                         //    y =>
                         //    {
 
-                        for (int y = 0, yf = 0, yb = 0; y < maskHeight && yb < bgndHeight && yf < fgndHeight; ++y, yf = yb = y)
+                        for (int y = 0, yf = 0, yb = 0; y < maskHeight && yb < bgndHeight && yf < fgndHeight; ++y)
                         {
                             byte* maskRow = (byte*)maskData.Scan0 + (y * maskData.Stride);
                             DjvuNet.Graphics.Pixel* backgroundRow = (DjvuNet.Graphics.Pixel*)(backgroundData.Scan0 + (yb * backgroundData.Stride));
                             DjvuNet.Graphics.Pixel* foregroundRow = (DjvuNet.Graphics.Pixel*)(foregroundData.Scan0 + (yf * foregroundData.Stride));
 
-                            for (int x = 0, xf = 0, xb = 0; x < bgndWidth && xb < maskWidth && xf < fgndWidth; x++)
+                            for (int x = 0, xf = 0, xb = 0; x < maskWidth && xb < bgndWidth && xf < fgndWidth; x++)
                             {
                                 // Check if the mask byte is set
                                 if (maskRow[x] > 0)
@@ -641,31 +714,25 @@ namespace DjvuNet
                                     backgroundRow[xb] = InvertColor(backgroundRow[xb]);
                                 }
 
-                                if (x >= 0)
+                                if ((x + 1) % maskbgnW == 0)
                                 {
-                                    if (x % maskbgnW == 0)
-                                    {
-                                        xb++;
-                                    }
+                                    xb++;
+                                }
 
-                                    if (x % maskfgnW == 0)
-                                    {
-                                        xf++;
-                                    }
+                                if ((x + 1) % maskfgnW == 0)
+                                {
+                                    xf++;
                                 }
                             }
 
-                            if (y >= 0)
+                            if ((y + 1) % maskbgnH == 0)
                             {
-                                if (y % maskbgnH == 0)
-                                {
-                                    yb++;
-                                }
+                                yb++;
+                            }
 
-                                if (y % maskfgnH == 0)
-                                {
-                                    yf++;
-                                }
+                            if ((y + 1) % maskfgnH == 0)
+                            {
+                                yf++;
                             }
                         }
                         //});
@@ -909,32 +976,184 @@ namespace DjvuNet
                 return null;
             }
 
-            Bitmap invertedBitmap = Unsafe.As<System.Drawing.Bitmap>(sourceBitmap.Clone());
+            int width = sourceBitmap.Width;
+            int height = sourceBitmap.Height;
 
-            BitmapData imageData = invertedBitmap.LockBits(new System.Drawing.Rectangle(0, 0, invertedBitmap.Width, invertedBitmap.Height),
-                                                  ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
-
-            int height = invertedBitmap.Height;
-            int width = invertedBitmap.Width;
-
-            for (int y = 0; y < height; y++)
-            //Parallel.For(
-            //    0,
-            //    height,
-            //    y =>
+            if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
             {
-                uint* imageRow = (uint*)(imageData.Scan0 + (y * imageData.Stride));
+                Bitmap invertedBitmap = Unsafe.As<System.Drawing.Bitmap>(sourceBitmap.Clone());
+                BitmapData imageData = invertedBitmap.LockBits(new System.Drawing.Rectangle(0, 0, width, height),
+                                                      ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
 
-                for (int x = 0; x < width; x++)
+                byte* imagePtrBytes = (byte*)imageData.Scan0;
+                int stride = imageData.Stride;
+
+#if NETCOREAPP
+                if (Vector256.IsHardwareAccelerated)
                 {
-                    imageRow[x] = InvertColor(imageRow[x]);
+                    var xorMask = Vector256.Create(0x00FFFFFFu);
+
+                    for (int y = 0; y < height; y++)
+                    {
+                        uint* imageRow = (uint*)(imagePtrBytes + (y * stride));
+                        int x = 0;
+                        
+                        for (; x <= width - 32; x += 32)
+                        {
+                            var v0 = Vector256.Load(imageRow + x);
+                            var v1 = Vector256.Load(imageRow + x + 8);
+                            var v2 = Vector256.Load(imageRow + x + 16);
+                            var v3 = Vector256.Load(imageRow + x + 24);
+
+                            var dst0 = v0 ^ xorMask;
+                            var dst1 = v1 ^ xorMask;
+                            var dst2 = v2 ^ xorMask;
+                            var dst3 = v3 ^ xorMask;
+
+                            dst0.Store(imageRow + x);
+                            dst1.Store(imageRow + x + 8);
+                            dst2.Store(imageRow + x + 16);
+                            dst3.Store(imageRow + x + 24);
+                        }
+                        
+                        for (; x <= width - 8; x += 8)
+                        {
+                            var srcVec = Vector256.Load(imageRow + x);
+                            var dstVec = srcVec ^ xorMask;
+                            dstVec.Store(imageRow + x);
+                        }
+                        
+                        for (; x < width; x++)
+                        {
+                            imageRow[x] = InvertColor(imageRow[x]);
+                        }
+                    }
                 }
-                //});
+                else
+#endif
+                {
+                    for (int y = 0; y < height; y++)
+                    {
+                        uint* imageRow = (uint*)(imagePtrBytes + (y * stride));
+
+                        for (int x = 0; x < width; x++)
+                        {
+                            imageRow[x] = InvertColor(imageRow[x]);
+                        }
+                    }
+                }
+
+                invertedBitmap.UnlockBits(imageData);
+                return invertedBitmap;
             }
+            else
+            {
+                // Unix / libgdiplus bypass
+                Bitmap invertedBitmap = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+                BitmapData srcData = sourceBitmap.LockBits(new System.Drawing.Rectangle(0, 0, width, height), ImageLockMode.ReadOnly, sourceBitmap.PixelFormat);
+                BitmapData dstData = invertedBitmap.LockBits(new System.Drawing.Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
 
-            invertedBitmap.UnlockBits(imageData);
+                try
+                {
+                    byte* srcPtrBytes = (byte*)srcData.Scan0;
+                    byte* dstPtrBytes = (byte*)dstData.Scan0;
+                    int srcStride = srcData.Stride;
+                    int dstStride = dstData.Stride;
 
-            return invertedBitmap;
+                    if (sourceBitmap.PixelFormat == PixelFormat.Format8bppIndexed)
+                    {
+                        Color[] palette = sourceBitmap.Palette.Entries;
+                        uint* invPalette = stackalloc uint[256];
+                        for (int i = 0; i < palette.Length && i < 256; i++)
+                        {
+                            invPalette[i] = (uint)palette[i].ToArgb() ^ 0x00FFFFFFu;
+                        }
+
+                        for (int y = 0; y < height; y++)
+                        {
+                            byte* srcRow = srcPtrBytes + (y * srcStride);
+                            uint* dstRow = (uint*)(dstPtrBytes + (y * dstStride));
+                            for (int x = 0; x < width; x++)
+                            {
+                                dstRow[x] = invPalette[srcRow[x]];
+                            }
+                        }
+                    }
+                    else
+                    {
+                        sourceBitmap.UnlockBits(srcData);
+                        srcData = sourceBitmap.LockBits(new System.Drawing.Rectangle(0, 0, width, height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+                        
+                        srcPtrBytes = (byte*)srcData.Scan0;
+                        srcStride = srcData.Stride;
+                        
+#if NETCOREAPP
+                        if (Vector256.IsHardwareAccelerated)
+                        {
+                            var xorMask = Vector256.Create(0x00FFFFFFu);
+                            for (int y = 0; y < height; y++)
+                            {
+#if DEBUG
+                                if (y == 0) Console.WriteLine("[DjvuNet] Executing Vector256.IsHardwareAccelerated path in InvertImage (Unix) - Start row 0");
+#endif
+                                uint* srcRow = (uint*)(srcPtrBytes + (y * srcStride));
+                                uint* dstRow = (uint*)(dstPtrBytes + (y * dstStride));
+                                int x = 0;
+                                for (; x <= width - 32; x += 32)
+                                {
+                                    var v0 = Vector256.Load(srcRow + x);
+                                    var v1 = Vector256.Load(srcRow + x + 8);
+                                    var v2 = Vector256.Load(srcRow + x + 16);
+                                    var v3 = Vector256.Load(srcRow + x + 24);
+
+                                    var dst0 = v0 ^ xorMask;
+                                    var dst1 = v1 ^ xorMask;
+                                    var dst2 = v2 ^ xorMask;
+                                    var dst3 = v3 ^ xorMask;
+
+                                    dst0.Store(dstRow + x);
+                                    dst1.Store(dstRow + x + 8);
+                                    dst2.Store(dstRow + x + 16);
+                                    dst3.Store(dstRow + x + 24);
+                                }
+                                for (; x <= width - 8; x += 8)
+                                {
+                                    var srcVec = Vector256.Load(srcRow + x);
+                                    var dstVec = srcVec ^ xorMask;
+                                    dstVec.Store(dstRow + x);
+                                }
+                                for (; x < width; x++)
+                                {
+                                    dstRow[x] = srcRow[x] ^ 0x00FFFFFFu;
+                                }
+#if DEBUG
+                                if (y == height - 1) Console.WriteLine($"[DjvuNet] Executing Vector256.IsHardwareAccelerated path in InvertImage (Unix) - End row {height}");
+#endif
+                            }
+                        }
+                        else
+#endif
+                        {
+                            for (int y = 0; y < height; y++)
+                            {
+                                uint* srcRow = (uint*)(srcPtrBytes + (y * srcStride));
+                                uint* dstRow = (uint*)(dstPtrBytes + (y * dstStride));
+                                for (int x = 0; x < width; x++)
+                                {
+                                    dstRow[x] = srcRow[x] ^ 0x00FFFFFFu;
+                                }
+                            }
+                        }
+                    }
+                }
+                finally
+                {
+                    sourceBitmap.UnlockBits(srcData);
+                    invertedBitmap.UnlockBits(dstData);
+                }
+
+                return invertedBitmap;
+            }
         }
 
         /// <summary>

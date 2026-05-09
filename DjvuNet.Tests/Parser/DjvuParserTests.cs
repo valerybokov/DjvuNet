@@ -111,7 +111,9 @@ namespace DjvuNet.Parser.Tests
 
         [DjvuTheory]
         [MemberData(nameof(NodeTestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void CreateDecodedDjvuNode_Theory(IDjvuReader reader, IDjvuDocument rootDocument,
             IDjvuElement parent, ChunkType chunkType,
             string chunkID = "", long length = 0)
@@ -216,7 +218,9 @@ namespace DjvuNet.Parser.Tests
 
         [DjvuTheory]
         [MemberData(nameof(EncodedNodeTestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void CreateEncodedDjvuNode_Theory(IDjvuWriter writer, IDjvuElement parent, ChunkType chunkType, long length = 0)
         {
             if (writer == null)

@@ -16,9 +16,12 @@ namespace DjvuNet.DataChunks.Tests
 
         [DjvuTheory]
         [ClassData(typeof(DjvuJsonDataSource))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        public void DjvmChunk_Theory(DjvuJsonDocument doc, int index)
+#endif
+        public void DjvmChunk_Theory(int index)
         {
+            DjvuJsonDocument doc = UtilJson.GetJsonDocument(index - 1);
             // TODO Fix libdjvulibre DjvuDumpHelper implementation - fails
             // for index 39, 63, 64 in some tests - need DjVuLibre tests
             if (index == 63)

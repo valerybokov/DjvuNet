@@ -14,13 +14,15 @@ namespace DjvuNet.Errors
         }
 
         public DjvuNotSupportedException(string message, Exception innerException)
-            : base (message, innerException)
+            : base(message, innerException)
         {
         }
 
+#if !NETCOREAPP
         public DjvuNotSupportedException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
-            : base (info, context)
+            : base(info, context)
         {
         }
+#endif
     }
 }

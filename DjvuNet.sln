@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.29319.158
+# Visual Studio Version 18
+VisualStudioVersion = 18.6.11723.189 insiders
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DjvuNet", "DjvuNet\DjvuNet.csproj", "{E681B178-E5F8-4782-89C8-F32720B1464A}"
 EndProject
@@ -280,6 +280,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "data", "data", "{73C6055A-2
 		artifacts\data\test002C_P01.txtz = artifacts\data\test002C_P01.txtz
 		artifacts\data\test003C.png = artifacts\data\test003C.png
 		artifacts\data\test003C.xml = artifacts\data\test003C.xml
+		artifacts\data\test003CB.png = artifacts\data\test003CB.png
+		artifacts\data\test003CF.png = artifacts\data\test003CF.png
+		artifacts\data\test003CHT.png = artifacts\data\test003CHT.png
+		artifacts\data\test003CS.png = artifacts\data\test003CS.png
 		artifacts\data\test003C_P01.antz = artifacts\data\test003C_P01.antz
 		artifacts\data\test003C_P01.bg44 = artifacts\data\test003C_P01.bg44
 		artifacts\data\test003C_P01.fgbz = artifacts\data\test003C_P01.fgbz
@@ -287,10 +291,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "data", "data", "{73C6055A-2
 		artifacts\data\test003C_P01.info = artifacts\data\test003C_P01.info
 		artifacts\data\test003C_P01.sjbz = artifacts\data\test003C_P01.sjbz
 		artifacts\data\test003C_P01.txtz = artifacts\data\test003C_P01.txtz
-		artifacts\data\test003CB.png = artifacts\data\test003CB.png
-		artifacts\data\test003CF.png = artifacts\data\test003CF.png
-		artifacts\data\test003CHT.png = artifacts\data\test003CHT.png
-		artifacts\data\test003CS.png = artifacts\data\test003CS.png
 		artifacts\data\test004C_P01.antz = artifacts\data\test004C_P01.antz
 		artifacts\data\test004C_P01.bg44 = artifacts\data\test004C_P01.bg44
 		artifacts\data\test004C_P01.fgbz = artifacts\data\test004C_P01.fgbz
@@ -764,10 +764,6 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DjvuNet.Skia", "DjvuNet.Skia\DjvuNet.Skia.csproj", "{774F3155-63EC-4B0D-BF9F-B50F379357DB}"
 EndProject
 Global
-	GlobalSection(SharedMSBuildProjectFiles) = preSolution
-		DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.projitems*{b7ef5575-5932-4ea7-b250-e7da238d60a9}*SharedItemsImports = 13
-		DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.projitems*{fcecdff8-938c-4f1f-b47f-55c28d482d5e}*SharedItemsImports = 4
-	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|AnyCPU = Debug|AnyCPU
 		Debug|Arm = Debug|Arm
@@ -1089,5 +1085,12 @@ Global
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {AD0C50D2-F3E4-4ADD-ABB9-77BBABE5A6A7}
+	EndGlobalSection
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.projitems*{29ae50f0-477d-4445-8fa1-80a7ea22fb88}*SharedItemsImports = 5
+		DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.projitems*{b7ef5575-5932-4ea7-b250-e7da238d60a9}*SharedItemsImports = 13
+		DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.projitems*{f7ddb3f7-f251-4b2e-aeec-810118877e6f}*SharedItemsImports = 5
+		DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.projitems*{fcecdff8-938c-4f1f-b47f-55c28d482d5e}*SharedItemsImports = 4
+		DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.projitems*{fd767831-2359-4dee-a0d8-eab57475a309}*SharedItemsImports = 5
 	EndGlobalSection
 EndGlobal

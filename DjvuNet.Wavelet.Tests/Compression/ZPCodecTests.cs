@@ -61,7 +61,9 @@ namespace DjvuNet.Compression.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void ZPCodecTest004()
         {
             using (ZPCodec codec = new ZPCodec())
@@ -150,7 +152,9 @@ namespace DjvuNet.Compression.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void IWEncoderTest001()
         {
             string filePath = Path.Combine(Util.ArtifactsDataPath, "testbzz.obz");
@@ -365,7 +369,9 @@ namespace DjvuNet.Compression.Tests
         }
 
         [Fact()]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void StateTest001()
         {
             string filePath = Path.Combine(Util.ArtifactsDataPath, "DjvuNet.pdb");

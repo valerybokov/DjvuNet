@@ -27,12 +27,11 @@ namespace DjvuNet.DataChunks.Tests
                     string testNoStr = Path.GetFileNameWithoutExtension(testFiles[i])
                         .Substring(4, 3).TrimStart(new char[] { '0' });
                     int testNumber = int.Parse(testNoStr);
-                    var jsonDoc = UtilJson.GetJsonDocument(testNumber - 1);
 
                     retVal.Add(new object[]
                     {
                         testFiles[i],
-                        jsonDoc,
+                        testNumber,
                     });
 
                 }
@@ -41,10 +40,13 @@ namespace DjvuNet.DataChunks.Tests
         }
 
         [DjvuTheory]
-        [MemberData(nameof(InclTestData))]
+        [MemberData(nameof(InclTestData), DisableDiscoveryEnumeration = true)]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        public void InclChunk_Theory(string file, DjvuJsonDocument doc)
+#endif
+        public void InclChunk_Theory(string file, int testNumber)
         {
+            DjvuJsonDocument doc = UtilJson.GetJsonDocument(testNumber - 1);
             byte[] buffer = null;
             using (FileStream fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read))
             {

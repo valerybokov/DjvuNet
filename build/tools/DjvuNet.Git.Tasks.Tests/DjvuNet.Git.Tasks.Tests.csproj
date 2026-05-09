@@ -3,7 +3,7 @@
 
   <PropertyGroup>
     <TargetFrameworks>$(NetFXTargetFrameworkVersion);$(DotNetCoreFrameworkVersion)</TargetFrameworks>
-    <OutputType>Library</OutputType>
+    <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>DjvuNet.Git.Tasks.Tests</RootNamespace>
     <AssemblyName>DjvuNet.Git.Tasks.Tests</AssemblyName>
@@ -39,12 +39,7 @@
     <PackageReference Include="Microsoft.Build.Utilities.Core" Version="$(MicrosoftBuildPackageVersion)" />
     <PackageReference Include="Moq" Version="$(MoqPackageVersion)" />
     <PackageReference Include="Newtonsoft.Json" Version="$(NewtonSoftJsonPackageVersion)" />
-    <PackageReference Include="xunit" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.extensibility.core" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.extensibility.execution" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.runner.console" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="$(XunitPackageVersion)" />
-    <PackageReference Include="xunit.runner.utility" Version="$(XunitPackageVersion)" />
+    <PackageReference Include="xunit.v3" Version="$(XunitPackageVersion)" />
   </ItemGroup>
 
   <ItemGroup>

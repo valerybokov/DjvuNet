@@ -17,7 +17,7 @@
   <UsingTask TaskName="GetDateTime" AssemblyFile="$(GitTasksAssembly)"/>
   <UsingTask TaskName="FileUpdate" AssemblyFile="$(GitTasksAssembly)"/>
 
-  <Target Name="CalculateVersion" BeforeTargets="InjectVersion">
+  <Target Name="CalculateVersion" BeforeTargets="InjectVersion" Condition="'$(IsTool)' != 'true'">
     <ReadLinesFromFile File="$(MSBuildThisFileDirectory)library.version">
       <Output TaskParameter="Lines" PropertyName="LibraryVersion" />
     </ReadLinesFromFile>
@@ -36,17 +36,13 @@
       <Output TaskParameter="Second" PropertyName="BSecond" />
     </GetDateTime>
 
-    <BuildMajorVersion MajorMinorVersion="$(LibraryVersion)">
-      <Output TaskParameter="Version" PropertyName="FullBuildVersion" />
+    <BuildMajorVersion MajorMinorVersion="$(LibraryVersion)" RepoRoot="$(MSBuildThisFileDirectory)">
+      <Output TaskParameter="Version" PropertyName="DjvuAssemblyVersion" />
+      <Output TaskParameter="FullVersion" PropertyName="FullBuildVersion" />
     </BuildMajorVersion>
-
-    <PropertyGroup Condition="$(DjvuAssemblyVersion) == ''">
-      <IndexOfLastVersionDot>$(FullBuildVersion.LastIndexOf('.'))</IndexOfLastVersionDot>
-      <DjvuAssemblyVersion>$(FullBuildVersion.Substring(0, $(IndexOfLastVersionDot)))</DjvuAssemblyVersion>
-    </PropertyGroup>
   </Target>
 
-  <Target Name="InjectVersion" BeforeTargets="CoreCompile" DependsOnTargets="CalculateVersion">
+  <Target Name="InjectVersion" BeforeTargets="CoreCompile" DependsOnTargets="CalculateVersion" Condition="'$(IsTool)' != 'true'">
 
     <PropertyGroup>
       <UtilRepoRootUpdate>$(ProjectName.EndsWith(`.Tests`))</UtilRepoRootUpdate>
@@ -101,7 +97,7 @@
 
   </Target>
 
-  <Target Name="InjectPackageVersion" BeforeTargets="Pack" DependsOnTargets="CalculateVersion">
+  <Target Name="InjectPackageVersion" BeforeTargets="Pack" DependsOnTargets="CalculateVersion" Condition="'$(IsTool)' != 'true'">
     <PropertyGroup>
       <PackageVersion>$(FullBuildVersion)</PackageVersion>
     </PropertyGroup>
@@ -110,11 +106,11 @@
   </Target>
 
   <Target Name="PrepareCopyXUnitTestProduct"
-      AfterTargets="GeneratePublishRuntimeConfigurationFile"
+      AfterTargets="Build"
       BeforeTargets="CopyXUnitTestProduct">
 
     <PropertyGroup>
-      <CopyPublishXUnitPackages Condition="$(IsDjvuNetTestProject) == 'true'">true</CopyPublishXUnitPackages>
+      <CopyPublishXUnitPackages Condition="'$(IsDjvuNetTestProject)' == 'True' or '$(IsDjvuNetTestProject)' == 'true'">true</CopyPublishXUnitPackages>
     </PropertyGroup>
 
     <ItemGroup>
@@ -123,16 +119,15 @@
         Include="$(NugetPackageRoot)\%(PackageReference.Identity)\%(PackageReference.Version)\%(PackageReference.CopyToOutputDirectory)" />
     </ItemGroup>
 
-    <Message Condition="$(CopyPublishXUnitPackages) == 'true'" Text="Target CopyXUnitTestProduct CopyPublishXUnitPackages: %(PackageReferenceFiles.Identity)" Importance="High" />
+    <Message Condition="'$(CopyPublishXUnitPackages)' == 'true'" Text="Target CopyXUnitTestProduct CopyPublishXUnitPackages: %(PackageReferenceFiles.Identity)" Importance="High" />
   </Target>
 
   <Target
     Name="CopyXUnitTestProduct"
     AfterTargets="PrepareCopyXUnitTestProduct"
-    BeforeTargets="_PublishBuildAlternative"
-    Condition="$(CopyPublishXUnitPackages) == 'true'">
+    Condition="'$(CopyPublishXUnitPackages)' == 'true'">
 
-    <Copy SourceFiles="@(PackageReferenceFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" ContinueOnError="false" />
+    <Copy SourceFiles="@(PackageReferenceFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" ContinueOnError="false" />
 
   </Target>
 

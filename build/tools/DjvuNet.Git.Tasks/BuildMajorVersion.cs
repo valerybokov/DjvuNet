@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Linq;
+using LibGit2Sharp;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
 
@@ -6,36 +8,77 @@ namespace DjvuNet.Git.Tasks
 {
     public class BuildMajorVersion : Task
     {
-
         [Required]
         public string MajorMinorVersion { get; set; }
 
+        public string RepoRoot { get; set; }
+
         [Output]
         public string Version { get; set; }
+
+        [Output]
+        public string FullVersion { get; set; }
 
         public override bool Execute()
         {
             try
             {
-                if (!System.Version.TryParse(MajorMinorVersion, out Version baseVersion))
-                    Log.LogError($"{nameof(MajorMinorVersion)} has invalid version formt.");
+                if (!System.Version.TryParse(MajorMinorVersion, out System.Version baseVersion))
+                {
+                    Log.LogError($"{nameof(MajorMinorVersion)} has invalid version format.");
+                    return false;
+                }
 
-                DateTime now = DateTime.UtcNow;
-                DateTime reference = new DateTime(2017, 1, 1);
-                TimeSpan spanFromEpoch = now.Subtract(reference);
+                DateTime commitDate = DateTime.UtcNow;
+                int commitOrderToday = 0;
+                string hashSuffix = "";
 
-                int majorBuildVersion = Math.DivRem((int)spanFromEpoch.TotalDays, 28, out int reminder);
-                majorBuildVersion *= 1000;
-                majorBuildVersion += (int) Math.Round((double) ((reminder * 24 + spanFromEpoch.Hours) * 1.488095238d), 0);
+                if (!string.IsNullOrWhiteSpace(RepoRoot))
+                {
+                    try
+                    {
+                        using (var repo = new Repository(RepoRoot))
+                        {
+                            var headCommit = repo.Head.Tip;
+                            if (headCommit != null)
+                            {
+                                commitDate = headCommit.Author.When.UtcDateTime;
+                                
+                                var dateToMatch = commitDate.Date;
+                                foreach (var commit in repo.Commits)
+                                {
+                                    if (commit.Author.When.UtcDateTime.Date == dateToMatch)
+                                        commitOrderToday++;
+                                    else
+                                        break;
+                                }
 
-                // Calculate Build Revision based on part of hour expressed in
-                // seconds x 0.277777778 -coefficient normalizes it to 1 000
-                TimeSpan lastHour = new TimeSpan((int)spanFromEpoch.TotalHours, 0, 0);
-                lastHour = spanFromEpoch - lastHour;
-                int buildRevision = (int) Math.Round((double)(lastHour.TotalSeconds * 0.277777778d), 0);
+                                commitOrderToday--; // 0-based index
+                                if (commitOrderToday < 0) commitOrderToday = 0;
 
-                var intVersion = new Version(baseVersion.Major, baseVersion.Minor, majorBuildVersion, buildRevision);
+                                string shortHash = headCommit.Sha.Substring(0, 7);                                
+                                RepositoryStatus status = repo.RetrieveStatus();
+                                bool isDirty = status.IsDirty;
+                                
+                                hashSuffix = isDirty ? $"({shortHash}-dev)" : $"({shortHash})";
+                            }
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // Ignore git errors, fallback to defaults
+                    }
+                }
+
+                // yy * 1000 + DayOfYear
+                int majorBuildVersion = (commitDate.Year % 100) * 1000 + commitDate.DayOfYear;
+                
+                int buildRevision = commitOrderToday;
+
+                var intVersion = new System.Version(baseVersion.Major, baseVersion.Minor, majorBuildVersion, buildRevision);
                 Version = intVersion.ToString();
+                
+                FullVersion = string.IsNullOrEmpty(hashSuffix) ? Version : $"{Version} {hashSuffix}";
             }
             catch (Exception ex)
             {

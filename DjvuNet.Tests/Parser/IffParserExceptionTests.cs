@@ -51,7 +51,7 @@ namespace DjvuNet.Tests
             Assert.Null(exception.InnerException);
         }
 
-        [Fact, SkipOnTargetFramework(TargetFrameworkMonikers.Netcoreapp), Trait("Category", "SkipNetCoreApp")]
+        [Fact, SkipOnTargetFramework("netcoreapp")]
         public void BinarySerializationRoundtripTest()
         {
             string innerMessage = "Invalid test message";
@@ -68,6 +68,7 @@ namespace DjvuNet.Tests
             Assert.NotNull(exception.InnerException.Message);
             Assert.Equal(innerMessage, exception.InnerException.Message);
 
+#pragma warning disable SYSLIB0011 // BinaryFormatter is obsolete
             IFormatter formatter = new BinaryFormatter();
             using (MemoryStream stream = new MemoryStream())
             {
@@ -83,6 +84,7 @@ namespace DjvuNet.Tests
                 Assert.NotNull(exDeserialized.InnerException.Message);
                 Assert.Equal(innerMessage, exDeserialized.InnerException.Message);
             }
+#pragma warning restore SYSLIB0011
         }
     }
 }

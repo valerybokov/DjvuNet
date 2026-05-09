@@ -325,9 +325,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(UInt24TestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void WriteUInt24BigEndian_Theory(uint test)
         {
             DjvuWriter writer = null;
@@ -343,9 +345,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(Int24TestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void WriteInt24BigEndian_Theory(int test)
         {
             DjvuWriter writer = null;
@@ -363,9 +367,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(UInt24TestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void WriteUInt24_Theory(uint test)
         {
             DjvuWriter writer = null;
@@ -380,9 +386,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(Int24TestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void WriteInt24_Theory(int test)
         {
             DjvuWriter writer = null;
@@ -399,9 +407,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(Int16TestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void WriteInt16BigEndian_Theory(short test)
         {
             DjvuWriter writer = null;
@@ -417,9 +427,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(Int32TestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void WriteInt32BigEndian_Theory(int test)
         {
             DjvuWriter writer = null;
@@ -435,9 +447,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(Int64TestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void WriteInt64BigEndian_Theory(long test)
         {
             DjvuWriter writer = null;
@@ -453,9 +467,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(UInt16TestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void WriteUInt16BigEndian_Theory(ushort test)
         {
             DjvuWriter writer = null;
@@ -471,9 +487,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(UInt32TestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void WriteUInt32BigEndian_Theory(uint test)
         {
             DjvuWriter writer = null;
@@ -489,9 +507,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(UInt64TestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void WriteUInt64BigEndian_Theory(ulong test)
         {
             DjvuWriter writer = null;
@@ -507,9 +527,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(StringTestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void WriteUTF8String_Theory(string testString)
         {
             DjvuWriter writer = null;
@@ -529,9 +551,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(StringTestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void WriteUTF7String_Theory(string testString)
         {
             DjvuWriter writer = null;
@@ -551,9 +575,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(StringTestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void WriteString_Theory01(String testString)
         {
             DjvuWriter writer = null;
@@ -573,9 +599,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
+        [Theory]
         [MemberData(nameof(StringTestData))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void WriteString_Theory02(String testString)
         {
             DjvuWriter writer = null;
@@ -595,9 +623,11 @@ namespace DjvuNet.Tests
             }
         }
 
-        [DjvuTheory]
-        [MemberData(nameof(StringEncodingTestData))]
+        [Theory]
+        [MemberData(nameof(StringEncodingTestData), DisableDiscoveryEnumeration = true)]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         public void WriteStringEncoding_Theory(String testString, Encoding encoding)
         {
             DjvuWriter writer = null;

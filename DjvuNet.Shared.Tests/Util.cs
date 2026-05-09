@@ -4,8 +4,10 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.CompilerServices;
+#if NETCOREAPP
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
+#endif
 using System.Text;
 using DjvuNet.DjvuLibre;
 using DjvuNet.Serialization;
@@ -431,6 +433,7 @@ namespace DjvuNet.Tests
 
             double result = 0.0;
 
+#if NETCOREAPP
             if (Avx2.IsSupported)
             {
                 uint widthBytesAvx2LRem = widthBytes % 128;
@@ -526,6 +529,7 @@ namespace DjvuNet.Tests
             } // end of: if (Avx2.IsSupported) {}
             // else if (Sse2.IsSupported) {}
             else
+#endif
             {
                 for (uint i = 0; i < height; i++)
                 {
@@ -555,7 +559,11 @@ namespace DjvuNet.Tests
             float g2 = (float)(*(++pixel2));
             float b2 = (float)(*(++pixel2));
 
+#if NETCOREAPP
             return MathF.Abs(r1 - r2) + MathF.Abs(g1 - g2) + MathF.Abs(b1 - b2);
+#else
+            return Math.Abs(r1 - r2) + Math.Abs(g1 - g2) + Math.Abs(b1 - b2);
+#endif
         }
 
         public static bool CompareImages(Bitmap image1, Bitmap image2)

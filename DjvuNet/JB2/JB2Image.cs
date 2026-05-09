@@ -233,6 +233,7 @@ namespace DjvuNet.JB2
 
             int retval = _Blits.Count;
             _Blits.Add(jb2Blit);
+            //System.IO.File.AppendAllText(@"E:\src\.net\DjvuNet\managed_blits.txt", $"{jb2Blit.ShapeNumber},{jb2Blit.Left},{jb2Blit.Bottom}\n");
 
             return retval;
         }

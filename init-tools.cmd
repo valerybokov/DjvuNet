@@ -8,7 +8,19 @@ if /i [%PLATFORM%] == [] set PLATFORM=%1
 set INIT_TOOLS_LOG=%~dp0init-tools.log
 if [%PACKAGES_DIR%]==[] set PACKAGES_DIR=%~dp0packages\
 if [%TOOLRUNTIME_DIR%]==[] set TOOLRUNTIME_DIR=%~dp0Tools\coreclr\
-set DOTNET_PATH=%TOOLRUNTIME_DIR%dotnetcli\
+
+:: ARCHITECTURAL NOTE: The official .NET SDK payloads for Windows are strictly compiled
+:: targeting the MSVC Application Binary Interface (ABI) and Universal C Runtime (UCRT).
+:: As discussed in early coreclr/runtime GitHub issues, it is structurally impossible to 
+:: build the core Windows .NET runtime with alternative compilers unless they perfectly 
+:: emulate MSVC (e.g., clang-cl.exe masquerading as cl.exe).
+:: Because the payload binary contract is immutable, we statically isolate it under 'msvc'.
+if [%2]==[] (
+    set DOTNET_PATH=%TOOLRUNTIME_DIR%dotnetcli\
+) else (
+    set DOTNET_PATH=%~2\
+)
+
 if [%DOTNET_CMD%]==[] set DOTNET_CMD=%DOTNET_PATH%dotnet.exe
 
 :: if force option is specified then clean the tool runtime and build tools package directory to force it to get recreated

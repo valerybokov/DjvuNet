@@ -10,7 +10,7 @@
   <PropertyGroup>
     <Title>$(PackageId) - DjVuLibre .NET Bindings</Title>
     <Description>DjvuNet is a managed library for working with a DjVu documents. It is binary compatible with a reference implementation - DjvuLibre.</Description>
-    <TargetFrameworks>$(DotNetStandardVersion);$(DotNetCoreFrameworkVersion)</TargetFrameworks>
+    <TargetFrameworks>$(DotNetCoreFrameworkVersion)</TargetFrameworks>
     <NETStandardImplicitPackageVersion>$(NETStandardPackageVersion)</NETStandardImplicitPackageVersion>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -46,9 +46,9 @@
     <Compile Include="DjvuLibreException.cs" />
     <Compile Include="Enums\DjvuJobStatus.cs" />
     <Compile Include="Enums\FormatStyle.cs" />
+    <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="Interop\DjvuMarshal.cs" />
     <Compile Include="DjvuRectangle.cs" />
-    <Compile Include="Enums\DocumentType.cs" />
     <Compile Include="Interop\UTF8StringMarshaler.cs" />
     <Compile Include="Rendering\IRenderEngine.cs" />
     <Compile Include="Messages\AnyMessage.cs" />
@@ -85,6 +85,7 @@
     <ProjectReference Include="$(RepoRootDir)System.Attributes\System.Attributes.csproj" />
     <!-- Allow to run vcxproj build only from .NET Framework MSBuild -->
     <ProjectReference Condition="$(SolutionFileName) == 'DjvuNet.sln'" Include="..\DjVuLibre\win32\djvulibre\libdjvulibre\libdjvulibre.vcxproj" />
+    <ProjectReference Include="..\DjvuNet\DjvuNet.csproj" />
   </ItemGroup>
 
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.targets))\DjvuNetBuild.targets" />

@@ -10,8 +10,8 @@
     <Title>$(PackageId) - DjVu Document .NET Library</Title>
     <Description>DjvuNet is a managed library for working with a DjVu documents. It is binary compatible with a reference implementation - DjvuLibre.</Description>
     <TargetFramework Condition="$(TargetFramework) != ''">$(TargetFramework)</TargetFramework>
-    <TargetFrameworks>$(DotNetStandardVersion);$(DotNetCoreFrameworkVersion)</TargetFrameworks>
-    <NETStandardImplicitPackageVersion>$(NETStandardPackageVersion)</NETStandardImplicitPackageVersion>
+    <TargetFrameworks>$(DotNetCoreFrameworkVersion)</TargetFrameworks>
+    <!--<NETStandardImplicitPackageVersion>$(NETStandardPackageVersion)</NETStandardImplicitPackageVersion>-->
     <RuntimeIdentifiers>linux-x64;osx-x64;win-x64</RuntimeIdentifiers>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -243,7 +243,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Drawing.Common" Version="$(SystemDrawingCommonPackageVersion)" />
+    <PackageReference Include="System.Drawing.Common" Version="$(SystemDrawingCommonPackageVersion)" Condition="'$(OS)' == 'Windows_NT'" />
+    <Reference Include="System.Drawing.Common, Version=6.0.0.0, Culture=neutral, PublicKeyToken=9a0646c3e445b595" Condition="'$(OS)' != 'Windows_NT'">
+      <HintPath>$(RepoRootDir)deps/$(Platform)/$(Configuration)/Unix/System.Drawing.Common.dll</HintPath>
+    </Reference>
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="$(SystemRuntimeCompilerServicesUnsafePackageVersion)" />
   </ItemGroup>
 

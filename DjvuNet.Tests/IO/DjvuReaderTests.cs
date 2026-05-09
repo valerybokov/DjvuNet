@@ -94,7 +94,7 @@ namespace DjvuNet.Tests
         [Fact()]
         public void DjvuReaderTest004()
         {
-            Uri filePath = new Uri("https://upload.wikimedia.org/wikipedia/commons/6/69/Tain_Bo_Cuailnge.djvu");
+            Uri filePath = new Uri("https://github.com/DjvuNet/artifacts/raw/refs/heads/master/wikimedia/Tain_Bo_Cuailnge.djvu");
             using (DjvuReader reader = new DjvuReader(filePath))
             {
                 Assert.NotNull(reader);
@@ -110,7 +110,7 @@ namespace DjvuNet.Tests
         {
             Assert.Throws<WebException>(() =>
            {
-               Uri filePath = new Uri("https://upload.wikimedia.org/wikipedia/commons/6/69/No_such_file.djvu");
+               Uri filePath = new Uri("https://github.com/DjvuNet/artifacts/raw/refs/heads/master/wikimedia/No_such_file.djvu");
                using (DjvuReader reader = new DjvuReader(filePath)) { }
            });
         }
@@ -149,12 +149,12 @@ namespace DjvuNet.Tests
             }
         }
 
-        [Fact()]
+        [Fact]
         public void LengthTest002()
         {
             WebClient client = new WebClient();
             using (Stream stream = client.OpenRead(
-                "https://upload.wikimedia.org/wikipedia/commons/6/69/Tain_Bo_Cuailnge.djvu"))
+                "https://github.com/DjvuNet/artifacts/raw/refs/heads/master/wikimedia/Tain_Bo_Cuailnge.djvu"))
             using (DjvuReader reader = new DjvuReader(stream))
             {
                 Assert.Equal(-1, reader.Length);

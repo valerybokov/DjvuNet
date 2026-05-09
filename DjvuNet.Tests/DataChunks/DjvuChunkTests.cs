@@ -16,9 +16,12 @@ namespace DjvuNet.DataChunks.Tests
 
         [DjvuTheory]
         [ClassData(typeof(DjvuJsonDataSource))]
+#if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        public void DjvuChunk_Theory(DjvuJsonDocument doc, int index)
+#endif
+        public void DjvuChunk_Theory(int index)
         {
+            DjvuJsonDocument doc = UtilJson.GetJsonDocument(index - 1);
             int pageCount = 0;
             using (DjvuDocument document = DjvuNet.Tests.Util.GetTestDocument(index, out pageCount))
             {

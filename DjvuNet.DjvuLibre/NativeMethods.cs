@@ -18,7 +18,9 @@ namespace DjvuNet.DjvuLibre
         /// <returns>
         /// DjVuLibre library version string.
         /// </returns>
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments - false positive as there is custom marshaling implemented in UTF8StringMarshaler
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_get_version_string", CallingConvention = CallingConvention.Cdecl, PreserveSig = true, ThrowOnUnmappableChar = true)]
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
         [return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(UTF8StringMarshaler))]
         internal static extern string GetDjvuLibreVersion();
 
@@ -42,7 +44,9 @@ namespace DjvuNet.DjvuLibre
         /// </returns>
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_context_create", CallingConvention = CallingConvention.Cdecl, PreserveSig = true, ThrowOnUnmappableChar = true)]
         internal static extern IntPtr CreateDjvuContext(
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments - false positive as there is custom marshaling implemented in UTF8StringMarshaler
             [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef=typeof(UTF8StringMarshaler))]
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
             string programName);
 
         /* ddjvu_context_release ---
@@ -143,7 +147,9 @@ namespace DjvuNet.DjvuLibre
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_create", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
         internal static extern IntPtr LoadDjvuDocumentUrl(
             IntPtr context,
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments - false positive as there is custom marshaling implemented in UTF8StringMarshaler
             [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef=typeof(UTF8StringMarshaler))]
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
             string url,
             int cache);
 
@@ -167,7 +173,9 @@ namespace DjvuNet.DjvuLibre
         [DllImport(DjVuLibrePath, EntryPoint= "ddjvu_document_create_by_filename_utf8", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
         internal static extern IntPtr LoadDjvuDocumentUtf8(
             IntPtr context,
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments - false positive as there is custom marshaling implemented in UTF8StringMarshaler
             [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef=typeof(UTF8StringMarshaler))]
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
             string filePath,
             int cache);
 
@@ -188,9 +196,15 @@ namespace DjvuNet.DjvuLibre
         /// </param>
         /// <param name="cache"></param>
         /// <returns></returns>
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments - false positive as there is custom marshaling implemented in UTF8StringMarshaler
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_create_by_filename", CallingConvention = CallingConvention.Cdecl,
             CharSet = CharSet.Ansi, PreserveSig = true, ThrowOnUnmappableChar = true)]
-        internal static extern IntPtr LoadDjvuDocument(IntPtr context, string filePath, int cache);
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
+        internal static extern IntPtr LoadDjvuDocument(
+            IntPtr context,
+            // String in computer codepage encoding. Non codepage characters will be replaced by '?'.
+            string filePath,
+            int cache);
 
         /// <summary>
         /// Returns the number of pages in a DjVu document.
@@ -677,7 +691,9 @@ namespace DjvuNet.DjvuLibre
         /// Set to true (default value) to get json formatted output.
         /// </param>
         /// <returns></returns>
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments - false positive as there is custom marshaling implemented in UTF8StringMarshaler
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_get_dump", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
         [return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(UTF8StringMarshaler))]
         internal static extern string GetDjvuDocumentDump(IntPtr document, bool json = true);
 
@@ -700,7 +716,9 @@ namespace DjvuNet.DjvuLibre
         /// <returns>
         /// string with formatted dump of page data.
         /// </returns>
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments - false positive as there is custom marshaling implemented in UTF8StringMarshaler
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_get_pagedump", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
         [return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(UTF8StringMarshaler))]
         internal static extern string GetDjvuDocumentPageDump(IntPtr document, int pageNumber);
 
@@ -724,7 +742,9 @@ namespace DjvuNet.DjvuLibre
         /// <returns>
         /// string with formatted dump of page data.
         /// </returns>
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments - false positive as there is custom marshaling implemented in UTF8StringMarshaler
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_get_pagedump_json", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
         [return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(UTF8StringMarshaler))]
         internal static extern string GetDjvuDocumentPageDump(IntPtr document, int pageNumber, bool json);
 
@@ -744,7 +764,9 @@ namespace DjvuNet.DjvuLibre
         /// <returns>
         /// Pointer to null terminated UTF8 string which has to be released by caller.
         /// </returns>
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments - false positive as there is custom marshaling implemented in UTF8StringMarshaler
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_get_filedump", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
         [return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(UTF8StringMarshaler))]
         internal static extern string GetDjvuDocumentFileDump(IntPtr document, int fileNumber);
 
@@ -766,7 +788,9 @@ namespace DjvuNet.DjvuLibre
         /// <returns>
         /// Pointer to null terminated UTF8 string which has to be released by caller.
         /// </returns>
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments - false positive as there is custom marshaling implemented in UTF8StringMarshaler
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_get_filedump_json", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
         [return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(UTF8StringMarshaler))]
         internal static extern string GetDjvuDocumentFileDump(IntPtr document, int fileNumber, bool json);
 
@@ -809,7 +833,9 @@ namespace DjvuNet.DjvuLibre
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_page_create_by_pageid", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
         internal static extern IntPtr GetDjvuDocumentPage(
             IntPtr document,
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments - false positive as there is custom marshaling implemented in UTF8StringMarshaler
             [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(UTF8StringMarshaler))]
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
             string pageName);
 
         //  DDJVUAPI double
@@ -1271,7 +1297,9 @@ namespace DjvuNet.DjvuLibre
         internal static extern IntPtr GetDjvuDocumentPageText(
             IntPtr document,
             int pageNumber,
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments - false positive as there is custom marshaling implemented in UTF8StringMarshaler
             [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef=typeof(UTF8StringMarshaler))]
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
             string maxDetail);
 
         //  DDJVUAPI char*
@@ -1288,12 +1316,16 @@ namespace DjvuNet.DjvuLibre
         /// <param name="pageNumber"></param>
         /// <param name="maxDetail"></param>
         /// <returns></returns>
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments - false positive as there is custom marshaling implemented in UTF8StringMarshaler
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_get_pagetext_utf8", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
         [return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(UTF8StringMarshaler))]
         internal static extern string GetDjvuDocumentPageTextUtf8(
             IntPtr document,
             int pageNumber,
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments - false positive as there is custom marshaling implemented in UTF8StringMarshaler
             [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef=typeof(UTF8StringMarshaler))]
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
             string maxDetail);
 
         //  DDJVUAPI miniexp_t
@@ -1331,7 +1363,9 @@ namespace DjvuNet.DjvuLibre
 
         // MINILISPAPI const char* miniexp_to_name(miniexp_t p);
 
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments - false positive as there is custom marshaling implemented in UTF8StringMarshaler
         [DllImport(DjVuLibrePath, EntryPoint = "miniexp_to_name", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
         [return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(UTF8StringMarshaler))]
         internal static extern string MiniexpToName(IntPtr miniexp);
 
@@ -1342,7 +1376,9 @@ namespace DjvuNet.DjvuLibre
 
         [DllImport(DjVuLibrePath, EntryPoint = "miniexp_symbol", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
         internal static extern IntPtr CreateSymbolMiniexp(
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments - false positive as there is custom marshaling implemented in UTF8StringMarshaler
             [MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(UTF8StringMarshaler))]
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
             string miniexp);
 
         // MINILISPAPI int miniexp_length(miniexp_t p);
@@ -1392,7 +1428,9 @@ namespace DjvuNet.DjvuLibre
         /// </summary>
         /// <param name="miniexp"></param>
         /// <returns></returns>
+#pragma warning disable CA2101 // Specify marshaling for P/Invoke string arguments - false positive as there is custom marshaling implemented in UTF8StringMarshaler
         [DllImport(DjVuLibrePath, EntryPoint = "miniexp_to_str", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+#pragma warning restore CA2101 // Specify marshaling for P/Invoke string arguments
         [return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(UTF8StringMarshaler))]
         internal static extern string GetMiniexpString(IntPtr miniexp);
 

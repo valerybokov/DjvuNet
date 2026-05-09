@@ -45,17 +45,19 @@ set _Verbosity=normal
 set _Processors=%NUMBER_OF_PROCESSORS%
 set _OS=Windows_NT
 set _SkipNative=
-set _BuildDjvuNet=
+set _BuildDjvuNet=1
 set _BuildTests=
 set _RunTests=
 set _Test=
 set _Pack=
-set _DefaultNetCoreApp=netcoreapp3.0
+set _DefaultNetCoreApp=net10.0
 set _NetCoreAppId=.NETCoreApp
-set _NetCoreAppTFM=.NETCoreApp,Version=v3.0
+set _NetCoreAppTFM=.NETCoreApp,Version=v10.0
 set _DefaultNetStandard=netstandard2.1
 set _NetStandardId=.NETStandard
 set _NetStandardTFM=.NETStandard,Version=v2.1
+set _DefaultNetFX=net472
+set _NetFXTFM=.NETFramework,Version=v4.7.2
 set _Framework=%_DefaultNetCoreApp%
 set __GithubDjvuNetReleaseUri=https://github.com/DjvuNet/artifacts/releases/download/v0.8.0.3/
 
@@ -179,10 +181,14 @@ goto usage
 
 :end_check_params
 
-if not defined _BuildDjvuNet (
-    if defined _BuildTests set _BuildDjvuNet=1
-    if defined _Test set _BuildDjvuNet=1&set _BuildTests=1& set _RunTests=1
+if defined _Test (
+    set _BuildDjvuNet=1
+    set _BuildTests=1
+    set _RunTests=1
 )
+
+if defined _BuildTests set _BuildDjvuNet=1
+if defined _RunTests set _BuildDjvuNet=1
 
 set __RootBuildDir=%__RepoRootDir%build\bin\
 
@@ -242,11 +248,40 @@ if not [%ERRORLEVEL%]==[0] (
 
 REM Download and initialize our own .NETCore SDK
 
-call .\init-tools.cmd %_MSB_Platform%
-
-if not [%ERRORLEVEL%]==[0] (
-    goto exit_error
+set __LocalDotNet=0
+set __LocalDotNetVersion=
+for /f "tokens=1" %%i in ('dotnet --list-sdks 2^>nul ^| findstr "^10\." ^| findstr /v "\-"') do (
+    set __LocalDotNet=1
+    set __LocalDotNetVersion=%%i
 )
+
+if "!__LocalDotNet!"=="1" (
+    set "__DotNetCmd=dotnet.exe"
+) else (
+    REM ARCHITECTURAL NOTE: The official .NET SDK payloads for Windows are strictly compiled
+    REM targeting the MSVC Application Binary Interface (ABI) and Universal C Runtime (UCRT).
+    REM As discussed in early coreclr/runtime GitHub issues, it is structurally impossible to
+    REM build the core Windows .NET runtime with alternative compilers unless they perfectly
+    REM emulate MSVC (e.g., clang-cl.exe masquerading as cl.exe).
+    REM Because the payload binary contract is immutable, we statically isolate it under 'msvc'.
+    set "__OSName=win"
+    set "__Libc=msvc"
+    set "__ArchName=%PROCESSOR_ARCHITECTURE%"
+    if /i "!__ArchName!"=="AMD64" set "__ArchName=x64"
+    if /i "!__ArchName!"=="ARM64" set "__ArchName=arm64"
+
+    set "__LocalDotNetDir=!__RepoRootDir!Tools\coreclr\dotnetcli\!__OSName!\!__Libc!\!__ArchName!"
+
+    call .\init-tools.cmd %_MSB_Platform% "!__LocalDotNetDir!"
+
+    if not [!ERRORLEVEL!]==[0] (
+        goto exit_error
+    )
+    set "__DotNetCmd=!__LocalDotNetDir!\dotnet.exe"
+)
+
+for /f "usebackq tokens=*" %%v in (`!__DotNetCmd! --version`) do set __UsedDotNetVersion=%%v
+echo %__MsgPrefix%Using local stable .NET 10 SDK: !__UsedDotNetVersion!
 
 REM Clone libdjvulibre if needed
 
@@ -270,8 +305,8 @@ REM Set target specific environment values
 if /i "%_Framework%" == "%_DefaultNetCoreApp%" (
     set DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
     set DOTNET_MULTILEVEL_LOOKUP=0
-    set __RestoreCmd=Tools\coreclr\dotnetcli\dotnet.exe msbuild /t:Restore
-    set __BuildCommand=Tools\coreclr\dotnetcli\dotnet.exe msbuild
+    set __RestoreCmd=!__DotNetCmd! msbuild /t:Restore
+    set __BuildCommand=!__DotNetCmd! msbuild
     set __Framework=%_DefaultNetCoreApp%
     set __BuildLibDjvuLibre=0
     if /i [%_OS%] == [Windows_NT] set "__RuntimeIdentifier=win-"
@@ -282,8 +317,8 @@ if /i "%_Framework%" == "%_DefaultNetCoreApp%" (
 if /i "%_Framework%" == "%_DefaultNetStandard%" (
     set DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
     set DOTNET_MULTILEVEL_LOOKUP=0
-    set __RestoreCmd=Tools\coreclr\dotnetcli\dotnet.exe msbuild /t:Restore
-    set __BuildCommand=Tools\coreclr\dotnetcli\dotnet.exe msbuild
+    set __RestoreCmd=!__DotNetCmd! msbuild /t:Restore
+    set __BuildCommand=!__DotNetCmd! msbuild
     set __Framework=%_DefaultNetStandard%
     set __BuildLibDjvuLibre=0
 )
@@ -394,8 +429,8 @@ REM } Scope environment changes end
 
 set __LogsDir=!__RootBuildDir!!OS!.!_MSB_Platform!.!_MSB_Configuration!\logs\
 
-call :build_dotnet_proj !__SystemAttrProj! System.Attributes.csproj
 call :build_dotnet_proj !__DjvuNetGitTasksProj! DjvuNet.Git.Tasks.csproj
+call :build_dotnet_proj !__SystemAttrProj! System.Attributes.csproj
 call :build_dotnet_proj !__DjvuNetProj! DjvuNet.csproj
 
 if defined _SkipNative goto skip_djvulibre_build
@@ -421,7 +456,7 @@ if not defined _Test (
 if not exist .\artifacts\test001C.djvu (
     echo.
     echo %__MsgPrefix%Cloning test data from https://github.com/DjvuNet/artifacts.git
-    call git clone --depth 1 https://github.com/DjvuNet/artifacts.git
+    call git clone --depth 1 -c core.autocrlf=false https://github.com/DjvuNet/artifacts.git
     if not [%ERRORLEVEL%]==[0] (
         echo.
         echo %__MsgPrefix%Error: git clone returned error
@@ -482,25 +517,27 @@ REM Prepare for running tests
 
 :run_tests
 
-set _DjvuNet_Tests=%__TestOutputDir%DjvuNet.Tests.dll
-set _DjvuNet_DjvuLibre_Tests=%__TestOutputDir%DjvuNet.DjvuLibre.Tests.dll
-set _DjvuNet_Wavelet_Tests=%__TestOutputDir%DjvuNet.Wavelet.Tests.dll
+set _DjvuNet_Tests=%__TestOutputDir%DjvuNet.Tests.exe
+set _DjvuNet_DjvuLibre_Tests=%__TestOutputDir%DjvuNet.DjvuLibre.Tests.exe
+set _DjvuNet_Wavelet_Tests=%__TestOutputDir%DjvuNet.Wavelet.Tests.exe
 set __TestResOutputDir=TestResults\!__Framework!\
 set __DotNetCommandx86=%ProgramFiles(x86)%\dotnet\dotnet
-set __DotNetCommandx64=!__RepoRootDir!Tools\coreclr\dotnetcli\dotnet
+set __DotNetCommandx64=!__DotNetCmd!
 
 if /i "%__TestFramework%" == "%_DefaultNetFX%" (
     if [%__ManagedPlatform%] == [x86] set _xUnit_console=!UserProfile!\.nuget\packages\xunit.runner.console\2.4.1\tools\!__TestFramework!\xunit.console.x86.exe
     if [%__ManagedPlatform%] == [AnyCPU] set _xUnit_console="%UserProfile%\.nuget\packages\xunit.runner.console\2.4.1\tools\%__TestFramework%\xunit.console.exe"
     if [%__ManagedPlatform%] == [x64] set _xUnit_console=!UserProfile!\.nuget\packages\xunit.runner.console\2.4.1\tools\!__TestFramework!\xunit.console.exe
+    set _Test_Options=-trait- "Category=skip-net472"
     set __TestOutputFormat=html
 )
 
 if /i "%__TestFramework%" == "%_DefaultNetCoreApp%" (
+    set DOTNET_ROLL_FORWARD=Major
     if [%__ManagedPlatform%] == [x86] set _xUnit_console="!__DotNetCommandx86!" "!__OutputDir!xunit.console.dll"
     if [%__ManagedPlatform%] == [x64] set _xUnit_console="!__DotNetCommandx64!" "!__OutputDir!xunit.console.dll"
     if [%__ManagedPlatform%] == [AnyCPU] set _xUnit_console="!__DotNetCommandx64!" "!__OutputDir!xunit.console.dll"
-    set _Test_Options=-notrait "Category=SkipNetCoreApp"
+    set _Test_Options=-trait- "Category=skip-netcoreapp"
     set __TestOutputFormat=xml
 )
 
@@ -508,13 +545,13 @@ if /i "%__TestFramework%" == "%_DefaultNetStandard%" (
     if [%__ManagedPlatform%] == [x86] set _xUnit_console="!__DotNetCommandx86!" "!__OutputDir!xunit.console.dll"
     if [%__ManagedPlatform%] == [x64] set _xUnit_console="!__DotNetCommandx64!" "!__OutputDir!xunit.console.dll"
     if [%__ManagedPlatform%] == [AnyCPU] set _xUnit_console="!__DotNetCommandx64!" "!__OutputDir!xunit.console.dll"
-    set _Test_Options=-notrait "Category=SkipNetCoreApp"
+    set _Test_Options=-trait- "Category=skip-netcoreapp"
     set __TestOutputFormat=xml
 )
 
 if /i [%_Verbosity%] == [d] set _Test_Options=!_Test_Options! -verbose
 if /i [%_Verbosity%] == [diag] set _Test_Options=!_Test_Options! -verbose -internaldiagnostics
-set _Test_Options=!_Test_Options! -notrait "Category=Skip" -nologo -nocolor -!__TestOutputFormat!
+set _Test_Options=!_Test_Options! -trait- "Category=Skip" -nologo -nocolor
 
 set "__XunitConfig=xunit.runner.json"
 
@@ -523,9 +560,9 @@ REM Run tests
 :xUnit_tests
 echo.
 echo %__MsgPrefix%Running tests from DjvuNet.Tests assembly
-echo %__MsgPrefix%calling: !_xUnit_console! "!_DjvuNet_Tests!" "!__OutputDir!DjvuNet.Tests.!__XunitConfig!" !_Test_Options! "!__TestResOutputDir!DjvuNet.Tests.!__TestOutputFormat!"
+echo %__MsgPrefix%calling: "!_DjvuNet_Tests!" !_Test_Options! "-!__TestOutputFormat!" "!__TestResOutputDir!DjvuNet.Tests.!__TestOutputFormat!"
 echo.
-call !_xUnit_console! "!_DjvuNet_Tests!" "!__OutputDir!DjvuNet.Tests.!__XunitConfig!" !_Test_Options! "!__TestResOutputDir!DjvuNet.Tests.!__TestOutputFormat!
+call "!_DjvuNet_Tests!" !_Test_Options! "-!__TestOutputFormat!" "!__TestResOutputDir!DjvuNet.Tests.!__TestOutputFormat!"
 
 if not [%ERRORLEVEL%]==[0] set _DjvuNet_Tests_Error=true
 
@@ -534,9 +571,9 @@ if defined __SkipNativeTests goto :no_djvulibre_tests
 
 echo.
 echo %__MsgPrefix%Running tests from DjvuNet.DjvuLibre.Tests assembly
-echo %__MsgPrefix%calling: !_xUnit_console! "!_DjvuNet_DjvuLibre_Tests!" "!__OutputDir!DjvuNet.DjvuLibre.Tests.!__XunitConfig!" !_Test_Options! "!__TestResOutputDir!DjvuNet.DjvuLibre.Tests.!__TestOutputFormat!"
+echo %__MsgPrefix%calling: "!_DjvuNet_DjvuLibre_Tests!" !_Test_Options! "-!__TestOutputFormat!" "!__TestResOutputDir!DjvuNet.DjvuLibre.Tests.!__TestOutputFormat!"
 echo.
-call !_xUnit_console! "!_DjvuNet_DjvuLibre_Tests!" "!__OutputDir!DjvuNet.DjvuLibre.Tests.!__XunitConfig!" !_Test_Options! "!__TestResOutputDir!DjvuNet.DjvuLibre.Tests.!__TestOutputFormat!"
+call "!_DjvuNet_DjvuLibre_Tests!" !_Test_Options! "-!__TestOutputFormat!" "!__TestResOutputDir!DjvuNet.DjvuLibre.Tests.!__TestOutputFormat!"
 
 if not [%ERRORLEVEL%]==[0] set _DjvuNet_DjvuLibre_Tests_Error=true
 
@@ -544,9 +581,9 @@ if not [%ERRORLEVEL%]==[0] set _DjvuNet_DjvuLibre_Tests_Error=true
 
 echo.
 echo %__MsgPrefix%Running tests from DjvuNet.Wavelet.Tests assembly
-echo %__MsgPrefix%calling: !_xUnit_console! "!_DjvuNet_Wavelet_Tests!" "!__OutputDir!DjvuNet.Wavelet.Tests.!__XunitConfig!" -serialize !_Test_Options! "!__TestResOutputDir!DjvuNet.Wavelet.Tests.!__TestOutputFormat!"
+echo %__MsgPrefix%calling: "!_DjvuNet_Wavelet_Tests!" !_Test_Options! "-!__TestOutputFormat!" "!__TestResOutputDir!DjvuNet.Wavelet.Tests.!__TestOutputFormat!"
 echo.
-call !_xUnit_console! "!_DjvuNet_Wavelet_Tests!" "!__OutputDir!DjvuNet.Wavelet.Tests.!__XunitConfig!" -serialize !_Test_Options! "!__TestResOutputDir!DjvuNet.Wavelet.Tests.!__TestOutputFormat!"
+call "!_DjvuNet_Wavelet_Tests!" !_Test_Options! "-!__TestOutputFormat!" "!__TestResOutputDir!DjvuNet.Wavelet.Tests.!__TestOutputFormat!"
 
 if not [%ERRORLEVEL%]==[0] goto test_error
 if /i "%_DjvuNet_Tests_Error%" == "true" goto test_error
@@ -651,34 +688,36 @@ goto :eof
 
 :usage
 echo.
-echo  Build script of DjvuNet repo
-echo  Usage: build [option value]
+echo Usage: build.cmd [options]
 echo.
-echo  Options:
+echo Options:
 echo.
-echo     -Framework           defines framework target, default "%_DefaultNetCoreApp%",
-echo     -f                   allowed values [ %_DefaultNetFX% ^| netfx ^| %_DefaultNetCoreApp% ^| netcoreapp ^| %_DefaultNetStandard% ^| netstandard ]
+echo   -c, -Configuration ^<config^>    Build configuration (Debug, Release, Checked). Default: Debug.
 echo.
-echo     -Configuration       defines build configuration, default "Debug",
-echo     -c                   allowed values [ Release ^| Checked ^| Debug ]
+echo   -p, -Platform ^<platform^>       Build platform (x64, x86, arm, arm64, AnyCPU). Default: x64.
 echo.
-echo     -Platform            defines build target platform, default "x64",
-echo     -p                   allowed values [ x64 ^| x86 ^| arm ^| arm64 ^| AnyCPU ]
+echo   -t, -Target ^<target^>           MSBuild target (Build, Rebuild, Clean, Pack). Default: Build.
 echo.
-echo     -OS                  defines target OS, allowed values [ Windows_NT ^| Linux ^| OSX ]
+echo   -f, -Framework ^<tfm^>           Target framework (net10.0, netstandard2.1, net472). Default: net10.0.
 echo.
-echo     -SkipNative          do not clone and build libdjvulibre, skip libdjvulibre dependent tests,
-echo     -sn
+echo   -DjvuNet, -BuildDjvuNet          Build the core DjvuNet managed projects. Default: True.
 echo.
-echo     -Target              defines build script target, default "Rebuild",
-echo     -t                   allowed values [ Build ^| Rebuild ^| Clean ]
+echo   -bt, -BuildTests                 Build the test projects. Default: False.
 echo.
-echo     -Verbosity           defines output verbosity, default "normal",
-echo     -v                   allowed values [ q[uiet], m[inimal], n[ormal], d[etailed], and diag[nostic] ]
+echo   -rt, -RunTests                   Build and run the test projects. Default: False.
 echo.
-echo     -Processors          defines number of processes which should be used ^for build parallelization,
-echo     -proc                default on this machine "%NUMBER_OF_PROCESSORS%"
+echo   -Test                            Alias for -RunTests. Build and run the test projects.
 echo.
-echo     -Test                build and run tests, when not used tests are not build and their execution is skipped
+echo   -sn, -SkipNative                 Skip cloning, building, and testing of native components
+echo                                    (libdjvulibre) and its managed wrapper (DjvuNet.DjvuLibre).
+echo                                    When omitted, native dependencies are processed (SkipNative=False).
+echo.
+echo   -v, -Verbosity ^<level^>         Verbosity (q[uiet], m[inimal], n[ormal], d[etailed], diag[nostic]). Default: normal.
+echo.
+echo   -proc, -Processors ^<count^>     Number of build processes. Default: %%NUMBER_OF_PROCESSORS%%
+echo.
+echo   -OS ^<os^>                       Target OS (Windows_NT, Linux, OSX). Default: Windows_NT.
+echo.
+echo   -h, -?, -help                    Show this usage message.
 echo.
 exit /b 1
