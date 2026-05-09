@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+export DOTNET_CLI_TELEMETRY_OPTOUT=1
+export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+
 # Uncommment set -x to trace execution of the script
 # set -x
 
@@ -38,6 +41,38 @@ usage()
     echo ""
     echo "  -h, --help                     Show this usage message."
     echo ""
+}
+
+git_clone_retry()
+{
+    local extra_args=$1
+    local url=$2
+    local dest=$3
+    local max_attempts=3
+    local timeout_sec=120
+    local attempt=1
+    local delay=5
+
+    while [ $attempt -le $max_attempts ]; do
+        echo "BUILD: git clone attempt $attempt of $max_attempts for $url..."
+        if command -v timeout >/dev/null 2>&1; then
+            timeout ${timeout_sec}s git clone $extra_args "$url" "$dest"
+        else
+            git clone $extra_args "$url" "$dest"
+        fi
+        
+        if [ $? -eq 0 ]; then
+            return 0
+        fi
+        
+        echo "BUILD: git clone failed or timed out. Retrying in $delay seconds..."
+        sleep $delay
+        delay=$((delay * 2))
+        attempt=$((attempt + 1))
+    done
+    
+    echo "BUILD: Error: git clone failed after $max_attempts attempts."
+    return 1
 }
 
 initHostDistroRid()
@@ -143,6 +178,7 @@ if [ "$__LocalDotNet" == "0" ]; then
         echo "Error initializing tools."
         exit 1
     fi
+    export DOTNET_ROOT="$__LocalDotNetDir"
     export PATH="${__LocalDotNetDir}:$PATH"
     __DotnetVer=$(dotnet --version)
 fi
@@ -738,7 +774,7 @@ if [ -n "$_BuildTests" ]; then
     if [ ! -f "./artifacts/test001C.djvu" ]; then
         echo ""
         echo "BUILD: Cloning test data from https://github.com/DjvuNet/artifacts.git"
-        git clone --depth 1 -c core.autocrlf=false https://github.com/DjvuNet/artifacts.git
+        git_clone_retry "--depth 1 -c core.autocrlf=false" "https://github.com/DjvuNet/artifacts.git" ""
         if [ $? -ne 0 ]; then echo "BUILD: Error: git clone returned error"; exit 1; fi
     fi
 

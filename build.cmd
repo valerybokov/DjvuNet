@@ -1,6 +1,9 @@
 @if not defined _echo @echo off
 setlocal EnableDelayedExpansion EnableExtensions
 
+set DOTNET_CLI_TELEMETRY_OPTOUT=1
+set DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+
 set "__MsgPrefix=BUILD: "
 set "__RepoRootDir=%~dp0"
 
@@ -278,6 +281,8 @@ if "!__LocalDotNet!"=="1" (
         goto exit_error
     )
     set "__DotNetCmd=!__LocalDotNetDir!\dotnet.exe"
+    set "DOTNET_ROOT=!__LocalDotNetDir!"
+    set "PATH=!__LocalDotNetDir!;!PATH!"
 )
 
 for /f "usebackq tokens=*" %%v in (`!__DotNetCmd! --version`) do set __UsedDotNetVersion=%%v
@@ -456,8 +461,8 @@ if not defined _Test (
 if not exist .\artifacts\test001C.djvu (
     echo.
     echo %__MsgPrefix%Cloning test data from https://github.com/DjvuNet/artifacts.git
-    call git clone --depth 1 -c core.autocrlf=false https://github.com/DjvuNet/artifacts.git
-    if not [%ERRORLEVEL%]==[0] (
+    call :git_clone_retry "https://github.com/DjvuNet/artifacts.git" "" "--depth 1 -c core.autocrlf=false"
+    if not [!ERRORLEVEL!]==[0] (
         echo.
         echo %__MsgPrefix%Error: git clone returned error
         goto exit_error
@@ -721,3 +726,33 @@ echo.
 echo   -h, -?, -help                    Show this usage message.
 echo.
 exit /b 1
+
+:git_clone_retry
+setlocal
+set "url=%~1"
+set "dest=%~2"
+set "extra_args=%~3"
+set max_attempts=3
+set attempt=1
+set delay=5
+
+:git_clone_loop
+echo %__MsgPrefix%git clone attempt !attempt! of !max_attempts! for !url!...
+set "CLONE_CMD=clone !extra_args! !url! !dest!"
+powershell -NoProfile -ExecutionPolicy ByPass -Command "$p = Start-Process git -ArgumentList '!CLONE_CMD!' -PassThru -NoNewWindow -Wait; if (-not $p.WaitForExit(120000)) { $p.Kill(); exit 1 } else { exit $p.ExitCode }"
+if [!ERRORLEVEL!]==[0] (
+    endlocal
+    exit /b 0
+)
+
+if !attempt! GEQ !max_attempts! (
+    echo %__MsgPrefix%Error: git clone failed or timed out after !max_attempts! attempts.
+    endlocal
+    exit /b 1
+)
+
+echo %__MsgPrefix%git clone failed. Retrying in !delay! seconds...
+ping 127.0.0.1 -n !delay! > nul
+set /a delay=!delay! * 2
+set /a attempt=!attempt! + 1
+goto git_clone_loop
