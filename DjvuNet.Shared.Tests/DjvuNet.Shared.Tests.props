@@ -16,17 +16,14 @@
     <Compile Include="$(MSBuildThisFileDirectory)Serialization\DjviForm.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Serialization\DjvmForm.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Serialization\DjvuDoc.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Serialization\DjvuDocConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Serialization\DjvuForm.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Serialization\ElementBase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Serialization\FG44.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Serialization\FGbz.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Serialization\Incl.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Serialization\Info.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Serialization\JsonCreationConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Serialization\Navm.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Serialization\NodeBase.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Serialization\NodeBaseConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Serialization\PM44.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Serialization\PM44Form.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Serialization\Sjbz.cs" />

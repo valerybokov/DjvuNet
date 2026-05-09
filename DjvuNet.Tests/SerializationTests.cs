@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using DjvuNet.Serialization;
 using DjvuNet.Tests.Xunit;
-using Newtonsoft.Json;
+using System.Text.Json;
 using Xunit;
 
 namespace DjvuNet.Tests
@@ -43,14 +43,10 @@ namespace DjvuNet.Tests
 #endif
         public void Deserialize_Theory(string fileName, string filePath)
         {
-            JsonConverter[] converters = new JsonConverter[]
-            {
-                new DjvuDocConverter(),
-                new NodeBaseConverter(),
-            };
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 
             string json = File.ReadAllText(filePath, new UTF8Encoding(false));
-            DjvuDoc doc = JsonConvert.DeserializeObject<DjvuNet.Serialization.DjvuDoc>(json, converters);
+            DjvuDoc doc = JsonSerializer.Deserialize<DjvuNet.Serialization.DjvuDoc>(json, options);
 
             Assert.NotNull(doc);
             Assert.NotNull(doc.File);

@@ -1,8 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using System.Text.Json.Serialization;
 
 namespace DjvuNet.Tests
 {
@@ -11,68 +10,68 @@ namespace DjvuNet.Tests
     {
         public class ChunkBase
         {
-            [JsonProperty("ID")]
+            [JsonPropertyName("ID")]
             public string ID { get; set; }
 
-            [JsonProperty("Offset")]
+            [JsonPropertyName("Offset")]
             public int Offset { get; set; }
 
-            [JsonProperty("Size")]
+            [JsonPropertyName("Size")]
             public int Size { get; set; }
         }
 
         public class Info : ChunkBase
         {
-            [JsonProperty("Width")]
+            [JsonPropertyName("Width")]
             public int Width { get; set; }
 
-            [JsonProperty("Height")]
+            [JsonPropertyName("Height")]
             public int Height { get; set; }
 
-            [JsonProperty("Version")]
+            [JsonPropertyName("Version")]
             public int Version { get; set; }
 
-            [JsonProperty("Dpi")]
+            [JsonPropertyName("Dpi")]
             public int Dpi { get; set; }
 
-            [JsonProperty("Gamma")]
+            [JsonPropertyName("Gamma")]
             public double Gamma { get; set; }
 
-            [JsonProperty("Orientation")]
+            [JsonPropertyName("Orientation")]
             public int Orientation { get; set; }
         }
 
         public class Chunk : ChunkBase
         {
 
-            [JsonProperty("Description")]
+            [JsonPropertyName("Description")]
             public string Description { get; set; }
 
-            [JsonProperty("Width")]
+            [JsonPropertyName("Width")]
             public int? Width { get; set; }
 
-            [JsonProperty("Height")]
+            [JsonPropertyName("Height")]
             public int? Height { get; set; }
 
-            [JsonProperty("Version")]
+            [JsonPropertyName("Version")]
             public double? Version { get; set; }
 
-            [JsonProperty("Dpi")]
+            [JsonPropertyName("Dpi")]
             public int? Dpi { get; set; }
 
-            [JsonProperty("Gamma")]
+            [JsonPropertyName("Gamma")]
             public double? Gamma { get; set; }
 
-            [JsonProperty("Name")]
+            [JsonPropertyName("Name")]
             public string Name { get; set; }
 
-            [JsonProperty("Colors")]
+            [JsonPropertyName("Colors")]
             public int? Colors { get; set; }
 
-            [JsonProperty("Slices")]
+            [JsonPropertyName("Slices")]
             public int? Slices { get; set; }
 
-            [JsonProperty("Color")]
+            [JsonPropertyName("Color")]
             public string Color { get; set; }
         }
     }
@@ -82,19 +81,19 @@ namespace DjvuNet.Tests
         public class RootChild : ChunkBase
         {
 
-            [JsonProperty("Description")]
+            [JsonPropertyName("Description")]
             public string Description { get; set; }
 
-            [JsonProperty("DocumentType")]
+            [JsonPropertyName("DocumentType")]
             public string DocumentType { get; set; }
 
-            [JsonProperty("FileCount")]
+            [JsonPropertyName("FileCount")]
             public int FileCount { get; set; }
 
-            [JsonProperty("PageCount")]
+            [JsonPropertyName("PageCount")]
             public int PageCount { get; set; }
 
-            [JsonProperty("Children")]
+            [JsonPropertyName("Children")]
             public Chunk[] Children { get; set; }
         }
     }
@@ -110,13 +109,13 @@ namespace DjvuNet.Tests
             private RootChild _Dirm;
             private RootChild _Navm;
 
-            [JsonProperty("ID")]
+            [JsonPropertyName("ID")]
             public string ID { get; set; }
 
-            [JsonProperty("Size")]
+            [JsonPropertyName("Size")]
             public int Size { get; set; }
 
-            [JsonProperty("Children")]
+            [JsonPropertyName("Children")]
             public RootChild[] Children { get; set; }
 
             [JsonIgnore]
@@ -213,7 +212,7 @@ namespace DjvuNet.Tests
     public partial class DjvuJsonDocument
     {
 
-        [JsonProperty("DjvuData")]
+        [JsonPropertyName("DjvuData")]
         public Document Data { get; set; }
 
         [JsonIgnore]

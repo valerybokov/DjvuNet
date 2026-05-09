@@ -18,7 +18,6 @@
     <MicrosoftNETCoreDotnetHostPolicyPackageVersion>$(MicrosoftNETCoreAppPackageVersion)</MicrosoftNETCoreDotnetHostPolicyPackageVersion>
     <XunitPackageVersion>3.2.2</XunitPackageVersion>
     <MoqPackageVersion>4.20.72</MoqPackageVersion>
-    <NewtonSoftJsonPackageVersion>13.0.3</NewtonSoftJsonPackageVersion>
     <MicrosoftBuildPackageVersion>18.4.0</MicrosoftBuildPackageVersion>
     <LibGit2SharpPackageVersion>0.31.0</LibGit2SharpPackageVersion>
     <LibGit2SharpNativeBinariesPackageVersion>2.0.322</LibGit2SharpNativeBinariesPackageVersion>

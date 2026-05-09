@@ -5,7 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
-using Newtonsoft.Json;
+using System.Text.Json;
 
 namespace DjvuNet.Tests
 {
@@ -26,12 +26,14 @@ namespace DjvuNet.Tests
                     string[] jsonFiles = Directory.GetFiles(Util.ArtifactsPath, "*C*.json");
                     Array.Sort(jsonFiles);
 
+                    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
                     foreach (string f in jsonFiles)
                     {
                         using (StreamReader reader = new StreamReader(f))
                         {
                             string json = reader.ReadToEnd();
-                            DjvuJsonDocument doc = JsonConvert.DeserializeObject<DjvuJsonDocument>(json);
+                            DjvuJsonDocument doc = JsonSerializer.Deserialize<DjvuJsonDocument>(json, options);
                             doc.DocumentFile = f;
                             _JsonDocumentList.Add(doc);
                         }

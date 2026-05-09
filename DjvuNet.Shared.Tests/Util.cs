@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -9,9 +9,9 @@ using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 #endif
 using System.Text;
+using System.Text.Json;
 using DjvuNet.DjvuLibre;
 using DjvuNet.Serialization;
-using Newtonsoft.Json;
 using Xunit;
 
 namespace DjvuNet.Tests
@@ -35,12 +35,8 @@ namespace DjvuNet.Tests
                 }
                 else
                 {
-                    _TestDocumentData = new SortedDictionary<int, Tuple<int, int, DocumentType, string>>();
-                    JsonConverter[] converters = new JsonConverter[]
-                    {
-                        new DjvuDocConverter(),
-                        new NodeBaseConverter(),
-                    };
+                    var dict = new SortedDictionary<int, Tuple<int, int, DocumentType, string>>();
+                    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true, AllowTrailingCommas = true };
 
                     for (int i = 1; i <= 77; i++)
                     {
@@ -49,7 +45,9 @@ namespace DjvuNet.Tests
                             Path.GetFileNameWithoutExtension(filePath) + ".json");
 
                         string json = File.ReadAllText(filePath, new UTF8Encoding(false));
-                        DjvuDoc doc = JsonConvert.DeserializeObject<DjvuDoc>(json, converters);
+                        
+                        DjvuDoc doc = JsonSerializer.Deserialize<DjvuDoc>(json, options);
+
                         Tuple<int, int, DocumentType, string> docData;
                         if (doc.DjvuData is DjvmForm djvm)
                         {
@@ -64,10 +62,11 @@ namespace DjvuNet.Tests
                             docData = Tuple.Create<int, int, DocumentType, string>(
                                 1, 1, DocumentType.SinglePage, null);
                         }
-                        if (!_TestDocumentData.ContainsKey(i))
-                            _TestDocumentData.Add(i, docData);
+                        if (!dict.ContainsKey(i))
+                            dict.Add(i, docData);
                     }
 
+                    _TestDocumentData = dict;
                     return _TestDocumentData;
                 }
             }
@@ -107,7 +106,7 @@ namespace DjvuNet.Tests
                 info += (message + "\n" + ex.ToString());
             }
 
-            Assert.True(false, info);
+            Assert.Fail(info);
         }
 
         public static string GetTestFilePathTemplate()

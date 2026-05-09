@@ -6,9 +6,9 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json;
 using DjvuNet.DjvuLibre;
 using DjvuNet.Tests;
-using Newtonsoft.Json;
 using Xunit;
 
 
@@ -199,7 +199,7 @@ namespace DjvuNet.DjvuLibre.Tests
 
                 var data = document.DumpPageData(1);
                 Assert.NotNull(data);
-                object json = JsonConvert.DeserializeObject(data);
+                object json = JsonSerializer.Deserialize<object>(data);
                 Assert.NotNull(json);
             }
         }
@@ -278,7 +278,7 @@ namespace DjvuNet.DjvuLibre.Tests
 
                 var data = document.DumpPageData(0);
                 Assert.NotNull(data);
-                object json = JsonConvert.DeserializeObject(data);
+                object json = JsonSerializer.Deserialize<object>(data);
                 Assert.NotNull(json);
             }
         }
@@ -357,7 +357,7 @@ namespace DjvuNet.DjvuLibre.Tests
 
                 var data = document.DumpPageData(0);
                 Assert.NotNull(data);
-                object json = JsonConvert.DeserializeObject(data);
+                object json = JsonSerializer.Deserialize<object>(data);
                 Assert.NotNull(json);
             }
         }
@@ -436,7 +436,7 @@ namespace DjvuNet.DjvuLibre.Tests
 
                 var data = document.DumpPageData(1, true);
                 Assert.NotNull(data);
-                object json = JsonConvert.DeserializeObject(data);
+                object json = JsonSerializer.Deserialize<object>(data);
                 Assert.NotNull(json);
             }
         }
@@ -514,7 +514,7 @@ namespace DjvuNet.DjvuLibre.Tests
                 var data = document.DumpPageData(2, true);
                 Assert.NotNull(data);
 
-                object json = JsonConvert.DeserializeObject(data);
+                object json = JsonSerializer.Deserialize<object>(data);
                 Assert.NotNull(json);
             }
         }
@@ -593,7 +593,7 @@ namespace DjvuNet.DjvuLibre.Tests
                 var data = document.DumpPageData(2, true);
                 Assert.NotNull(data);
 
-                object json = JsonConvert.DeserializeObject(data);
+                object json = JsonSerializer.Deserialize<object>(data);
                 Assert.NotNull(json);
             }
         }
@@ -673,7 +673,7 @@ namespace DjvuNet.DjvuLibre.Tests
                 Assert.Equal<DocumentType>(DocumentType.Bundled, type);
                 var data = document.DumpDocumentData();
                 Assert.NotNull(data);
-                object json = JsonConvert.DeserializeObject(data);
+                object json = JsonSerializer.Deserialize<object>(data);
                 Assert.NotNull(json);
             }
         }
@@ -754,7 +754,7 @@ namespace DjvuNet.DjvuLibre.Tests
                 Assert.Equal<DocumentType>(DocumentType.Bundled, type);
                 var data = document.DumpDocumentData(true);
 
-                object json = JsonConvert.DeserializeObject(data);
+                object json = JsonSerializer.Deserialize<object>(data);
                 Assert.NotNull(json);
             }
         }
@@ -829,7 +829,7 @@ namespace DjvuNet.DjvuLibre.Tests
                 Assert.Equal<DocumentType>(DocumentType.SinglePage, type);
                 var data = document.DumpDocumentData(true);
 
-                object json = JsonConvert.DeserializeObject(data);
+                object json = JsonSerializer.Deserialize<object>(data);
                 Assert.NotNull(json);
             }
         }
@@ -911,7 +911,7 @@ namespace DjvuNet.DjvuLibre.Tests
                 Assert.Equal<DocumentType>(DocumentType.Bundled, type);
                 var data = document.DumpDocumentData(true);
 
-                object json = JsonConvert.DeserializeObject(data);
+                object json = JsonSerializer.Deserialize<object>(data);
                 Assert.NotNull(json);
             }
         }
