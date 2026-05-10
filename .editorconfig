@@ -11,8 +11,12 @@ indent_style = space
 [*.txt]
 insert_final_newline = false
 
-[*.{cs,c,cpp,h,hpp,json,ps1,py,cmd,sh,yml,editorconfig}]
+[*.{cs,c,cpp,h,hpp,json,ps1,py,sh,yml,editorconfig}]
 indent_size = 4
+
+[*.{cmd,bat}]
+indent_size = 4
+end_of_line = crlf
 
 # Xml project files
 [*.{csproj,vcxproj,vcxproj.filters,proj,nativeproj,locproj}]

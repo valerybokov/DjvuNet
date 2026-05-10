@@ -522,15 +522,19 @@ __HostOS=$__OSName
 __BuildArch=$__ArchName
 __HostArch=$__ArchName
 
-# Get the number of processors available to the scheduler
+# Get the number of physical processors available to the scheduler
 if [ `uname` = "FreeBSD" ]; then
-  __NumProc=`sysctl hw.ncpu | awk '{ print $2+1 }'`
+  __NumProc=`sysctl hw.ncpu | awk '{ print $2 }'`
 elif [ `uname` = "NetBSD" ]; then
-  __NumProc=$(($(getconf NPROCESSORS_ONLN)+1))
+  __NumProc=$(getconf NPROCESSORS_ONLN)
 elif [ `uname` = "Darwin" ]; then
-  __NumProc=$(($(getconf _NPROCESSORS_ONLN)+1))
+  __NumProc=`sysctl hw.physicalcpu | awk '{ print $2 }'`
 else
-  __NumProc=$(nproc --all)
+  if command -v lscpu >/dev/null 2>&1; then
+    __NumProc=$(lscpu -p=CORE | grep -v '#' | sort -u | wc -l)
+  else
+    __NumProc=$(nproc --all)
+  fi
 fi
 
 # Set default values
@@ -546,6 +550,15 @@ _BuildTests=""
 _RunTests=""
 _Test=""
 _Pack=""
+_FastFail=""
+__FailedRestores=()
+__FailedBuilds=()
+__FailedPublishes=()
+__FailedTests=()
+__SuccessfulRestores=()
+__SuccessfulBuilds=()
+__SuccessfulPublishes=()
+__SuccessfulTests=()
 _DefaultNetCoreApp="net10.0"
 _NetCoreAppId=".NETCoreApp"
 _NetCoreAppTFM=".NETCoreApp,Version=v10.0"
@@ -572,6 +585,8 @@ while [[ $# -gt 0 ]]; do
         _RunTests=1; shift 1 ;;
         -Test)
         _Test=1; shift 1 ;;
+        -FastFail|-ff)
+        _FastFail=1; shift 1 ;;
         -Framework|-f)
         _Framework="$2"; shift 2 ;;
         -SkipNative|-sn)
@@ -707,9 +722,11 @@ restore_dotnet_proj() {
     "$__DotnetCmd" msbuild /t:Restore "${__RestoreCmdArgs[@]}" "$__DjvuTargetProject"
     if [[ $? -ne 0 ]]; then
         echo "BUILD: Error: nuget restore of $__DjvuTargetProject returned error"
-        exit 1
+        __FailedRestores+=("$__DjvuTargetProject")
+        if [[ -n "$_FastFail" ]]; then exit 1; fi
     else
         echo "BUILD: Success: nuget restore of $__DjvuTargetProject finished"
+        __SuccessfulRestores+=("$__DjvuTargetProject")
     fi
 }
 
@@ -732,7 +749,10 @@ build_dotnet_proj() {
         echo "    $__BuildLog"
         echo "    $__BuildWrn"
         echo "    $__BuildErr"
-        exit 1
+        __FailedBuilds+=("$__BuildProjName")
+        if [[ -n "$_FastFail" ]]; then exit 1; fi
+    else
+        __SuccessfulBuilds+=("$__BuildProjName")
     fi
 
     if [ -z "$__SkipPublish" ]; then
@@ -751,7 +771,30 @@ build_dotnet_proj() {
             echo "    $__PublishLog"
             echo "    $__PublishWrn"
             echo "    $__PublishErr"
-            exit 1
+            __FailedPublishes+=("$__BuildProjName")
+            if [[ -n "$_FastFail" ]]; then exit 1; fi
+        else
+            __SuccessfulPublishes+=("$__BuildProjName")
+        fi
+    fi
+}
+
+run_dotnet_test() {
+    local __DjvuTargetTestExe=$1
+    local __DjvuTargetTestName=$2
+
+    echo ""
+    if [ ! -f "$__DjvuTargetTestExe" ]; then
+        echo "BUILD: Skipping $__DjvuTargetTestName because assembly is missing."
+        __FailedTests+=("$__DjvuTargetTestName")
+    else
+        echo "BUILD: Running tests from $__DjvuTargetTestName assembly"
+        echo "BUILD: calling: \"$__DotnetCmd\" \"$__DjvuTargetTestExe\" $_Test_Options -${__TestOutputFormat} \"${__TestResOutputDir}${__DjvuTargetTestName}.${__TestOutputFormat}\""
+        if ! "$__DotnetCmd" "$__DjvuTargetTestExe" $_Test_Options -${__TestOutputFormat} "${__TestResOutputDir}${__DjvuTargetTestName}.${__TestOutputFormat}"; then
+            __FailedTests+=("$__DjvuTargetTestName")
+            if [[ -n "$_FastFail" ]]; then exit 1; fi
+        else
+            __SuccessfulTests+=("$__DjvuTargetTestName")
         fi
     fi
 }
@@ -796,6 +839,13 @@ if [ -n "$_BuildTests" ]; then
 fi
 
 if [ -n "$_RunTests" ]; then
+    print_build_summary
+    echo ""
+    echo "BUILD: ======================================================================"
+    echo "BUILD:                            STARTING TESTS"
+    echo "BUILD: ======================================================================"
+    echo ""
+
     # Run tests
     __TestOutputDir="$__PublishDir"
     _DjvuNet_Tests="${__TestOutputDir}DjvuNet.Tests.dll"
@@ -824,40 +874,66 @@ if [ -n "$_RunTests" ]; then
 
     _DjvuNet_Tests_Error="false"
 
-    echo ""
-    echo "BUILD: Running tests from DjvuNet.Tests assembly"
-    echo "BUILD: calling: \"$__DotnetCmd\" \"$_DjvuNet_Tests\" $_Test_Options -${__TestOutputFormat} \"${__TestResOutputDir}DjvuNet.Tests.${__TestOutputFormat}\""
-    "$__DotnetCmd" "$_DjvuNet_Tests" $_Test_Options -${__TestOutputFormat} "${__TestResOutputDir}DjvuNet.Tests.${__TestOutputFormat}" || _DjvuNet_Tests_Error="true"
+    run_dotnet_test "$_DjvuNet_Tests" "DjvuNet.Tests"
 
     if [ -z "$_SkipNative" ] && [ -z "$__SkipNativeTests" ]; then
-        echo ""
-        echo "BUILD: Running tests from DjvuNet.DjvuLibre.Tests assembly"
-        echo "BUILD: calling: \"$__DotnetCmd\" \"$_DjvuNet_DjvuLibre_Tests\" $_Test_Options -${__TestOutputFormat} \"${__TestResOutputDir}DjvuNet.DjvuLibre.Tests.${__TestOutputFormat}\""
-        "$__DotnetCmd" "$_DjvuNet_DjvuLibre_Tests" $_Test_Options -${__TestOutputFormat} "${__TestResOutputDir}DjvuNet.DjvuLibre.Tests.${__TestOutputFormat}" || _DjvuNet_Tests_Error="true"
+        run_dotnet_test "$_DjvuNet_DjvuLibre_Tests" "DjvuNet.DjvuLibre.Tests"
     fi
 
+    run_dotnet_test "$_DjvuNet_Wavelet_Tests" "DjvuNet.Wavelet.Tests"
+
+print_build_summary() {
     echo ""
-    echo "BUILD: Running tests from DjvuNet.Wavelet.Tests assembly"
-    echo "BUILD: calling: \"$__DotnetCmd\" \"$_DjvuNet_Wavelet_Tests\" $_Test_Options -${__TestOutputFormat} \"${__TestResOutputDir}DjvuNet.Wavelet.Tests.${__TestOutputFormat}\""
-    "$__DotnetCmd" "$_DjvuNet_Wavelet_Tests" $_Test_Options -${__TestOutputFormat} "${__TestResOutputDir}DjvuNet.Wavelet.Tests.${__TestOutputFormat}" || _DjvuNet_Tests_Error="true"
-
-    if [ "$_DjvuNet_Tests_Error" == "true" ]; then
-        echo ""
-        echo "BUILD: Error: tests failed"
-        echo ""
-        echo "BUILD: Build Failed at $(date +"%Y-%m-%d %H:%M:%S.%2N")"
-        exit 1
-    else
-        echo ""
-        echo "BUILD: Success: tests passed"
-        echo ""
-        echo "BUILD: Finished Build at $(date +"%Y-%m-%d %H:%M:%S.%2N")"
-        exit 0
+    echo "BUILD: ======================================================================"
+    echo "BUILD:                            BUILD SUMMARY"
+    echo "BUILD: ======================================================================"
+    if [ ${#__SuccessfulRestores[@]} -ne 0 ]; then
+        echo "BUILD: Successfully restored:"
+        for p in "${__SuccessfulRestores[@]}"; do echo "BUILD:   - $p"; done
     fi
+    if [ ${#__SuccessfulBuilds[@]} -ne 0 ]; then
+        echo "BUILD: Successfully built:"
+        for p in "${__SuccessfulBuilds[@]}"; do echo "BUILD:   - $p"; done
+    fi
+    if [ ${#__SuccessfulPublishes[@]} -ne 0 ]; then
+        echo "BUILD: Successfully published:"
+        for p in "${__SuccessfulPublishes[@]}"; do echo "BUILD:   - $p"; done
+    fi
+    if [ ${#__FailedRestores[@]} -ne 0 ]; then
+        echo "BUILD: Failed to restore:"
+        for p in "${__FailedRestores[@]}"; do echo "BUILD:   - $p"; done
+    fi
+    if [ ${#__FailedBuilds[@]} -ne 0 ]; then
+        echo "BUILD: Failed to build:"
+        for p in "${__FailedBuilds[@]}"; do echo "BUILD:   - $p"; done
+    fi
+    if [ ${#__FailedPublishes[@]} -ne 0 ]; then
+        echo "BUILD: Failed to publish:"
+        for p in "${__FailedPublishes[@]}"; do echo "BUILD:   - $p"; done
+    fi
+}
+
+print_full_summary() {
+    print_build_summary
+    if [ ${#__SuccessfulTests[@]} -ne 0 ]; then
+        echo "BUILD: Successfully tested:"
+        for p in "${__SuccessfulTests[@]}"; do echo "BUILD:   - $p"; done
+    fi
+    if [ ${#__FailedTests[@]} -ne 0 ]; then
+        echo "BUILD: Failed tests:"
+        for p in "${__FailedTests[@]}"; do echo "BUILD:   - $p"; done
+    fi
+    echo ""
+}
+
+if [ ${#__FailedRestores[@]} -ne 0 ] || [ ${#__FailedBuilds[@]} -ne 0 ] || [ ${#__FailedPublishes[@]} -ne 0 ] || [ ${#__FailedTests[@]} -ne 0 ]; then
+    echo ""
+    echo "BUILD: Error: Build Failed at $(date +"%Y-%m-%d %H:%M:%S.%2N")"
+    print_full_summary
+    exit 1
 fi
 
 echo ""
-echo "BUILD: Success: successfully built."
-echo ""
-echo "BUILD: Finished Build at $(date +"%Y-%m-%d %H:%M:%S.%2N")"
+echo "BUILD: Success: Build and tests passed at $(date +"%Y-%m-%d %H:%M:%S.%2N")"
+print_full_summary
 exit 0

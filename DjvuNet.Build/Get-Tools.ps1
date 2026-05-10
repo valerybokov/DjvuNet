@@ -32,21 +32,49 @@ if ([System.IO.Directory]::Exists($ToolsPath)) {
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
+$baseTimeout = 120
+$maxAttempts = 5
+
 do {
     try {
-        Write-Output "$MessagePrefix Downloading $ToolsName from $ToolsRemotePath"
-        (New-Object Net.WebClient).DownloadFile($ToolsRemotePath, $ToolsLocalPath)
+        $currentTimeout = $baseTimeout * ($retryCount + 1)
+        Write-Output "$MessagePrefix Downloading $ToolsName from $ToolsRemotePath (Timeout: ${currentTimeout}s)"
+        
+        $request = [System.Net.WebRequest]::Create($ToolsRemotePath)
+        $request.Timeout = $currentTimeout * 1000
+        
+        $response = $null
+        $stream = $null
+        $fileStream = $null
+        try {
+            try {
+                $response = $request.GetResponse()
+            } catch [System.Net.WebException] {
+                if ($null -ne $_.Exception.Response) {
+                    try { $_.Exception.Response.Close() } catch {}
+                }
+                throw
+            }
+            $stream = $response.GetResponseStream()
+            $fileStream = [System.IO.File]::Create($ToolsLocalPath)
+            $stream.CopyTo($fileStream)
+        } finally {
+            if ($null -ne $fileStream) { try { $fileStream.Dispose() } catch {} }
+            if ($null -ne $stream) { try { $stream.Dispose() } catch {} }
+            if ($null -ne $response) { try { $response.Close() } catch {} }
+        }
+        
         $success = $true
     } catch {
-        if ($retryCount -ge 6) {
-            Write-Output "$MessagePrefix Maximum of 5 retries exceeded. Aborting"
+        if ($retryCount -ge ($maxAttempts - 1)) {
+            Write-Output "$MessagePrefix Maximum of $maxAttempts retries exceeded. Aborting"
             throw
         }
         else {
+            $retryTime = 10 * [Math]::Pow(2, $retryCount)
             $retryCount++
-            $retryTime = 5 * $retryCount
-            Write-Output "$MessagePrefix Download failed. Retrying in $retryTime seconds"
-            Start-Sleep -Seconds (5 * $retryCount)
+            Write-Output "$MessagePrefix Download failed. Retrying in $retryTime seconds (Attempt $retryCount of $maxAttempts)..."
+            Start-Sleep -Seconds $retryTime
         }
     }
 } while ($success -eq $false)

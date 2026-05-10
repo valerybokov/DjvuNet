@@ -4,6 +4,12 @@
 * text eol=lf
 
 ###############################################################################
+# Force Windows batch scripts to use CRLF line endings
+###############################################################################
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+###############################################################################
 # Set default behavior for command prompt diff.
 #
 # This is need for earlier builds of msysgit that does not have it on by

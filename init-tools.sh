@@ -68,12 +68,38 @@ echo "Initializing local .NET SDK based on DjvuNet global.json..."
 
 mkdir -p "$__DotNetDir"
 
-if command -v wget >/dev/null 2>&1; then
-    wget -q https://dot.net/v1/dotnet-install.sh -O "$__DotNetDir/dotnet-install.sh"
-elif command -v curl >/dev/null 2>&1; then
-    curl -sSL https://dot.net/v1/dotnet-install.sh -o "$__DotNetDir/dotnet-install.sh"
-else
-    echo "Error: Neither wget nor curl is available. Cannot download dotnet-install.sh."
+max_attempts=5
+attempt=1
+delay=10
+success=false
+base_timeout=120
+
+while [ $attempt -le $max_attempts ]; do
+    current_timeout=$((base_timeout * attempt))
+    echo "Downloading dotnet-install.sh (Attempt $attempt of $max_attempts, Timeout: ${current_timeout}s)..."
+    
+    if command -v wget >/dev/null 2>&1; then
+        download_cmd="wget -q --timeout=$current_timeout https://dot.net/v1/dotnet-install.sh -O $__DotNetDir/dotnet-install.sh"
+    elif command -v curl >/dev/null 2>&1; then
+        download_cmd="curl -sSL --max-time $current_timeout https://dot.net/v1/dotnet-install.sh -o $__DotNetDir/dotnet-install.sh"
+    else
+        echo "Error: Neither wget nor curl is available. Cannot download dotnet-install.sh."
+        exit 1
+    fi
+    
+    if $download_cmd; then
+        success=true
+        break
+    else
+        echo "Download failed or timed out. Retrying in $delay seconds..."
+        sleep $delay
+        delay=$((delay * 2))
+        attempt=$((attempt + 1))
+    fi
+done
+
+if [ "$success" = false ]; then
+    echo "Error: Failed to download dotnet-install.sh after $max_attempts attempts."
     exit 1
 fi
 chmod +x "$__DotNetDir/dotnet-install.sh"

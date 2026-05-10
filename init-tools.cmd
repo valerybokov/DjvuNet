@@ -39,7 +39,43 @@ set DOTNET_ZIP_NAME=dotnet-sdk-%DOTNET_VERSION%-win-%PLATFORM%.zip
 set DOTNET_REMOTE_PATH=https://dotnetcli.azureedge.net/dotnet/Sdk/%DOTNET_VERSION%/%DOTNET_ZIP_NAME%
 set DOTNET_LOCAL_PATH=%DOTNET_PATH%%DOTNET_ZIP_NAME%
 echo %__MsgPrefix%Installing '%DOTNET_REMOTE_PATH%' to '%DOTNET_LOCAL_PATH%' >> "%INIT_TOOLS_LOG%"
-powershell -NoProfile -ExecutionPolicy unrestricted -Command "$retryCount = 0; $success = $false; $proxyCredentialsRequired = $false; do { try { $wc = New-Object Net.WebClient; if ($proxyCredentialsRequired) { [Net.WebRequest]::DefaultWebProxy.Credentials = [Net.CredentialCache]::DefaultNetworkCredentials; } $wc.DownloadFile('%DOTNET_REMOTE_PATH%', '%DOTNET_LOCAL_PATH%'); $success = $true; } catch { if ($retryCount -ge 6) { throw; } else { $we = $_.Exception.InnerException -as [Net.WebException]; $proxyCredentialsRequired = ($we -ne $null -and ([Net.HttpWebResponse]$we.Response).StatusCode -eq [Net.HttpStatusCode]::ProxyAuthenticationRequired); Start-Sleep -Seconds (5 * $retryCount); $retryCount++; } } } while ($success -eq $false); Add-Type -Assembly 'System.IO.Compression.FileSystem' -ErrorVariable AddTypeErrors; if ($AddTypeErrors.Count -eq 0) { [System.IO.Compression.ZipFile]::ExtractToDirectory('%DOTNET_LOCAL_PATH%', '%DOTNET_PATH%') } else { (New-Object -com shell.application).namespace('%DOTNET_PATH%').CopyHere((new-object -com shell.application).namespace('%DOTNET_LOCAL_PATH%').Items(),16) }" >> "%INIT_TOOLS_LOG%"
+powershell -NoProfile -ExecutionPolicy unrestricted -Command ^
+    "$retryCount = 0; $success = $false; $baseTimeout = 120; $maxAttempts = 5; $proxyCredentialsRequired = $false; " ^
+    "do { " ^
+    "    try { " ^
+    "        $currentTimeout = $baseTimeout * ($retryCount + 1); " ^
+    "        Write-Output ('Downloading .NET SDK (Timeout: ' + $currentTimeout + 's)...'); " ^
+    "        $request = [System.Net.WebRequest]::Create('%DOTNET_REMOTE_PATH%'); " ^
+    "        $request.Timeout = $currentTimeout * 1000; " ^
+    "        if ($proxyCredentialsRequired) { " ^
+    "            $request.Proxy.Credentials = [Net.CredentialCache]::DefaultNetworkCredentials; " ^
+    "        } " ^
+    "        $response = $request.GetResponse(); " ^
+    "        $stream = $response.GetResponseStream(); " ^
+    "        $fileStream = [System.IO.File]::Create('%DOTNET_LOCAL_PATH%'); " ^
+    "        $stream.CopyTo($fileStream); " ^
+    "        $fileStream.Close(); $stream.Close(); $response.Close(); " ^
+    "        $success = $true; " ^
+    "    } catch { " ^
+    "        if ($retryCount -ge ($maxAttempts - 1)) { " ^
+    "            Write-Output ('Maximum of ' + $maxAttempts + ' retries exceeded. Aborting.'); " ^
+    "            throw; " ^
+    "        } else { " ^
+    "            $we = $_.Exception.InnerException -as [Net.WebException]; " ^
+    "            $proxyCredentialsRequired = ($we -ne $null -and ([Net.HttpWebResponse]$we.Response).StatusCode -eq [Net.HttpStatusCode]::ProxyAuthenticationRequired); " ^
+    "            $retryTime = 10 * [Math]::Pow(2, $retryCount); " ^
+    "            $retryCount++; " ^
+    "            Write-Output ('Download failed. Retrying in ' + $retryTime + ' seconds (Attempt ' + $retryCount + ' of ' + $maxAttempts + ')...'); " ^
+    "            Start-Sleep -Seconds $retryTime; " ^
+    "        } " ^
+    "    } " ^
+    "} while ($success -eq $false); " ^
+    "Add-Type -Assembly 'System.IO.Compression.FileSystem' -ErrorVariable AddTypeErrors; " ^
+    "if ($AddTypeErrors.Count -eq 0) { " ^
+    "    [System.IO.Compression.ZipFile]::ExtractToDirectory('%DOTNET_LOCAL_PATH%', '%DOTNET_PATH%'); " ^
+    "} else { " ^
+    "    (New-Object -com shell.application).namespace('%DOTNET_PATH%').CopyHere((new-object -com shell.application).namespace('%DOTNET_LOCAL_PATH%').Items(),16); " ^
+    "}" >> "%INIT_TOOLS_LOG%"
 if NOT exist "%DOTNET_LOCAL_PATH%" (
   echo %__MsgPrefix%ERROR: Could not install dotnet cli correctly. 1>&2
   goto :error
