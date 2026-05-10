@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -561,7 +561,7 @@ namespace DjvuNet.Tests
                     Bitmap resizedImage = null;
                     if (image.Width != testImage.Width || image.Height != testImage.Height)
                     {
-                        Assert.True(false, $"Unexpected image size differences.\nWidth image: {image.Width} | testImage: {testImage.Width}, Height: image: {image.Height} | testImage {testImage.Height}");
+                        Assert.Fail($"Unexpected image size differences.\nWidth image: {image.Width} | testImage: {testImage.Width}, Height: image: {image.Height} | testImage {testImage.Height}");
                     }
 
                     bool result = Util.CompareImagesForBinarySimilarity(testImage, image, 0.0585, true, $"Testing Djvu image: \t\ttest{docNumber:00#}C.png, ");
@@ -615,7 +615,7 @@ namespace DjvuNet.Tests
 
                     if (image.Width != testImage.Width || image.Height != testImage.Height)
                     {
-                        Assert.True(false, $"Unexpected image size differences. Width image: {image.Width} | testImage: {testImage.Width}, Height: image: {image.Height} | testImage {testImage.Height}");
+                        Assert.Fail($"Unexpected image size differences. Width image: {image.Width} | testImage: {testImage.Width}, Height: image: {image.Height} | testImage {testImage.Height}");
                     }
 
                     bool result = Util.CompareImagesForBinarySimilarity(testImage, image, 0.025, true, $"Testing Djvu foreground: \ttest{docNumber:00#}C.png, ");

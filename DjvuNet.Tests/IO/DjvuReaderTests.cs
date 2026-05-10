@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using DjvuNet;
 using System;
 using System.Collections.Generic;
@@ -7,6 +7,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using System.Net.Http;
 using DjvuNet.Compression;
 
 namespace DjvuNet.Tests
@@ -80,14 +81,10 @@ namespace DjvuNet.Tests
             using (DjvuReader reader = new DjvuReader(filePath))
             {
                 Assert.NotNull(reader);
-                // Verify that BaseStream is System.Net.FileWebStream
-                // the type in .Net Core is System.Net.WebFileStream
                 FileStream fs = reader.BaseStream as FileStream;
                 Assert.NotNull(fs);
-                Assert.IsNotType<FileStream>(reader.BaseStream);
+                Assert.IsType<FileStream>(reader.BaseStream);
                 Assert.True(fs.CanRead && fs.CanSeek && !fs.CanWrite);
-                // Do not use this assertion until issue https://github.com/dotnet/corefx/issues/21763 is resolved
-                // Assert.Equal<String>("System.Net.FileWebStream", fs.GetType().FullName);
             }
         }
 
@@ -108,7 +105,7 @@ namespace DjvuNet.Tests
         [Fact()]
         public void DjvuReaderTest005()
         {
-            Assert.Throws<WebException>(() =>
+            Assert.Throws<HttpRequestException>(() =>
            {
                Uri filePath = new Uri("https://github.com/DjvuNet/artifacts/raw/refs/heads/master/wikimedia/No_such_file.djvu");
                using (DjvuReader reader = new DjvuReader(filePath)) { }
@@ -150,11 +147,11 @@ namespace DjvuNet.Tests
         }
 
         [Fact]
-        public void LengthTest002()
+        public async Task LengthTest002()
         {
-            WebClient client = new WebClient();
-            using (Stream stream = client.OpenRead(
-                "https://github.com/DjvuNet/artifacts/raw/refs/heads/master/wikimedia/Tain_Bo_Cuailnge.djvu"))
+            using (HttpClient client = new HttpClient())
+            using (Stream stream = await client.GetStreamAsync(
+                "https://github.com/DjvuNet/artifacts/raw/refs/heads/master/wikimedia/Tain_Bo_Cuailnge.djvu", TestContext.Current.CancellationToken))
             using (DjvuReader reader = new DjvuReader(stream))
             {
                 Assert.Equal(-1, reader.Length);
@@ -177,7 +174,7 @@ namespace DjvuNet.Tests
                 for (int i = 0; i < origBuffer.Length; i++)
                 {
                     if (buffer[i] != origBuffer[i])
-                        Assert.True(false, $"Buffer mismatch at position {i}, expected byte:" +
+                        Assert.Fail($"Buffer mismatch at position {i}, expected byte:" +
                             $" (0x{origBuffer[i]:x})," +
                             $" actual byte (0x{buffer[i]:x})");
                 }
@@ -915,7 +912,10 @@ namespace DjvuNet.Tests
         public void ReadUTF7StringTest()
         {
             string expected = "This is a test text: łążźćń Vor nicht einmal fünf 百度目前是全球最大的中文搜索引擎，2000年1月创立于北京中关村。百度的使命是让人们最便捷地获取信";
+            // DjVu format explicitly dictates UTF-7 for some text/metadata chunks
+#pragma warning disable SYSLIB0001
             UTF7Encoding utf7 = new UTF7Encoding(false);
+#pragma warning restore SYSLIB0001
             byte[] buffer = utf7.GetBytes(expected);
             using (MemoryStream memStream = new MemoryStream(buffer))
             using (DjvuReader reader = new DjvuReader(memStream))
@@ -949,7 +949,7 @@ namespace DjvuNet.Tests
                 for (int i = 0; i < expected.Length; i++)
                 {
                     if (expected[i] != result[i])
-                        Assert.True(false, $"String mismatch at character position {i}, expected character:" +
+                        Assert.Fail($"String mismatch at character position {i}, expected character:" +
                             $" \"{expected[i]}\" (0x{(byte)expected[i]:x})," +
                             $" actual character \"{result[i]}\" (0x{(byte)result[i]:x})");
                 }
@@ -1056,7 +1056,8 @@ namespace DjvuNet.Tests
                 FileStream stream = reader.BaseStream as FileStream;
                 stream.Position = 0;
                 byte[] testBuffer = new byte[stream.Length];
-                stream.Read(testBuffer, 0, testBuffer.Length);
+                int bytesRead = stream.Read(testBuffer, 0, testBuffer.Length);
+                Assert.Equal(testBuffer.Length, bytesRead);
                 Util.AssertBufferEqal(testBuffer, buffer);
             }
 

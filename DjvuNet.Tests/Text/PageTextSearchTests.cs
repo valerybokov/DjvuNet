@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using DjvuNet.Text;
 using System;
 using System.Collections.Generic;
@@ -13,25 +13,25 @@ namespace DjvuNet.Text.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void PageTextSearchTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void PageTextSearchTest1()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void PageTextSearchTest2()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void PageTextSearchTest3()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using DjvuNet.DataChunks;
 using System;
 using System.Collections.Generic;
@@ -41,7 +41,7 @@ namespace DjvuNet.DataChunks.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void ReadDataTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
     }
 }

@@ -289,8 +289,11 @@ namespace DjvuNet.Graphics
 
             // Get magic number
             byte[] magic = new byte[2];
-            magic[0] = magic[1] = 0;
-            stream.Read(magic, 0, magic.Length);
+            int b0 = stream.ReadByte();
+            int b1 = stream.ReadByte();
+            if (b0 == -1 || b1 == -1) throw new EndOfStreamException();
+            magic[0] = (byte)b0;
+            magic[1] = (byte)b1;
 
             char lookahead = '\n';
             int width = (int)ReadInteger(ref lookahead, stream);
@@ -524,8 +527,12 @@ namespace DjvuNet.Graphics
                     {
                         for (int c = 0; c < Width; c++)
                         {
+                            int b0 = stream.ReadByte();
+                            int b1 = stream.ReadByte();
+                            if (b0 == -1 || b1 == -1) throw new DjvuEndOfStreamException("Unexpected and of stream.");
                             byte[] x = new byte[2];
-                            stream.Read(x, 0, 2);
+                            x[0] = (byte)b0;
+                            x[1] = (byte)b1;
                             row[c] = bramp[x[0] * 256 + x[1]];
                         }
                     }

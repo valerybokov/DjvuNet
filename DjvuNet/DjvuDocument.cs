@@ -390,7 +390,7 @@ namespace DjvuNet
             GC.SuppressFinalize(this);
         }
 
-        protected void Dispose(bool disposing)
+        protected virtual void Dispose(bool disposing)
         {
             if (_Disposed)
                 return;

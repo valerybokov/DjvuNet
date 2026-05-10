@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using DjvuNet.Wavelet;
 using System;
 using System.Collections.Generic;
@@ -24,13 +24,13 @@ namespace DjvuNet.Wavelet.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void ForwardTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void BackwardTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Test bug or code bug?"), Trait("Category", "Skip")]
@@ -237,13 +237,13 @@ namespace DjvuNet.Wavelet.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void FilterFvTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void FilterFhTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
@@ -255,7 +255,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void FilterBhTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using DjvuNet.Graphics;
 using System;
 using System.Collections.Generic;
@@ -76,13 +76,13 @@ namespace DjvuNet.Graphics.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void PixelReferenceTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void PixelReferenceTest1()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact()]
@@ -298,19 +298,19 @@ namespace DjvuNet.Graphics.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void FillRgbPixelsTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void IncOffsetTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void IncOffsetTest1()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact()]

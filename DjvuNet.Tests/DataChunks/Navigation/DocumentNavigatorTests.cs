@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using DjvuNet.DataChunks.Navigation;
 using System;
 using System.Collections.Generic;
@@ -13,7 +13,7 @@ namespace DjvuNet.DataChunks.Navigation.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void DocumentNavigatorTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
     }
 }

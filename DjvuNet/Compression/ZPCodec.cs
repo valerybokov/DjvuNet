@@ -142,7 +142,7 @@ namespace DjvuNet.Compression
             GC.SuppressFinalize(this);
         }
 
-        protected void Dispose(bool disposing)
+        protected virtual void Dispose(bool disposing)
         {
             if (!_Disposed && Encoding)
             {

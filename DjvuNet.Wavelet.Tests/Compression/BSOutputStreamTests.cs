@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using DjvuNet.Compression;
 using System;
 using System.Collections.Generic;
@@ -84,25 +84,25 @@ namespace DjvuNet.Compression.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void CloseTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void EncodeRawTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void EncodeBinaryTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void EncodeTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact()]
@@ -136,7 +136,7 @@ namespace DjvuNet.Compression.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void FlushTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact()]

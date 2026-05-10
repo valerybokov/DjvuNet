@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Xunit;
 using DjvuNet.Graphics;
@@ -345,13 +345,13 @@ namespace DjvuNet.Graphics.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void InflateTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void IntersectTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact()]
@@ -432,13 +432,13 @@ namespace DjvuNet.Graphics.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void RecthullTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void TranslateTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
     }
 }

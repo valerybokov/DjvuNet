@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -35,7 +35,7 @@ namespace DjvuNet.DataChunks.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void GetChildrenItemsTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact()]
@@ -60,13 +60,13 @@ namespace DjvuNet.DataChunks.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void DjvuNodeTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void ReadDataTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact()]

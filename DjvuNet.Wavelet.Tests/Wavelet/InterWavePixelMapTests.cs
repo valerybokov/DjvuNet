@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using DjvuNet.Wavelet;
 using System;
 using System.Collections.Generic;
@@ -23,13 +23,13 @@ namespace DjvuNet.Wavelet.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void GetPixelMapTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void GetPixelMapTest1()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact()]

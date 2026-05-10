@@ -205,7 +205,9 @@ namespace DjvuNet
         /// <returns></returns>
         public long WriteUTF7String(string value)
         {
+#pragma warning disable SYSLIB0001
             UTF7Encoding encoding = new UTF7Encoding(true);
+#pragma warning restore SYSLIB0001
             return WriteString(value, encoding);
         }
 

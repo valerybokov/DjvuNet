@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using DjvuNet.DataChunks.Graphics;
 using System;
 using System.Collections.Generic;
@@ -69,7 +69,7 @@ namespace DjvuNet.DataChunks.Graphics.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void index_to_colorTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
     }
 }

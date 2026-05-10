@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using DjvuNet.Wavelet;
 using System;
 using System.Collections.Generic;
@@ -432,7 +432,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void CloseEncoderTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         private static void TestVerifyEncoderInitialization(IPixelMap pixMap, InterWavePixelMapEncoder map)

@@ -43,7 +43,16 @@ namespace DjvuNet.Tests
 
         public void Dispose()
         {
-            Directory.Delete(TemporaryFolder, true);
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                Directory.Delete(TemporaryFolder, true);
+            }
         }
 
         [Fact]

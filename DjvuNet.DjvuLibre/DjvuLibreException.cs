@@ -18,9 +18,11 @@ namespace DjvuNet.DjvuLibre
         {
         }
 
+#if NETFRAMEWORK
         public DjvuLibreException(SerializationInfo info, StreamingContext context)
             : base (info, context)
         {
         }
+#endif
     }
 }

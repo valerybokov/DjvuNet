@@ -24,6 +24,19 @@ namespace Xunit
                 this.Skip = "This test requires Windows to run." + (string.IsNullOrWhiteSpace(additionalMessage) ? "" : " " + additionalMessage);
             }
         }
+
+        [System.Diagnostics.CodeAnalysis.SetsRequiredMembers]
+        public WindowsOnlyFactAttribute(
+            string? additionalMessage,
+            [System.Runtime.CompilerServices.CallerFilePath] string filePath = "",
+            [System.Runtime.CompilerServices.CallerLineNumber] int lineNumber = 0)
+            : base(filePath, lineNumber)
+        {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                this.Skip = "This test requires Windows to run." + (string.IsNullOrWhiteSpace(additionalMessage) ? "" : " " + additionalMessage);
+            }
+        }
     }
 }
 

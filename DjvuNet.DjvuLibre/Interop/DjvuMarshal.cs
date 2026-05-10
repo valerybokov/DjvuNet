@@ -11,11 +11,11 @@ namespace DjvuNet.DjvuLibre
     {
         [DllImport(NativeMethods.DjVuLibrePath, EntryPoint = "ddjvu_alloc",
             CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
-        public static extern IntPtr AllocHGlobal(uint size);
+        internal static extern IntPtr AllocHGlobal(uint size);
 
         [DllImport(NativeMethods.DjVuLibrePath, EntryPoint = "ddjvu_free",
             CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
-        public static extern void FreeHGlobal(IntPtr block);
+        internal static extern void FreeHGlobal(IntPtr block);
 
     }
 }

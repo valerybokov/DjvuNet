@@ -40,8 +40,17 @@ namespace DjvuNet.Tests
 
         public void Dispose()
         {
-            if (_EnteredMutex)
-                Mutex?.ReleaseMutex();
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                if (_EnteredMutex)
+                    Mutex?.ReleaseMutex();
+            }
         }
     }
 }

@@ -60,6 +60,13 @@
 
   <Target Name="CopyTasksAssemblyToTools" AfterTargets="Build" Inputs="$(TargetPath)" Outputs="$(RepoRootDir)Tools\DjvuNet\$(TargetFramework)\$(TargetFileName)">
     <MakeDir Directories="$(RepoRootDir)Tools\DjvuNet\$(TargetFramework)" />
+    <!-- Can not move if file with the same name already exists - just delete it. -->
+    <Delete Condition="Exists('$(RepoRootDir)Tools\DjvuNet\$(TargetFramework)\$(TargetFileName).bak')"
+            Files="$(RepoRootDir)Tools\DjvuNet\$(TargetFramework)\$(TargetFileName).bak" />
+    <Move
+      SourceFiles="$(RepoRootDir)Tools\DjvuNet\$(TargetFramework)\$(TargetFileName)"
+      DestinationFiles="$(RepoRootDir)Tools\DjvuNet\$(TargetFramework)\$(TargetFileName).bak"
+      Condition="Exists('$(RepoRootDir)Tools\DjvuNet\$(TargetFramework)\$(TargetFileName)')" />
     <ItemGroup>
       <_OutputFiles Include="$(TargetDir)**\*.*" />
     </ItemGroup>

@@ -567,7 +567,10 @@ namespace DjvuNet.Tests
                 byte[] buffer = stream.GetBuffer();
                 byte[] testBuffer = new byte[length];
                 Buffer.BlockCopy(buffer, 0, testBuffer, 0, (int)length);
+                // DjVu format explicitly dictates UTF-7 for some text/metadata chunks
+#pragma warning disable SYSLIB0001
                 UTF7Encoding encoding = new UTF7Encoding(false);
+#pragma warning restore SYSLIB0001
                 string result = encoding.GetString(testBuffer);
                 Assert.Equal(testString, result);
                 Assert.Equal<long>(length, stream.Position);

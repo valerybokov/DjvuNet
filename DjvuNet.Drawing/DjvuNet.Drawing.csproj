@@ -18,7 +18,7 @@
     <RootNamespace>DjvuNet.Drawing</RootNamespace>
     <AssemblyName>DjvuNet.Drawing</AssemblyName>
     <IsDjvuNetTestProject>false</IsDjvuNetTestProject>
-    <NoWarn>8002</NoWarn>
+    <NoWarn>8002;NU1510</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup>

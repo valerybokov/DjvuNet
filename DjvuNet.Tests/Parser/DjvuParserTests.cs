@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using DjvuNet.Parser;
 using System;
 using System.Collections.Generic;
@@ -106,7 +106,7 @@ namespace DjvuNet.Parser.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void ParseDocumentTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [DjvuTheory]
@@ -139,7 +139,7 @@ namespace DjvuNet.Parser.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void GetChunkTypeTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact()]

@@ -3,13 +3,14 @@
   <Import Project="$(MSBuildThisFileDirectory)..\DjvuNet.DjvuLibre\DjvuNet.DjvuLibre.props" />
 
   <PropertyGroup>
-    <TargetFrameworks>$(DotNetCoreFrameworkVersion);$(NetFXTargetFrameworkVersion)</TargetFrameworks>
+    <TargetFrameworks>$(DotNetCoreFrameworkVersion)</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>DjvuNet.Wavelet.Tests</RootNamespace>
     <AssemblyName>DjvuNet.Wavelet.Tests</AssemblyName>
     <TestProjectType>UnitTest</TestProjectType>
     <IsDjvuNetTestProject>True</IsDjvuNetTestProject>
+    <NoWarn>xUnit1026</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">

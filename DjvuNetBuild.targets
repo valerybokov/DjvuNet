@@ -17,7 +17,7 @@
   <UsingTask TaskName="GetDateTime" AssemblyFile="$(GitTasksAssembly)"/>
   <UsingTask TaskName="FileUpdate" AssemblyFile="$(GitTasksAssembly)"/>
 
-  <Target Name="CalculateVersion" BeforeTargets="InjectVersion" Condition="'$(IsTool)' != 'true'">
+  <Target Name="CalculateVersion" BeforeTargets="InjectVersion">
     <ReadLinesFromFile File="$(MSBuildThisFileDirectory)library.version">
       <Output TaskParameter="Lines" PropertyName="LibraryVersion" />
     </ReadLinesFromFile>
@@ -42,7 +42,7 @@
     </BuildMajorVersion>
   </Target>
 
-  <Target Name="InjectVersion" BeforeTargets="CoreCompile" DependsOnTargets="CalculateVersion" Condition="'$(IsTool)' != 'true'">
+  <Target Name="InjectVersion" BeforeTargets="CoreCompile" DependsOnTargets="CalculateVersion">
 
     <PropertyGroup>
       <UtilRepoRootUpdate>$(ProjectName.EndsWith(`.Tests`))</UtilRepoRootUpdate>
@@ -97,7 +97,7 @@
 
   </Target>
 
-  <Target Name="InjectPackageVersion" BeforeTargets="Pack" DependsOnTargets="CalculateVersion" Condition="'$(IsTool)' != 'true'">
+  <Target Name="InjectPackageVersion" BeforeTargets="Pack" DependsOnTargets="CalculateVersion">
     <PropertyGroup>
       <PackageVersion>$(FullBuildVersion)</PackageVersion>
     </PropertyGroup>

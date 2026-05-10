@@ -6,7 +6,7 @@ using DjvuNet.Graphics;
 
 namespace DjvuNet.JB2
 {
-    public class JB2Decoder : JB2Codec
+    public class JB2Decoder : JB2Codec, IDisposable
     {
         #region Internal Fields
 
@@ -27,6 +27,24 @@ namespace DjvuNet.JB2
         }
 
         #endregion Constructors
+
+        #region IDisposable
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _Coder?.Dispose();
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        #endregion IDisposable
 
         #region Public Methods
 

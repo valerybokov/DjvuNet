@@ -11,6 +11,7 @@
     <AssemblyName>DjvuNet.Tests</AssemblyName>
     <TestProjectType>UnitTest</TestProjectType>
     <IsDjvuNetTestProject>True</IsDjvuNetTestProject>
+    <NoWarn>xUnit1026;NU1510</NoWarn>
     <!--<DisableImplicitFrameworkReferences
       Condition="$(TargetFramework) == $(DotNetCoreFrameworkVersion)">true</DisableImplicitFrameworkReferences>-->
   </PropertyGroup>

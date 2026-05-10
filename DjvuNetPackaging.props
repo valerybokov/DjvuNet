@@ -5,7 +5,7 @@
     <PackageVersion>$(DjvuAssemblyVersion)</PackageVersion>
     <PackageId>$(AssemblyName)</PackageId>
     <Authors>4creators</Authors>
-    <Copyright>© by Jacek Blaszczynski 2017</Copyright>
+    <Copyright>© by Jacek Blaszczynski 2017 - 2026</Copyright>
     <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
     <PackageLicenseUrl>https://github.com/DjvuNet/DjvuNet/blob/master/LICENSE.md</PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/DjvuNet/DjvuNet</PackageProjectUrl>

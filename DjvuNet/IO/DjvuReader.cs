@@ -5,6 +5,7 @@
 using System;
 using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using DjvuNet.Compression;
 
@@ -103,15 +104,17 @@ namespace DjvuNet
                 throw new ArgumentNullException(nameof(urlStr));
             }
 
-            WebClient client = new WebClient();
             if (String.CompareOrdinal(urlStr.Scheme, "file") == 0)
             {
-                return client.OpenRead(urlStr);
+                return File.OpenRead(urlStr.LocalPath);
             }
             else
             {
-                byte[] buffer = client.DownloadData(urlStr);
-                return new MemoryStream(buffer, false);
+                using (HttpClient client = new HttpClient())
+                {
+                    byte[] buffer = client.GetByteArrayAsync(urlStr).GetAwaiter().GetResult();
+                    return new MemoryStream(buffer, false);
+                }
             }
         }
 
@@ -348,7 +351,9 @@ namespace DjvuNet
         public string ReadUTF7String(long length)
         {
             byte[] data = ReadBytes(checked((int)length));
+#pragma warning disable SYSLIB0001
             return Encoding.UTF7.GetString(data);
+#pragma warning restore SYSLIB0001
         }
 
         /// <summary>

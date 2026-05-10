@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using DjvuNet.Text;
 using System;
 using System.Collections.Generic;
@@ -19,7 +19,7 @@ namespace DjvuNet.Text.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void PageTextItemTest1()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
     }
 }

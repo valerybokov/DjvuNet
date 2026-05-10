@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using DjvuNet.Extentions;
 using System;
 using System.Collections.Generic;
@@ -13,13 +13,13 @@ namespace DjvuNet.Extentions.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void OrientRectangleTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void OrientRectangleTest1()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
     }
 }

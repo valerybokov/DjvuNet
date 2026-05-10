@@ -26,7 +26,7 @@ namespace DjvuNet.Tests.Xunit
             // Emulate old DjvuTheory behavior: Use the first argument as the identifying name
             if (testMethodArguments != null && testMethodArguments.Length > 0 && testMethodArguments[0] != null)
             {
-                string firstArgStr = testMethodArguments[0]?.ToString();
+                string? firstArgStr = testMethodArguments[0]?.ToString();
                 if (!string.IsNullOrWhiteSpace(firstArgStr))
                 {
                     customDisplayName = $"{testMethod.MethodName}({firstArgStr})";

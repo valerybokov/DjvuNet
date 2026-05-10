@@ -28,10 +28,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="SkiaSharp" Version="1.68" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Compile Include="DjvuSkiaGraphics.cs" />
     <Compile Include="SkImageCodec.cs" />
     <Compile Include="SkImageCodecProperty.cs" />

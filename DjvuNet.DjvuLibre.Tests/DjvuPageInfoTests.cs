@@ -707,8 +707,11 @@ namespace DjvuNet.DjvuLibre.Tests
             }
         }
 
-        [DllImport("NtDll.dll", EntryPoint = "RtlMoveMemory")]
-        public static extern void CopyMemory(IntPtr Destination, IntPtr Source, uint Length);
+        internal static class SafeNativeMethods
+        {
+            [DllImport("NtDll.dll", EntryPoint = "RtlMoveMemory")]
+            internal static extern void CopyMemory(IntPtr Destination, IntPtr Source, uint Length);
+        }
 
         [Fact, Trait("Category", "DjvuLibre")]
         public void RenderPage_RenderMode003Image()
@@ -738,7 +741,7 @@ namespace DjvuNet.DjvuLibre.Tests
                     {
                         IntPtr dst = data.Scan0 + (i * data.Stride);
                         IntPtr src = buffer + (i * bmp.Width * 3);
-                        CopyMemory(dst, src, (uint)(bmp.Width * 3));
+                        SafeNativeMethods.CopyMemory(dst, src, (uint)(bmp.Width * 3));
                     }
 
                     bmp.UnlockBits(data);
@@ -795,7 +798,7 @@ namespace DjvuNet.DjvuLibre.Tests
                     {
                         IntPtr dst = data.Scan0 + (i * data.Stride);
                         IntPtr src = buffer + (i * bmp.Width * 3);
-                        CopyMemory(dst, src, (uint)(bmp.Width * 3));
+                        SafeNativeMethods.CopyMemory(dst, src, (uint)(bmp.Width * 3));
                     }
 
                     bmp.UnlockBits(data);
@@ -839,7 +842,7 @@ namespace DjvuNet.DjvuLibre.Tests
                     {
                         IntPtr dst = data.Scan0 + (i * data.Stride);
                         IntPtr src = buffer + (i * bmp.Width * 3);
-                        CopyMemory(dst, src, (uint)(bmp.Width * 3));
+                        SafeNativeMethods.CopyMemory(dst, src, (uint)(bmp.Width * 3));
                     }
 
                     bmp.UnlockBits(data);
@@ -902,7 +905,7 @@ namespace DjvuNet.DjvuLibre.Tests
                     {
                         IntPtr dst = data.Scan0 + (i * data.Stride);
                         IntPtr src = buffer + (i * bmp.Width * 3);
-                        CopyMemory(dst, src, (uint)(bmp.Width * 3));
+                        SafeNativeMethods.CopyMemory(dst, src, (uint)(bmp.Width * 3));
                     }
 
                     bmp.UnlockBits(data);
@@ -953,7 +956,7 @@ namespace DjvuNet.DjvuLibre.Tests
                     {
                         IntPtr dst = data.Scan0 + (i * data.Stride);
                         IntPtr src = buffer + (i * bmp.Width * 3);
-                        CopyMemory(dst, src, (uint)(bmp.Width * 3));
+                        SafeNativeMethods.CopyMemory(dst, src, (uint)(bmp.Width * 3));
                     }
 
                     bmp.UnlockBits(data);
@@ -1007,7 +1010,7 @@ namespace DjvuNet.DjvuLibre.Tests
                     {
                         IntPtr dst = data.Scan0 + (i * data.Stride);
                         IntPtr src = buffer + (i * bmp.Width * 3);
-                        CopyMemory(dst, src, (uint)(bmp.Width * 3));
+                        SafeNativeMethods.CopyMemory(dst, src, (uint)(bmp.Width * 3));
                     }
 
                     bmp.UnlockBits(data);
@@ -1061,7 +1064,7 @@ namespace DjvuNet.DjvuLibre.Tests
                     {
                         IntPtr dst = data.Scan0 + (i * data.Stride);
                         IntPtr src = buffer + (i * bmp.Width * 3);
-                        CopyMemory(dst, src, (uint)(bmp.Width * 3));
+                        SafeNativeMethods.CopyMemory(dst, src, (uint)(bmp.Width * 3));
                     }
 
                     bmp.UnlockBits(data);
@@ -1112,7 +1115,7 @@ namespace DjvuNet.DjvuLibre.Tests
                     {
                         IntPtr dst = data.Scan0 + (i * data.Stride);
                         IntPtr src = buffer + (i * bmp.Width * 3);
-                        CopyMemory(dst, src, (uint)(bmp.Width * 3));
+                        SafeNativeMethods.CopyMemory(dst, src, (uint)(bmp.Width * 3));
                     }
 
                     bmp.UnlockBits(data);
@@ -1186,7 +1189,7 @@ namespace DjvuNet.DjvuLibre.Tests
                     {
                         IntPtr dst = data.Scan0 + (i * data.Stride);
                         IntPtr src = buffer + (i * bmp.Width * 3);
-                        CopyMemory(dst, src, (uint)(bmp.Width * 3));
+                        SafeNativeMethods.CopyMemory(dst, src, (uint)(bmp.Width * 3));
                     }
 
                     bmp.UnlockBits(data);
@@ -1238,7 +1241,7 @@ namespace DjvuNet.DjvuLibre.Tests
                     {
                         IntPtr dst = data.Scan0 + (i * data.Stride);
                         IntPtr src = buffer + (i * nativeBmp.Width * 3);
-                        CopyMemory(dst, src, (uint)(nativeBmp.Width * 3));
+                        SafeNativeMethods.CopyMemory(dst, src, (uint)(nativeBmp.Width * 3));
                     }
 
                     nativeBmp.UnlockBits(data);

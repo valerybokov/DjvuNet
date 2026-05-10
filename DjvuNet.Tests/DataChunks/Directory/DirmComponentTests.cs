@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using DjvuNet.DataChunks.Directory;
 using System;
 using System.Collections.Generic;
@@ -13,13 +13,13 @@ namespace DjvuNet.DataChunks.Directory.Tests
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void DirmComponentTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
 
         [Fact(Skip = "Not implemented"), Trait("Category", "Skip")]
         public void DecodeFlagsTest()
         {
-            Assert.True(false, "This test needs an implementation");
+            Assert.Fail("This test needs an implementation");
         }
     }
 }
