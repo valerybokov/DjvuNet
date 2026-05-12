@@ -43,7 +43,7 @@ namespace DjvuNet.Git.Tasks
                             if (headCommit != null)
                             {
                                 commitDate = headCommit.Author.When.UtcDateTime;
-                                
+
                                 var dateToMatch = commitDate.Date;
                                 foreach (var commit in repo.Commits)
                                 {
@@ -56,11 +56,11 @@ namespace DjvuNet.Git.Tasks
                                 commitOrderToday--; // 0-based index
                                 if (commitOrderToday < 0) commitOrderToday = 0;
 
-                                string shortHash = headCommit.Sha.Substring(0, 7);                                
+                                string shortHash = headCommit.Sha.Substring(0, 7);
                                 RepositoryStatus status = repo.RetrieveStatus();
                                 bool isDirty = status.IsDirty;
-                                
-                                hashSuffix = isDirty ? $"({shortHash}-dev)" : $"({shortHash})";
+
+                                hashSuffix = isDirty ? $"{shortHash}-dev" : $"{shortHash}";
                             }
                         }
                     }
@@ -72,13 +72,13 @@ namespace DjvuNet.Git.Tasks
 
                 // yy * 1000 + DayOfYear
                 int majorBuildVersion = (commitDate.Year % 100) * 1000 + commitDate.DayOfYear;
-                
+
                 int buildRevision = commitOrderToday;
 
                 var intVersion = new System.Version(baseVersion.Major, baseVersion.Minor, majorBuildVersion, buildRevision);
                 Version = intVersion.ToString();
-                
-                FullVersion = string.IsNullOrEmpty(hashSuffix) ? Version : $"{Version} {hashSuffix}";
+
+                FullVersion = string.IsNullOrEmpty(hashSuffix) ? Version : $"{Version}-{hashSuffix}";
             }
             catch (Exception ex)
             {

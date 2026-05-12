@@ -1,21 +1,16 @@
 ﻿<Project>
 
   <PropertyGroup>
-    <IntermediateOutputPath>$(MSBuildThisFileDirectory)/build/bin/$(OS).$(Platform).$(Configuration)/obj/$(AssemblyName)/</IntermediateOutputPath>
+    <!-- <IntermediateOutputPath>$(MSBuildThisFileDirectory)/build/bin/obj/$(TargetOS).$(TargetPlatform).$(Configuration)/$(AssemblyName)/</IntermediateOutputPath> -->
     <DefineConstants Condition="$(APPVEYOR) == 'True'">_APPVEYOR;$(DefineConstans)</DefineConstants>
     <GitTasksAssembly Condition="$(GitTasksAssembly) == '' And '$(MSBuildRuntimeType)' == 'Core'">$(MSBuildThisFileDirectory)Tools/DjvuNet/$(DotNetCoreFrameworkVersion)/DjvuNet.Git.Tasks.dll</GitTasksAssembly>
-    <GitTasksAssembly Condition="$(GitTasksAssembly) == '' And '$(MSBuildRuntimeType)' != 'Core'">$(MSBuildThisFileDirectory)Tools/DjvuNet/$(NetFXTargetFrameworkVersion)/DjvuNet.Git.Tasks.dll</GitTasksAssembly>
+    <GitTasksAssembly Condition="$(GitTasksAssembly) == '' And '$(MSBuildRuntimeType)' != 'Core'">$(MSBuildThisFileDirectory)Tools/DjvuNet/$(DotNetCoreFrameworkVersion)/DjvuNet.Git.Tasks.dll</GitTasksAssembly>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <OutDir>$(MSBuildThisFileDirectory)/build/bin/$(OS).$(Platform).$(Configuration)/binaries/$(TargetFramework)/</OutDir>
-    <OutputPath>$(OutDir)</OutputPath>
-  </PropertyGroup>
-
-  <UsingTask TaskName="BuildMajorVersion" AssemblyFile="$(GitTasksAssembly)"/>
-  <UsingTask TaskName="GetLastCommit" AssemblyFile="$(GitTasksAssembly)"/>
-  <UsingTask TaskName="GetDateTime" AssemblyFile="$(GitTasksAssembly)"/>
-  <UsingTask TaskName="FileUpdate" AssemblyFile="$(GitTasksAssembly)"/>
+  <UsingTask TaskName="BuildMajorVersion" Runtime="NET" AssemblyFile="$(GitTasksAssembly)"/>
+  <UsingTask TaskName="GetLastCommit" Runtime="NET" AssemblyFile="$(GitTasksAssembly)"/>
+  <UsingTask TaskName="GetDateTime" Runtime="NET" AssemblyFile="$(GitTasksAssembly)"/>
+  <UsingTask TaskName="FileUpdate" Runtime="NET" AssemblyFile="$(GitTasksAssembly)"/>
 
   <Target Name="CalculateVersion" BeforeTargets="InjectVersion">
     <ReadLinesFromFile File="$(MSBuildThisFileDirectory)library.version">
@@ -38,11 +33,45 @@
 
     <BuildMajorVersion MajorMinorVersion="$(LibraryVersion)" RepoRoot="$(MSBuildThisFileDirectory)">
       <Output TaskParameter="Version" PropertyName="DjvuAssemblyVersion" />
-      <Output TaskParameter="FullVersion" PropertyName="FullBuildVersion" />
+      <Output TaskParameter="FullVersion" PropertyName="InformationalVersion" />
     </BuildMajorVersion>
   </Target>
 
-  <Target Name="InjectVersion" BeforeTargets="CoreCompile" DependsOnTargets="CalculateVersion">
+  <Target Name="UpdateVersionCache" BeforeTargets="InjectVersion" DependsOnTargets="CalculateVersion">
+    <PropertyGroup>
+      <VersionCacheFile>$(MSBuildThisFileDirectory).build.version</VersionCacheFile>
+      <CalculatedCacheContent>$(DjvuAssemblyVersion);$(InformationalVersion);$(BYear);$(BuildBranch);$(CommitVersion)</CalculatedCacheContent>
+      <ExistingCacheContent></ExistingCacheContent>
+    </PropertyGroup>
+
+    <ReadLinesFromFile File="$(VersionCacheFile)" Condition="Exists('$(VersionCacheFile)')">
+      <Output TaskParameter="Lines" PropertyName="ExistingCacheContent" />
+    </ReadLinesFromFile>
+
+    <Message Importance="High" Text="  ================= VERSION CACHE ==================" />
+    <Message Importance="High" Text="  = Existing:   [$(ExistingCacheContent)]" />
+    <Message Importance="High" Text="  = Calculated: [$(CalculatedCacheContent)]" />
+    <Message Importance="High" Text="  ==================================================" />
+
+    <ItemGroup>
+      <VersionCacheLines Include="$(DjvuAssemblyVersion)" />
+      <VersionCacheLines Include="$(InformationalVersion)" />
+      <VersionCacheLines Include="$(BYear)" />
+      <VersionCacheLines Include="$(BuildBranch)" />
+      <VersionCacheLines Include="$(CommitVersion)" />
+    </ItemGroup>
+
+    <!-- Only write if the file doesn't exist OR the concatenated content differs -->
+    <!-- File participates in the incremental build logic preventing unnecessary writes and build lock race conditions -->
+    <WriteLinesToFile File="$(VersionCacheFile)" Lines="@(VersionCacheLines)" Overwrite="true"
+                      Condition="!Exists('$(VersionCacheFile)') Or '$(ExistingCacheContent)' != '$(CalculatedCacheContent)'" />
+  </Target>
+
+  <Target Name="InjectVersion" BeforeTargets="CoreCompile" DependsOnTargets="UpdateVersionCache"
+          Inputs="$(MSBuildThisFileDirectory).build.version;$(ProjectDir)Properties\AssemblyInfo.Template.cs;$(MSBuildThisFileDirectory)Templates\AssemblyInfoCommon.Template.cs"
+          Outputs="$(ProjectDir)Properties\AssemblyInfo.$(TargetFramework).cs;$(ProjectDir)Properties\AssemblyInfoCommon.$(TargetFramework).cs">
+
+    <Error Condition="'$(TargetFramework)' == 'net472'" Text="The net472 target framework is deprecated and no longer supported in this build pipeline." />
 
     <PropertyGroup>
       <UtilRepoRootUpdate>$(ProjectName.EndsWith(`.Tests`))</UtilRepoRootUpdate>
@@ -50,29 +79,19 @@
     </PropertyGroup>
 
     <Message Importance="High"
-             Text="Building [$(TargetName)] target framework: [$(TargetFramework)], assembly version: [$(DjvuAssemblyVersion)], file version: [$(FullBuildVersion)], configuration: [$(Configuration)], platform [$(Platform)], branch: [$(BuildBranch)] commit: [$(CommitVersion)]"/>
+             Text="Building [$(TargetName)] target framework: [$(TargetFramework)], assembly version: [$(DjvuAssemblyVersion)], file version: [$(InformationalVersion)], configuration: [$(Configuration)], platform [$(Platform)], branch: [$(BuildBranch)] commit: [$(CommitVersion)]"/>
 
-    <Copy Condition="$(TargetFramework) == 'net472'" SourceFiles="$(ProjectDir)Properties/AssemblyInfo.Template.cs"
-          DestinationFiles="$(ProjectDir)Properties/AssemblyInfo.cs"/>
-    <Copy Condition="$(TargetFramework) == 'net472'" SourceFiles="$(MSBuildThisFileDirectory)Templates/AssemblyInfoCommon.Template.cs"
-          DestinationFiles="$(ProjectDir)Properties/AssemblyInfoCommon.cs"/>
+    <Copy SourceFiles="$(ProjectDir)Properties\AssemblyInfo.Template.cs"
+          DestinationFiles="$(ProjectDir)Properties\AssemblyInfo.$(TargetFramework).cs"/>
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)Templates\AssemblyInfoCommon.Template.cs"
+          DestinationFiles="$(ProjectDir)Properties\AssemblyInfoCommon.$(TargetFramework).cs"/>
 
-    <Copy Condition="$(TargetFramework) != 'net472'" SourceFiles="$(ProjectDir)Properties/AssemblyInfo.Template.cs"
-      DestinationFiles="$(ProjectDir)Properties/AssemblyInfo.$(TargetFramework).cs"/>
-    <Copy Condition="$(TargetFramework) != 'net472'" SourceFiles="$(MSBuildThisFileDirectory)Templates/AssemblyInfoCommon.Template.cs"
-          DestinationFiles="$(ProjectDir)Properties/AssemblyInfoCommon.$(TargetFramework).cs"/>
-
-    <Copy SourceFiles="$(MSBuildThisFileDirectory)Templates/UtilRoot.Template.cs" Condition="$(UtilRepoRootUpdate) == true"
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)Templates\UtilRoot.Template.cs" Condition="$(UtilRepoRootUpdate) == true"
           DestinationFiles="$(ProjectDir)../DjvuNet.Shared.Tests/UtilRoot.cs"/>
 
-    <ItemGroup Condition="$(TargetFramework) == 'net472'">
-      <WriteFiles Include='$(ProjectDir)Properties/AssemblyInfo.cs' />
-      <WriteFiles Include='$(ProjectDir)Properties/AssemblyInfoCommon.cs' />
-    </ItemGroup>
-
-    <ItemGroup Condition="$(TargetFramework) != 'net472'">
-      <WriteFiles Include='$(ProjectDir)Properties/AssemblyInfo.$(TargetFramework).cs' />
-      <WriteFiles Include='$(ProjectDir)Properties/AssemblyInfoCommon.$(TargetFramework).cs' />
+    <ItemGroup>
+      <WriteFiles Include='$(ProjectDir)Properties\AssemblyInfo.$(TargetFramework).cs' />
+      <WriteFiles Include='$(ProjectDir)Properties\AssemblyInfoCommon.$(TargetFramework).cs' />
     </ItemGroup>
 
     <ItemGroup>
@@ -80,7 +99,7 @@
     </ItemGroup>
 
     <FileUpdate Files="@(WriteFiles)" Regex="__LIBRARY_VERSION__" ReplacementText="$(DjvuAssemblyVersion)"/>
-    <FileUpdate Files="@(WriteFiles)" Regex="__LIBRARY_FULL_VERSION__" ReplacementText="$(FullBuildVersion)"/>
+    <FileUpdate Files="@(WriteFiles)" Regex="__LIBRARY_FULL_VERSION__" ReplacementText="$(InformationalVersion)"/>
     <FileUpdate Files="@(WriteFiles)" Regex="__LIBRARY_CONFIGURATION__" ReplacementText="$(Configuration)"/>
     <FileUpdate Files="@(WriteFiles)" Regex="__LIBRARY_PLATFORM__" ReplacementText="$(Platform)"/>
     <FileUpdate Files="@(WriteFiles)" Regex="__LIBRARY_BYEAR__" ReplacementText="$(BYear)" />
@@ -99,10 +118,10 @@
 
   <Target Name="InjectPackageVersion" BeforeTargets="Pack" DependsOnTargets="CalculateVersion">
     <PropertyGroup>
-      <PackageVersion>$(FullBuildVersion)</PackageVersion>
+      <PackageVersion>$(InformationalVersion)</PackageVersion>
     </PropertyGroup>
     <Message Importance="High"
-             Text="Packaging [$(PackageId)] target frameworks: [@(_TargetFrameworks)], assembly version: [$(DjvuAssemblyVersion)], version: [$(FullBuildVersion)], configuration: [$(Configuration)], platform [$(Platform)], commit: [$(CommitVersion)]"/>
+             Text="Packaging [$(PackageId)] target frameworks: [@(_TargetFrameworks)], assembly version: [$(DjvuAssemblyVersion)], version: [$(InformationalVersion)], configuration: [$(Configuration)], platform [$(Platform)], commit: [$(CommitVersion)]"/>
   </Target>
 
   <Target Name="PrepareCopyXUnitTestProduct"
@@ -110,7 +129,7 @@
       BeforeTargets="CopyXUnitTestProduct">
 
     <PropertyGroup>
-      <CopyPublishXUnitPackages Condition="'$(IsDjvuNetTestProject)' == 'True' or '$(IsDjvuNetTestProject)' == 'true'">true</CopyPublishXUnitPackages>
+      <CopyPublishXUnitPackages Condition="'$(IsDjvuNetTestProject)' == 'True'">true</CopyPublishXUnitPackages>
     </PropertyGroup>
 
     <ItemGroup>

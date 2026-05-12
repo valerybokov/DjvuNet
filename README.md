@@ -184,7 +184,7 @@ Install required tools and dependencies:
 
 `````
 sudo apt-get update
-sudo apt-get install git zip unzip curl libgdiplus
+sudo apt-get install git zip unzip tar curl cmake pkg-config ninja-build autoconf automake libtool libgdiplus
 `````
 
 #### Building
@@ -220,8 +220,10 @@ If you want to build tests only and run them manually use -BuildTests switch:
 
 Required for tests data and files can be downloaded manually - use latest available release.
 `````
-curl -L -o artifacts.zip -s https://github.com/DjvuNet/artifacts/releases/download/{latest}/artifacts.zip
-unzip -q artifacts.zip -d artifacts
+curl -L -o artifacts.tar.gz -s https://github.com/DjvuNet/artifacts/archive/refs/tags/v0.9.26132.0.tar.gz
+tar -xzf artifacts.tar.gz
+mv artifacts-0.9.26132.0 artifacts
+rm artifacts.tar.gz
 `````
 
 Build and run DjvuNet tests (commands are starting from repo root):

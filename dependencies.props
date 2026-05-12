@@ -20,17 +20,18 @@
     <MoqPackageVersion>4.20.72</MoqPackageVersion>
     <MicrosoftBuildPackageVersion>18.4.0</MicrosoftBuildPackageVersion>
     <LibGit2SharpPackageVersion>0.31.0</LibGit2SharpPackageVersion>
-    <LibGit2SharpNativeBinariesPackageVersion>2.0.322</LibGit2SharpNativeBinariesPackageVersion>
-    <SystemDrawingCommonPackageVersion Condition="'$(OS)' == 'Windows_NT'">$(MicrosoftNETCoreAppPackageVersion)</SystemDrawingCommonPackageVersion>
-    <SystemDrawingCommonPackageVersion Condition="'$(OS)' != 'Windows_NT'">6.0.0</SystemDrawingCommonPackageVersion>
+    <LibGit2SharpNativeBinariesPackageVersion>2.0.323</LibGit2SharpNativeBinariesPackageVersion>
+    <MinVerPackageVersion>7.0.0</MinVerPackageVersion>
+    <SystemDrawingCommonPackageVersion Condition="'$(TargetOS)' == 'Windows'">$(MicrosoftNETCoreAppPackageVersion)</SystemDrawingCommonPackageVersion>
+    <SystemDrawingCommonPackageVersion Condition="'$(TargetOS)' != 'Windows'">6.0.0</SystemDrawingCommonPackageVersion>
     <SystemRuntimeCompilerServicesUnsafePackageVersion>6.1.2</SystemRuntimeCompilerServicesUnsafePackageVersion>
-    <SkiaSharpPackageVersion>2.88.9</SkiaSharpPackageVersion>
+    <SkiaSharpPackageVersion>3.119.2</SkiaSharpPackageVersion>
   </PropertyGroup>
 
   <!-- ILLink.Tasks package version -->
   <PropertyGroup>
-    <ILLinkTasksPackage>ILLink.Tasks</ILLinkTasksPackage>
-    <ILLinkTasksPackageVersion>0.1.5-preview-1841731</ILLinkTasksPackageVersion>
+    <MicrosoftILLinkTasksPackage>Microsoft.NET.ILLink.Tasks</MicrosoftILLinkTasksPackage>
+    <MicrosoftILLinkTasksPackageVersion>$(MicrosoftNETCoreAppPackageVersion)</MicrosoftILLinkTasksPackageVersion>
   </PropertyGroup>
 
   <ItemGroup>

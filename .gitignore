@@ -53,7 +53,7 @@ DjvuNet.DjvuLibre.Helper/
 /**/Properties/AssemblyInfoCommon.net*.cs
 /**/Properties/AssemblyInfo.cs
 /**/Properties/AssemblyInfo.net*.cs
-DjvuNet.Shared.Tests/UtilRoot.*.cs
+DjvuNet.Shared.Tests/UtilRoot*.cs
 
 # External dependencies directory with repositories
 [Ee]xternal/
@@ -174,7 +174,6 @@ DocProject/Help/*.HxT
 DocProject/Help/*.HxC
 DocProject/Help/*.hhc
 DocProject/Help/*.hhk
-DocProject/Help/*.hhp
 DocProject/Help/Html2
 DocProject/Help/html
 
@@ -307,3 +306,13 @@ __pycache__/
 *.runsettings
 /deps.zip
 /Tools.zip
+
+# Locally generated build and security artifacts
+.build.version
+.gemini_security/
+vcpkg/
+GEMINI.md
+.lastbuildtriplet
+autom4te.cache/
+desktopfiles/
+LibGit2Sharp/Properties/AssemblyInfoCommon.net10.0.cs

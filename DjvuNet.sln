@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.6.11723.189 insiders
+VisualStudioVersion = 18.6.11723.189
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DjvuNet", "DjvuNet\DjvuNet.csproj", "{E681B178-E5F8-4782-89C8-F32720B1464A}"
 EndProject
@@ -216,10 +216,10 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RepoRoot", "RepoRoot", "{508EA7BC-4576-4C24-877B-7D7EE4369DA0}"
 	ProjectSection(SolutionItems) = preProject
 		.appveyor.yml = .appveyor.yml
+		.build.version = .build.version
 		.editorconfig = .editorconfig
 		.gitattributes = .gitattributes
 		.gitignore = .gitignore
-		.travis.yml = .travis.yml
 		artifacts.sha256 = artifacts.sha256
 		build.cmd = build.cmd
 		build.sh = build.sh
@@ -748,9 +748,6 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DjvuNet.Git.Tasks.Tests", "build\tools\DjvuNet.Git.Tasks.Tests\DjvuNet.Git.Tasks.Tests.csproj", "{2E3DF5C2-8A38-4A03-86D7-8D463C917E47}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tools", "Tools", "{C7A00994-1B4D-41AD-841E-9D21D04A41A5}"
-	ProjectSection(SolutionItems) = preProject
-		Tools\global.json = Tools\global.json
-	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DjvuNetTest", "DjvuNetTest\DjvuNetTest.csproj", "{FD767831-2359-4DEE-A0D8-EAB57475A309}"
 EndProject

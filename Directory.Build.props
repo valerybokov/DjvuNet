@@ -1,0 +1,111 @@
+<Project>
+
+  <PropertyGroup>
+    <RepoRootDir>$(MSBuildThisFileDirectory)</RepoRootDir>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- 1. Host OS Identification -->
+    <HostOS Condition="$([MSBuild]::IsOSPlatform('Windows'))">Windows</HostOS>
+    <HostOS Condition="$([MSBuild]::IsOSPlatform('Linux'))">Linux</HostOS>
+    <HostOS Condition="$([MSBuild]::IsOSPlatform('OSX'))">OSX</HostOS>
+    <HostOS Condition="$([MSBuild]::IsOSPlatform('FreeBSD'))">FreeBSD</HostOS>
+    <HostOS Condition="'$(HostOS)' == ''">Unknown</HostOS>
+
+    <!-- 2. Target OS Identification -->
+    <TargetOS Condition="'$(TargetOS)' == ''">$(HostOS)</TargetOS>
+
+    <!-- Normalize legacy MSBuild Windows_NT to Windows -->
+    <TargetOS Condition="'$(TargetOS)' == 'Windows_NT'">Windows</TargetOS>
+
+    <!-- 3. Cross-OS Detection -->
+    <IsCrossOsBuild Condition="'$(HostOS)' != '$(TargetOS)'">true</IsCrossOsBuild>
+    <IsCrossOsBuild Condition="'$(IsCrossOsBuild)' == ''">false</IsCrossOsBuild>
+
+    <!-- 4. Host Platform Identification (Architecture) -->
+    <HostPlatform Condition="'$(HostPlatform)' == ''">$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLower())</HostPlatform>
+    <HostPlatform Condition="'$(HostPlatform)' == 'amd64'">x64</HostPlatform>
+    <HostPlatform Condition="'$(HostPlatform)' == 'aarch64'">arm64</HostPlatform>
+    <HostPlatform Condition="'$(HostPlatform)' == 'armv7l' Or '$(HostPlatform)' == 'armv8l' Or '$(HostPlatform)' == 'armhf'">arm</HostPlatform>
+    <HostPlatform Condition="'$(HostPlatform)' == 'i386' Or '$(HostPlatform)' == 'i486' Or '$(HostPlatform)' == 'i586' Or '$(HostPlatform)' == 'i686'">x86</HostPlatform>
+
+    <!-- 5. Target Platform Identification -->
+    <TargetPlatform Condition="'$(Platform)' != ''">$(Platform)</TargetPlatform>
+    <TargetPlatform Condition="'$(TargetPlatform)' == ''">$(HostPlatform)</TargetPlatform>
+    <TargetPlatform Condition="'$(TargetPlatform)' == 'amd64'">x64</TargetPlatform>
+    <TargetPlatform Condition="'$(TargetPlatform)' == 'aarch64'">arm64</TargetPlatform>
+    <TargetPlatform Condition="'$(TargetPlatform)' == 'armv7l' Or '$(TargetPlatform)' == 'armv8l' Or '$(TargetPlatform)' == 'armhf'">arm</TargetPlatform>
+    <TargetPlatform Condition="'$(TargetPlatform)' == 'i386' Or '$(TargetPlatform)' == 'i486' Or '$(TargetPlatform)' == 'i586' Or '$(TargetPlatform)' == 'i686'">x86</TargetPlatform>
+    <TargetPlatform Condition="'$(TargetPlatform)' == 'wasm32'">wasm</TargetPlatform>
+
+    <!-- 6. Cross-Platform Detection -->
+    <IsCrossPlatformBuild Condition="'$(HostPlatform)' != '$(TargetPlatform)' And '$(TargetPlatform)' != 'AnyCPU' And '$(TargetPlatform)' != 'MSIL'">true</IsCrossPlatformBuild>
+    <IsCrossPlatformBuild Condition="'$(IsCrossPlatformBuild)' == ''">false</IsCrossPlatformBuild>
+  </PropertyGroup>
+
+  <!-- STRICT VALIDATION TRAP -->
+  <Target Name="ValidateDjvuNetBuildConfiguration" BeforeTargets="BeforeBuild;BeforeRestore">
+    <Error Condition="'$(HostOS)' == 'Unknown'" Text="Host OS is not supported or could not be identified." />
+    <Error Condition="'$(TargetOS)' != 'Windows' And '$(TargetOS)' != 'Linux' And '$(TargetOS)' != 'OSX' And '$(TargetOS)' != 'FreeBSD' And '$(TargetOS)' != 'wasi'" Text="Target OS '$(TargetOS)' is not supported by DjvuNet." />
+    <Error Condition="'$(HostPlatform)' != 'x64' And '$(HostPlatform)' != 'x86' And '$(HostPlatform)' != 'arm' And '$(HostPlatform)' != 'arm64'" Text="Host Platform architecture '$(HostPlatform)' is not supported." />
+    <Error Condition="'$(TargetPlatform)' != 'x64' And '$(TargetPlatform)' != 'x86' And '$(TargetPlatform)' != 'arm' And '$(TargetPlatform)' != 'arm64' And '$(TargetPlatform)' != 'AnyCPU' And '$(TargetPlatform)' != 'MSIL' And '$(TargetPlatform)' != 'wasm'" Text="Target Platform architecture '$(TargetPlatform)' is not supported by DjvuNet." />
+  </Target>
+
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>$(RepoRootDir)/build/bin/obj/$(TargetOS).$(TargetPlatform).$(Configuration)/$(TargetFramework)/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
+    <RestoreOutputPath>$(BaseIntermediateOutputPath)</RestoreOutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)Snk.snk</AssemblyOriginatorKeyFile>
+    <PublicSign Condition=" '$(TargetOS)' != 'Windows' ">true</PublicSign>
+    <NoWarn>$(NoWarn);8002;NU1701;CA1416;CS7035;NU1510;xUnit2020;</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <DotNetCoreFrameworkVersion>net10.0</DotNetCoreFrameworkVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <FileAlignment>512</FileAlignment>
+    <Platforms>AnyCPU;x64;x86;arm;arm64</Platforms>
+    <Feature>strict</Feature>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+    <!-- <ItemGroup Condition="$(TargetFramework) == $(NetFXTargetFrameworkVersion)">
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Properties\AssemblyInfoCommon.cs" />
+  </ItemGroup> -->
+
+  <ItemGroup Condition="$(TargetFramework) != $(NetFXTargetFrameworkVersion)">
+    <Compile Include="Properties\AssemblyInfo.$(TargetFramework).cs" />
+    <Compile Include="Properties\AssemblyInfoCommon.$(TargetFramework).cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Properties\AssemblyInfo.Template.cs" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutDir>$([MSBuild]::EnsureTrailingSlash('$(MSBuildThisFileDirectory)'))build/bin/$(TargetOS).$(TargetPlatform).$(Configuration)/binaries/$(TargetFramework)/</OutDir>
+    <OutputPath>$(OutDir)</OutputPath>
+    <OutDir Condition="'$(IsTool)' == 'true'">$([MSBuild]::EnsureTrailingSlash('$(MSBuildThisFileDirectory)'))build/bin/tools/$(TargetOS).$(TargetPlatform).$(Configuration)/binaries/$(TargetFramework)/</OutDir>
+    <OutputPath Condition="'$(IsTool)' == 'true'">$(OutDir)</OutputPath>
+  </PropertyGroup>
+
+  <Import Project="dependencies.props" Condition="Exists('dependencies.props')"/>
+  <Import Project="$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.props" Condition="'$(MSBuildProjectExtension)' == '.vcxproj' And '$(VcpkgRoot)' != '' And Exists('$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.props') And !Exists('$(LocalAppData)\vcpkg\vcpkg.user.props')" />
+
+</Project>

@@ -2,8 +2,8 @@
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.props))\DjvuNetBuild.props" />
 
   <PropertyGroup>
-    <TargetFrameworks>$(DotNetStandardVersion);$(DotNetCoreFrameworkVersion)</TargetFrameworks>
-    <NETStandardImplicitPackageVersion>$(NETStandardPackageVersion)</NETStandardImplicitPackageVersion>
+    <IsTool>true</IsTool>
+    <TargetFrameworks>$(DotNetCoreFrameworkVersion)</TargetFrameworks>
     <IsDjvuNetTestProject>false</IsDjvuNetTestProject>
   </PropertyGroup>
 

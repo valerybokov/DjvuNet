@@ -104,7 +104,7 @@ if [ "$success" = false ]; then
 fi
 chmod +x "$__DotNetDir/dotnet-install.sh"
 
-"$__DotNetDir/dotnet-install.sh" --jsonfile "$__GlobalJson" --install-dir "$__DotNetDir"
+"$__DotNetDir/dotnet-install.sh" --channel "$__SdkChannel" --install-dir "$__DotNetDir"
 rm "$__DotNetDir/dotnet-install.sh"
 
 __ResolvedVersion=$("$__DotNetDir/dotnet" --version)

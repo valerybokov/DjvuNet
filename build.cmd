@@ -7,6 +7,12 @@ set DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
 set "__MsgPrefix=BUILD: "
 set "__RepoRootDir=%~dp0"
 
+REM Abstract submodule directory for case-sensitive filesystems
+set "__DjvuLibreDir=djvulibre"
+
+REM Delay resolving vcpkg root
+set "__GlobalVcpkgRoot=(Resolving later...)"
+
 REM Short circuit to help
 if /i "%1"=="-help" goto usage
 if /i "%1"=="-h" goto usage
@@ -34,6 +40,17 @@ call "%_VSCOMNTOOLS%\VsDevCmd.bat"
 
 :Run
 
+if not defined _VSCOMNTOOLS (
+    if defined VSINSTALLDIR (
+        set "_VSCOMNTOOLS=!VSINSTALLDIR!Common7\Tools"
+    ) else (
+        set "_VSWHERE=!ProgramFiles(x86)!\Microsoft Visual Studio\Installer\vswhere.exe"
+        if exist "!_VSWHERE!" (
+            for /f "usebackq tokens=*" %%i in (`"!_VSWHERE!" -latest -prerelease -property installationPath`) do set "_VSCOMNTOOLS=%%i\Common7\Tools"
+        )
+    )
+)
+
 if defined _VSCOMNTOOLS (
   set "__VSToolsRoot=%_VSCOMNTOOLS%"
   set "__VCToolsRoot=%_VSCOMNTOOLS%\..\..\VC\Auxiliary\Build"
@@ -41,36 +58,40 @@ if defined _VSCOMNTOOLS (
 )
 
 REM Set default values
-set _MSB_Target=Build
-set _MSB_Configuration=Debug
-set _MSB_Platform=x64
-set _Verbosity=normal
-set _Processors=0
+set "_MSB_Target=Build"
+set "_MSB_Configuration=Debug"
+set "_MSB_Platform=x64"
+set "_Verbosity=normal"
+set "_Processors=0"
 for /f "tokens=2 delims==" %%A in ('wmic cpu get NumberOfCores /value 2^>nul') do (
-    for /f "delims=" %%B in ("%%A") do set /a _Processors+=%%B
+    for /f "delims=" %%B in ("%%A") do set /a "_Processors+=%%B"
 )
-if !_Processors! EQU 0 set _Processors=%NUMBER_OF_PROCESSORS%
-set _OS=Windows_NT
-set _SkipNative=
-set _BuildDjvuNet=1
-set _BuildTests=
-set _RunTests=
-set _Test=
-set _Pack=
-set _FastFail=
-set __FailedRestores=
-set __FailedBuilds=
-set __FailedPublishes=
-set __FailedTests=
-set __SuccessfulRestores=
-set __SuccessfulBuilds=
-set __SuccessfulPublishes=
-set __SuccessfulTests=
-set _DefaultNetCoreApp=net10.0
-set _NetCoreAppId=.NETCoreApp
-set _NetCoreAppTFM=.NETCoreApp,Version=v10.0
-set _Framework=%_DefaultNetCoreApp%
-set __GithubDjvuNetReleaseUri=https://github.com/DjvuNet/artifacts/releases/download/v0.8.0.3/
+if !_Processors! EQU 0 set "_Processors=%NUMBER_OF_PROCESSORS%"
+set "_TargetOS=Windows"
+set "_SkipNative="
+set "_BuildDjvuNet=1"
+set "_BuildTests="
+set "_RunTests="
+set "_Test="
+set "_Pack="
+set "_FastFail="
+set "__FailedRestores="
+set "__FailedBuilds="
+set "__FailedPublishes="
+set "__FailedTests="
+set "__FailedClones="
+set "__FailedCommands="
+set "__SuccessfulRestores="
+set "__SuccessfulBuilds="
+set "__SuccessfulPublishes="
+set "__SuccessfulTests="
+set "__SuccessfulClones="
+set "__SuccessfulCommands="
+set "_DefaultNetCoreApp=net10.0"
+set "_NetCoreAppId=.NETCoreApp"
+set "_NetCoreAppTFM=.NETCoreApp,Version=v10.0"
+set "_Framework=%_DefaultNetCoreApp%"
+set "__GithubDjvuNetReleaseUri=https://github.com/DjvuNet/artifacts/releases/download/v0.9.26132.0/"
 
 REM Parse command line
 
@@ -100,7 +121,7 @@ if /i "%~1"=="-Verbosity"           (set "_Verbosity=%2"&shift&shift&goto :parse
 if /i "%~1"=="-v"                   (set "_Verbosity=%2"&shift&shift&goto :parse)
 if /i "%~1"=="-Processors"          (set "_Processors=%2"&shift&shift&goto :parse)
 if /i "%~1"=="-proc"                (set "_Processors=%2"&shift&shift&goto :parse)
-if /i "%~1"=="-OS"                  (set "_OS=%2"&shift&shift&goto :parse)
+if /i "%~1"=="-OS"                  (set "_TargetOS=%2"&shift&shift&goto :parse)
 
 echo Unknown command line parameter: %1
 goto :usage
@@ -178,11 +199,11 @@ goto usage
 :end_check_verbosity
 
 REM Accepted OS values
-if /i [%_OS%] == [Windows_NT] goto :end_check_os
-if /i [%_OS%] == [Linux] goto :end_check_os
-if /i [%_OS%] == [OSX] goto :end_check_os
+if /i [%_TargetOS%] == [Windows] goto :end_check_os
+if /i [%_TargetOS%] == [Linux] goto :end_check_os
+if /i [%_TargetOS%] == [OSX] goto :end_check_os
 
-echo Invalid command line parameter value -OS: %_OS%
+echo Invalid command line parameter value -OS: %_TargetOS%
 goto usage
 
 :end_check_os
@@ -190,22 +211,27 @@ goto usage
 :end_check_params
 
 if defined _Test (
-    set _BuildDjvuNet=1
-    set _BuildTests=1
-    set _RunTests=1
+    set "_BuildDjvuNet=1"
+    set "_BuildTests=1"
+    set "_RunTests=1"
 )
 
 if defined _BuildTests set _BuildDjvuNet=1
 if defined _RunTests set _BuildDjvuNet=1
 
-set __RootBuildDir=%__RepoRootDir%build\bin\
+set "__RootBuildDir=%__RepoRootDir%build\bin\"
 
 echo %__MsgPrefix%Starting Build of DjvuNet at %DATE% %TIME%
+echo %__MsgPrefix%Repository Root:       %__RepoRootDir%
+echo %__MsgPrefix%Target OS:             %_TargetOS%
 echo %__MsgPrefix%Build Target:          %_MSB_Target%
 echo %__MsgPrefix%Configuration:         %_MSB_Configuration%
 echo %__MsgPrefix%Native Platform:       %_MSB_Platform%
 echo %__MsgPrefix%Managed Platform:      %__ManagedPlatform%
 echo %__MsgPrefix%Framework:             %_Framework%
+echo %__MsgPrefix%Vcpkg Root:            %__GlobalVcpkgRoot%
+echo %__MsgPrefix%VS Common Tools:       %_VSCOMNTOOLS%
+echo %__MsgPrefix%VS C++ Tools:          %__VCToolsRoot%
 
 if defined _BuildDjvuNet (
     echo %__MsgPrefix%Build DjvuNet:         True
@@ -225,8 +251,7 @@ if defined _RunTests (
     echo %__MsgPrefix%Run Tests:             False
 )
 
-set TargetFramework=%_Framework%
-set __SkipPublish=1
+set "TargetFramework=%_Framework%"
 
 
 if not exist .\DjvuNet.sln (
@@ -234,11 +259,16 @@ if not exist .\DjvuNet.sln (
      goto exit_error
 )
 
+REM Detect preferred PowerShell
+set "__PSCmd=powershell"
+where pwsh >nul 2>nul
+if %ERRORLEVEL% equ 0 set "__PSCmd=pwsh"
+
 REM Download ready to use DjvuNet build tools
 
-set __BuildToolsUri=!__GithubDjvuNetReleaseUri!Tools.zip
+set "__BuildToolsUri=!__GithubDjvuNetReleaseUri!Tools.zip"
 
-call powershell -NoProfile -ExecutionPolicy ByPass -NoLogo -NonInteractive -File DjvuNet.Build\Get-Tools.ps1 %__BuildToolsUri% Tools.zip Tools BuildTools {314FA7B0-6864-4842-B539-5728CBC73F27} %__MsgPrefix%
+call %__PSCmd% -NoProfile -ExecutionPolicy ByPass -NoLogo -NonInteractive -File DjvuNet.Build\Get-Tools.ps1 %__BuildToolsUri% Tools.zip Tools BuildTools {314FA7B0-6864-4842-B539-5728CBC73F27} %__MsgPrefix%
 if not [%ERRORLEVEL%]==[0] (
     echo %__MsgPrefix%Error: Failed to download build tools from %__BuildToolsUri%
     goto exit_error
@@ -246,9 +276,9 @@ if not [%ERRORLEVEL%]==[0] (
 
 REM Download native build and test deps
 
-set __NativeDepsUri=!__GithubDjvuNetReleaseUri!deps.zip
+set "__NativeDepsUri=!__GithubDjvuNetReleaseUri!deps.zip"
 
-call powershell -NoProfile -ExecutionPolicy ByPass -NoLogo -NonInteractive -File DjvuNet.Build/Get-Tools.ps1 %__NativeDepsUri% deps.zip deps NativeDependencies {87E5AD66-912F-477C-BDA5-52F7785AE705} %__MsgPrefix%
+call %__PSCmd% -NoProfile -ExecutionPolicy ByPass -NoLogo -NonInteractive -File DjvuNet.Build/Get-Tools.ps1 %__NativeDepsUri% deps.zip deps NativeDependencies {87E5AD66-912F-477C-BDA5-52F7785AE705} %__MsgPrefix%
 if not [%ERRORLEVEL%]==[0] (
     echo %__MsgPrefix%Error: Failed to download native dependencies from %__NativeDepsUri%
     goto exit_error
@@ -256,16 +286,62 @@ if not [%ERRORLEVEL%]==[0] (
 
 REM Download and initialize our own .NETCore SDK
 
-set __LocalDotNet=0
-set __LocalDotNetVersion=
-for /f "tokens=1" %%i in ('dotnet --list-sdks 2^>nul ^| findstr "^10\." ^| findstr /v "\-"') do (
-    set __LocalDotNet=1
-    set __LocalDotNetVersion=%%i
+set "__GlobalJson=%__RepoRootDir%global.json"
+set "__TmpPsScript=%__RootBuildDir%GetLatestSdk_%RANDOM%.ps1"
+if not exist "%__RootBuildDir%" mkdir "%__RootBuildDir%"
+
+(
+    echo $globalJsonPath = '%__GlobalJson%'
+    echo $globalJson = Get-Content $globalJsonPath ^| ConvertFrom-Json
+    echo $sdkVersion = $globalJson.sdk.version
+    echo $sdkChannel = $sdkVersion.Substring^(0, $sdkVersion.LastIndexOf^('.'^)^)
+    echo Write-Output "VERSION:$sdkVersion"
+    echo Write-Output "CHANNEL:$sdkChannel"
+    echo $latestPatchUrl = "https://dotnetcli.blob.core.windows.net/dotnet/Sdk/$sdkChannel/latest.version"
+    echo try {
+    echo     $latestAvailable = ^(Invoke-RestMethod -Uri $latestPatchUrl^).Trim^(^)
+    echo     Write-Output "LATEST:$latestAvailable"
+    echo } catch {
+    echo     Write-Output "LATEST:$sdkVersion"
+    echo }
+) > "%__TmpPsScript%"
+
+for /f "usebackq tokens=1,2 delims=:" %%i in (`%__PSCmd% -NoProfile -ExecutionPolicy ByPass -File "%__TmpPsScript%"`) do (
+    if "%%i"=="VERSION" set "__SdkVersion=%%j"
+    if "%%i"=="CHANNEL" set "__SdkChannel=%%j"
+    if "%%i"=="LATEST" set "__LatestAvailable=%%j"
+)
+if exist "%__TmpPsScript%" del "%__TmpPsScript%"
+
+echo %__MsgPrefix%Target .NET SDK Channel resolved to !__SdkChannel!
+
+set "__UseSystemDotnetSdk=0"
+set "__SystemDotnetVer="
+for /f "usebackq tokens=*" %%v in (`dotnet --version 2^>nul`) do set "__SystemDotnetVer=%%v"
+
+if defined __LatestAvailable (
+    if "!__SystemDotnetVer!"=="!__LatestAvailable!" set "__UseSystemDotnetSdk=1"
 )
 
-if "!__LocalDotNet!"=="1" (
+if "!__UseSystemDotnetSdk!"=="1" (
     set "__DotNetCmd=dotnet.exe"
+    echo %__MsgPrefix%Globally installed System .NET SDK is up-to-date with latest secure patch: !__LatestAvailable!
 ) else (
+    echo %__MsgPrefix%======================================================================
+    if defined __SystemDotnetVer (
+        echo %__MsgPrefix%WARNING: System .NET SDK ^(!__SystemDotnetVer!^) is OUTDATED.
+    ) else (
+        echo %__MsgPrefix%WARNING: System .NET SDK is MISSING.
+    )
+    echo %__MsgPrefix%         The latest secure patch for channel !__SdkChannel! is !__LatestAvailable!.
+    echo %__MsgPrefix%         Falling back to isolated local tools to ensure build security.
+    echo %__MsgPrefix%
+    echo %__MsgPrefix%STATUS:  A secure, isolated .NET SDK [!__LatestAvailable!] is fully provisioned
+    echo %__MsgPrefix%         within the repository context ^(Tools\coreclr\dotnetcli^).
+    echo %__MsgPrefix%         All compilation and tool execution will map to this local instance
+    echo %__MsgPrefix%         to maintain hermetic build guarantees and prevent CI state bleed.
+    echo %__MsgPrefix%======================================================================
+
     REM ARCHITECTURAL NOTE: The official .NET SDK payloads for Windows are strictly compiled
     REM targeting the MSVC Application Binary Interface (ABI) and Universal C Runtime (UCRT).
     REM As discussed in early coreclr/runtime GitHub issues, it is structurally impossible to
@@ -280,7 +356,14 @@ if "!__LocalDotNet!"=="1" (
 
     set "__LocalDotNetDir=!__RepoRootDir!Tools\coreclr\dotnetcli\!__OSName!\!__Libc!\!__ArchName!"
 
-    call .\init-tools.cmd %_MSB_Platform% "!__LocalDotNetDir!"
+    if defined __LatestAvailable (
+        if not "!__LatestAvailable!"=="!__SdkVersion!" (
+            echo %__MsgPrefix%Updating repository global.json to track target SDK version !__LatestAvailable! before initialization
+            %__PSCmd% -NoProfile -Command "$g = Get-Content '%__GlobalJson%' | ConvertFrom-Json; $g.sdk.version = '!__LatestAvailable!'; $g | ConvertTo-Json -Depth 10 | Set-Content '%__GlobalJson%'"
+        )
+    )
+
+    call "%__RepoRootDir%init-tools.cmd" %_MSB_Platform% "!__LocalDotNetDir!"
 
     if not [!ERRORLEVEL!]==[0] (
         goto exit_error
@@ -291,23 +374,139 @@ if "!__LocalDotNet!"=="1" (
 )
 
 for /f "usebackq tokens=*" %%v in (`!__DotNetCmd! --version`) do set __UsedDotNetVersion=%%v
-echo %__MsgPrefix%Using local stable .NET 10 SDK: !__UsedDotNetVersion!
-
-REM Clone libdjvulibre if needed
+if "!__UseSystemDotnetSdk!"=="0" echo %__MsgPrefix%Using Isolated Repository-Local .NET SDK: !__UsedDotNetVersion!
 
 if defined _SkipNative goto :no_djvulibre
 
-if not exist .\DjVuLibre\win32\djvulibre\libdjvulibre\libdjvulibre.vcxproj (
-    echo %__MsgPrefix%Cloning DjVuLibre
-    call :git_clone_retry "https://github.com/DjvuNet/DjVuLibre.git" "djvulibre" "--depth 1 -c core.autocrlf=false"
-    if not [%ERRORLEVEL%]==[0] (
-        echo %__MsgPrefix%Error: git clone https://github.com/DjvuNet/DjVuLibre.git returned error
-        goto exit_error
-    )
+REM Clone libdjvulibre if needed
+
+REM ---------------------------------------------------------------------------
+REM 1. Clone libdjvulibre FIRST so we can read its vcpkg.json
+REM ---------------------------------------------------------------------------
+if not exist ".\%__DjvuLibreDir%\win32\djvulibre\libdjvulibre\libdjvulibre.vcxproj" (
+    echo %__MsgPrefix%Setting up DjVuLibre
+
+    call :git_clone_retry ^
+        "https://github.com/DjvuNet/DjVuLibre.git" ^
+        "%__DjvuLibreDir%" ^
+        "--depth 1 -c core.autocrlf=false"
+
+    if not [!ERRORLEVEL!]==[0] goto :skip_native_setup
 ) else (
-    echo %__MsgPrefix%DjvuLibre already cloned
+    echo %__MsgPrefix%DjVuLibre already cloned
 )
 
+REM ---------------------------------------------------------------------------
+REM 2. Extract builtin-baseline from vcpkg.json cleanly
+REM ---------------------------------------------------------------------------
+set "__VcpkgBaseline="
+set "__VcpkgJsonPath=%__RepoRootDir%%__DjvuLibreDir%\vcpkg.json"
+
+if exist "%__VcpkgJsonPath%" (
+    set "__PsCommand=(Get-Content '%__VcpkgJsonPath%' | ConvertFrom-Json).'builtin-baseline'"
+
+    for /f "usebackq tokens=*" %%i in (`powershell -NoProfile -Command "!__PsCommand!" 2^>nul`) do (
+        set "__VcpkgBaseline=%%i"
+    )
+)
+
+REM ---------------------------------------------------------------------------
+REM 3. Define the VCPKG validation subroutine
+REM ---------------------------------------------------------------------------
+goto :skip_vcpkg_validation
+:is_valid_vcpkg
+    set "__TestDir=%~1"
+
+    if not exist "%__TestDir%\vcpkg.exe" exit /b 1
+    if not exist "%__TestDir%\.git\"     exit /b 1
+
+    if defined __VcpkgBaseline (
+        git -C "%__TestDir%" cat-file -e "%__VcpkgBaseline%^{commit}" >nul 2>&1
+        if not !ERRORLEVEL!==0 exit /b 1
+    )
+
+    exit /b 0
+:skip_vcpkg_validation
+
+REM ---------------------------------------------------------------------------
+REM 4. Resolve GlobalVcpkgRoot safely against the baseline
+REM ---------------------------------------------------------------------------
+set "__GlobalVcpkgRoot="
+
+REM Check explicit environment variable first
+if defined VCPKG_ROOT (
+    call :is_valid_vcpkg "%VCPKG_ROOT%"
+    if !ERRORLEVEL!==0 (
+        set "__GlobalVcpkgRoot=%VCPKG_ROOT%"
+        goto :vcpkg_found
+    )
+)
+
+REM Fallback to checking the system PATH
+for /f "delims=" %%i in ('where vcpkg 2^>nul') do (
+    call :is_valid_vcpkg "%%~dpi."
+    if !ERRORLEVEL!==0 (
+        set "__GlobalVcpkgRoot=%%~dpi"
+        goto :vcpkg_found
+    )
+)
+
+REM Fallback to the local repository clone
+set "__GlobalVcpkgRoot=%__RepoRootDir%vcpkg"
+
+:vcpkg_found
+if "%__GlobalVcpkgRoot:~-1%"=="\" (
+    set "__GlobalVcpkgRoot=%__GlobalVcpkgRoot:~0,-1%"
+)
+echo %__MsgPrefix%Resolved Vcpkg Root: !__GlobalVcpkgRoot!
+
+REM ---------------------------------------------------------------------------
+REM 5. Setup vcpkg baseline if local fallback was used
+REM ---------------------------------------------------------------------------
+if /i "%__GlobalVcpkgRoot%"=="%__RepoRootDir%vcpkg" (
+    set "__CloneValid=0"
+    if exist "%__GlobalVcpkgRoot%\.git\" (
+        if exist "%__GlobalVcpkgRoot%\bootstrap-vcpkg.bat" (
+            if exist "%__GlobalVcpkgRoot%\vcpkg.exe" (
+                if defined __VcpkgBaseline (
+                    git -C "%__GlobalVcpkgRoot%" cat-file -e "%__VcpkgBaseline%^{commit}" >nul 2>&1
+                    if !ERRORLEVEL!==0 set "__CloneValid=1"
+                ) else (
+                    set "__CloneValid=1"
+                )
+            )
+        )
+    )
+
+    if "!__CloneValid!"=="0" (
+        if exist "%__GlobalVcpkgRoot%\" (
+            echo %__MsgPrefix%Removing broken vcpkg baseline at %__GlobalVcpkgRoot%
+            rmdir /s /q "%__GlobalVcpkgRoot%"
+        )
+
+        echo %__MsgPrefix%Cloning local Microsoft vcpkg baseline
+        call :git_clone_retry ^
+            "https://github.com/Microsoft/vcpkg.git" ^
+            "vcpkg" ^
+            "-c core.autocrlf=false"
+
+        if not [!ERRORLEVEL!]==[0] goto :skip_native_setup
+    )
+
+    if not exist "%__GlobalVcpkgRoot%\vcpkg.exe" (
+        echo %__MsgPrefix%Bootstrapping vcpkg
+        call :run_custom_command ^
+            "%__GlobalVcpkgRoot%\bootstrap-vcpkg.bat -disableMetrics" ^
+            "vcpkg_bootstrap"
+
+        if not [!ERRORLEVEL!]==[0] goto :skip_native_setup
+    )
+)
+
+goto :no_djvulibre
+
+:skip_native_setup
+set "_SkipNative=1"
 :no_djvulibre
 
 REM Set target specific environment values
@@ -315,26 +514,30 @@ REM Set target specific environment values
 if /i "%_Framework%" == "%_DefaultNetCoreApp%" (
     set DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
     set DOTNET_MULTILEVEL_LOOKUP=0
-    set __RestoreCmd=!__DotNetCmd! msbuild /t:Restore
-    set __BuildCommand=!__DotNetCmd! msbuild
-    set __Framework=%_DefaultNetCoreApp%
-    set __BuildLibDjvuLibre=0
-    if /i [%_OS%] == [Windows_NT] set "__RuntimeIdentifier=win-"
-    if /i [%_OS%] == [Linux] set "__RuntimeIdentifier=linux-"
-    if /i [%_OS%] == [OSX] set "__RuntimeIdentifier=osx-"
+    set "__RestoreCmd=!__DotNetCmd! msbuild /t:Restore"
+    set "__BuildCommand=!__DotNetCmd! msbuild"
+    set "__Framework=%_DefaultNetCoreApp%"
+    set "__BuildLibDjvuLibre=0"
+    if /i [%_TargetOS%] == [Windows] set "__RuntimeIdentifier=win-"
+    if /i [%_TargetOS%] == [Linux] set "__RuntimeIdentifier=linux-"
+    if /i [%_TargetOS%] == [OSX] set "__RuntimeIdentifier=osx-"
     set "__RuntimeIdentifier=!__RuntimeIdentifier!!_MSB_Platform!"
 )
 
-set __SystemAttrProj=System.Attributes/System.Attributes.csproj
-set __DjvuNetGitTasksProj=build/tools/DjvuNet.Git.Tasks/DjvuNet.Git.Tasks.csproj
-set __DjvuNetProj=DjvuNet/DjvuNet.csproj
-set __DjvuNetDjvuLibreProj=DjvuNet.DjvuLibre/DjvuNet.DjvuLibre.csproj
+set "__SystemAttrProj=System.Attributes/System.Attributes.csproj"
+set "__LibGit2SharpProj=build/tools/libgit2sharp/LibGit2Sharp/LibGit2Sharp.csproj"
+set "__DjvuNetGitTasksProj=build/tools/DjvuNet.Git.Tasks/DjvuNet.Git.Tasks.csproj"
+set "__DjvuNetProj=DjvuNet/DjvuNet.csproj"
+set "__DjvuNetDjvuLibreProj=DjvuNet.DjvuLibre/DjvuNet.DjvuLibre.csproj"
 
-set __OutputDir=!__RootBuildDir!!OS!.!__ManagedPlatform!.!_MSB_Configuration!/binaries/!__Framework!/
-set __PublishDir=!__OutputDir!!__RuntimeIdentifier!/publish/
+set "__OutputDir=!__RootBuildDir!!_TargetOS!.!__ManagedPlatform!.!_MSB_Configuration!/binaries/!__Framework!/"
+set "__PublishDir=!__OutputDir!!__RuntimeIdentifier!/publish/"
+set "__LogsDir=!__RootBuildDir!!_TargetOS!.!__ManagedPlatform!.!_MSB_Configuration!/logs/!__Framework!/"
+if not exist "!__LogsDir!" md "!__LogsDir!"
 
 echo %__MsgPrefix%__OutputDir [!__OutputDir!]
 echo %__MsgPrefix%__PublishDir [!__PublishDir!]
+echo %__MsgPrefix%__LogsDir [!__LogsDir!]
 
 if /i "%_MSB_Target%" == "Clean" goto :end_dotnet_restore
 if not defined _BuildDjvuNet goto :skip_djvulibre_build
@@ -347,12 +550,10 @@ goto :end_dotnet_restore
 set "__BuildCommandArgs=-p:Configuration=!_MSB_Configuration! -p:Platform=!__ManagedPlatform! -p:TargetFramework=!__Framework! -p:RuntimeIdentifier=!__RuntimeIdentifier! -p:PublishDir=!__PublishDir! -v:!_Verbosity! -m:!_Processors! -nologo -nr:false"
 set "__RestoreCmdArgs=!__BuildCommandArgs!"
 
-call :restore_dotnet_proj !__SystemAttrProj!
-call :restore_dotnet_proj !__DjvuNetGitTasksProj!
-call :restore_dotnet_proj !__DjvuNetProj!
-
-if defined _SkipNative goto :end_dotnet_restore
-call :restore_dotnet_proj !__DjvuNetDjvuLibreProj!
+call :restore_dotnet_proj !__SystemAttrProj! System.Attributes.csproj
+call :restore_dotnet_proj !__LibGit2SharpProj! LibGit2Sharp.csproj
+call :restore_dotnet_proj !__DjvuNetGitTasksProj! DjvuNet.Git.Tasks.csproj
+call :restore_dotnet_proj !__DjvuNetProj! DjvuNet.csproj
 
 :end_dotnet_restore
 
@@ -362,53 +563,86 @@ if defined __BuildLibDjvuLibre (
     REM Scope environment changes start {
     setlocal
 
-    set __NativeLogsDir=!__RootBuildDir!!OS!.!_MSB_Platform!.!_MSB_Configuration!\logs\native\
-    set __BuildLogRootName=libdjvulibre
-    set __BuildLog="!__NativeLogsDir!!__BuildLogRootName!.log"
-    set __BuildWrn="!__NativeLogsDir!!__BuildLogRootName!.wrn"
-    set __BuildErr="!__NativeLogsDir!!__BuildLogRootName!.err"
-    set "__MsbuildLog=-flp:Verbosity=diag;LogFile=!__BuildLog!"
-    set "__MsbuildWrn=/flp1:WarningsOnly;LogFile=!__BuildWrn!"
-    set "__MsbuildErr=/flp2:ErrorsOnly;LogFile=!__BuildErr!"
-    set "__MsbuildLogging=!__MsbuildLog! !__MsbuildPubWrn! !__MsbuildErr!"
-
     echo %__MsgPrefix%Building native libdjvulibre.vcxproj
 
-    set __VCBuildArch=x86_x64
+    set "__HostArch=%PROCESSOR_ARCHITECTURE%"
+    if /i "!__HostArch!" == "AMD64" set "__HostArch=x64"
 
-    if /i "%_MSB_Platform%" == "x86" set __VCBuildArch=x86
-    if /i "%_MSB_Platform%" == "arm" set __VCBuildArch=x86_arm
-    if /i "%_MSB_Platform%" == "arm64" set __VCBuildArch=x86_arm64
+    if /i "!__HostArch!" == "%_MSB_Platform%" (
+        set "__VCBuildArch=!__HostArch!"
+    ) else (
+        set "__VCBuildArch=!__HostArch!_%_MSB_Platform%"
+    )
 
     echo %__MsgPrefix%Using environment: "%__VCToolsRoot%\vcvarsall.bat" !__VCBuildArch!
     call                                 "%__VCToolsRoot%\vcvarsall.bat" !__VCBuildArch!
 
-    echo %__MsgPrefix%Calling: msbuild /p:Configuration=%_MSB_Configuration% /p:Platform=%_MSB_Platform% /p:TargetFramework=%__Framework% /t:%_MSB_Target% /v:%_Verbosity% /m:%_Processors% /nologo !__MsbuildLogging! "%__RepoRootDir%DjVuLibre\win32\djvulibre\libdjvulibre\libdjvulibre.vcxproj"
-    call msbuild /p:Configuration=%_MSB_Configuration% /p:Platform=%_MSB_Platform% /p:TargetFramework=%__Framework% /t:%_MSB_Target% /v:%_Verbosity% /m:%_Processors% /nologo /nr:false !__MsbuildLogging! "%__RepoRootDir%DjVuLibre\win32\djvulibre\libdjvulibre\libdjvulibre.vcxproj"
+    set "__NativeLogsDir=!__RootBuildDir!!_TargetOS!.!_MSB_Platform!.!_MSB_Configuration!/logs/native/msvc-!VCToolsVersion!/"
+    if not exist "!__NativeLogsDir!" md "!__NativeLogsDir!"
+
+    set "__BuildLogRootName=libdjvulibre"
+    set "__BuildLog=!__NativeLogsDir!!__BuildLogRootName!.log"
+    set "__BuildWrn=!__NativeLogsDir!!__BuildLogRootName!.wrn"
+    set "__BuildErr=!__NativeLogsDir!!__BuildLogRootName!.err"
+    set "__MsbuildLog=-flp:Verbosity=diag;LogFile=!__BuildLog!"
+    set "__MsbuildWrn=/flp1:WarningsOnly;LogFile=!__BuildWrn!"
+    set "__MsbuildErr=/flp2:ErrorsOnly;LogFile=!__BuildErr!"
+    set "__MsbuildLogging=!__MsbuildLog! !__MsbuildWrn! !__MsbuildErr!"
+
+    set "__VcpkgRootArg="
+    if defined __GlobalVcpkgRoot set "__VcpkgRootArg=/p:VcpkgRoot=!__GlobalVcpkgRoot!"
+    set "__VcpkgManifestArg=/p:VcpkgManifestDir=%__RepoRootDir%%__DjvuLibreDir%"
+
+    echo %__MsgPrefix%Calling: msbuild /p:Configuration=%_MSB_Configuration% /p:Platform=%_MSB_Platform% /p:TargetFramework=%__Framework% /p:VcpkgEnableManifest=true !__VcpkgManifestArg! !__VcpkgRootArg! /t:%_MSB_Target% /v:%_Verbosity% /m:%_Processors% /nologo /nr:false !__MsbuildLogging! "%__RepoRootDir%%__DjvuLibreDir%\win32\djvulibre\libdjvulibre\libdjvulibre.vcxproj"
+    call msbuild /p:Configuration=%_MSB_Configuration% /p:Platform=%_MSB_Platform% /p:TargetFramework=%__Framework% /p:VcpkgEnableManifest=true !__VcpkgManifestArg! !__VcpkgRootArg! /t:%_MSB_Target% /v:%_Verbosity% /m:%_Processors% /nologo /nr:false !__MsbuildLogging! "%__RepoRootDir%%__DjvuLibreDir%\win32\djvulibre\libdjvulibre\libdjvulibre.vcxproj"
 
     if not [!ERRORLEVEL!]==[0] (
         echo %__MsgPrefix%Error: native libdjvulibre library build failed. Refer to the build log files for details:
         echo     !__BuildLog!
         echo     !__BuildWrn!
         echo     !__BuildErr!
-        exit /b 1
+        set "_NativeFailed=1"
+    ) else (
+        set "_NativeFailed=0"
     )
 
 REM } Scope environment changes end
-    endlocal
+    for %%F in ("!_NativeFailed!") do (
+        endlocal
+        set "_NativeFailed=%%~F"
+    )
+
+    if "!_NativeFailed!"=="1" (
+        set "__FailedBuilds=!__FailedBuilds! libdjvulibre"
+        set "_SkipNative=1"
+        if defined _FastFail goto exit_error
+    ) else (
+        set "__SuccessfulBuilds=!__SuccessfulBuilds! libdjvulibre"
+    )
 )
 
 :no_djvulibre_build
 
-set __LogsDir=!__RootBuildDir!!OS!.!_MSB_Platform!.!_MSB_Configuration!\logs\
+set "__LogsDir=!__RootBuildDir!!_TargetOS!.!_MSB_Platform!.!_MSB_Configuration!/logs/!__Framework!/"
+if not exist "!__LogsDir!" md "!__LogsDir!"
 
-call :build_dotnet_proj !__DjvuNetGitTasksProj! DjvuNet.Git.Tasks.csproj
 call :build_dotnet_proj !__SystemAttrProj! System.Attributes.csproj
+call :build_dotnet_proj !__LibGit2SharpProj! LibGit2Sharp.csproj
+call :build_dotnet_proj !__DjvuNetGitTasksProj! DjvuNet.Git.Tasks.csproj
 call :build_dotnet_proj !__DjvuNetProj! DjvuNet.csproj
 
-if defined _SkipNative goto skip_djvulibre_build
+if defined _SkipNative (
+    if "!_NativeFailed!"=="1" (
+        set "__FailedRestores=!__FailedRestores! DjvuNet.DjvuLibre.csproj"
+        set "__FailedBuilds=!__FailedBuilds! DjvuNet.DjvuLibre.csproj"
+    )
+    goto skip_djvulibre_build
+)
 
-echo %__MsgPrefix%Building DjvuNet.DjvuLibre project: 
+echo %__MsgPrefix%Restoring DjvuNet.DjvuLibre project:
+call :restore_dotnet_proj !__DjvuNetDjvuLibreProj! DjvuNet.DjvuLibre.csproj
+echo
+echo %__MsgPrefix%Building DjvuNet.DjvuLibre project:
 call :build_dotnet_proj !__DjvuNetDjvuLibreProj! DjvuNet.DjvuLibre.csproj
 
 :skip_djvulibre_build
@@ -429,26 +663,34 @@ if not defined _Test (
 
 if not exist .\artifacts\test001C.djvu (
     echo.
-    echo %__MsgPrefix%Cloning test data from https://github.com/DjvuNet/artifacts.git
-    call :git_clone_retry "https://github.com/DjvuNet/artifacts.git" "" "--depth 1 -c core.autocrlf=false"
+    echo %__MsgPrefix%Downloading test data from https://github.com/DjvuNet/artifacts/archive/refs/tags/v0.9.26132.0.zip
+    call :download_retry "https://github.com/DjvuNet/artifacts/archive/refs/tags/v0.9.26132.0.zip" "artifacts.zip"
     if not [!ERRORLEVEL!]==[0] (
         echo.
-        echo %__MsgPrefix%Error: git clone returned error
+        echo %__MsgPrefix%Error: artifacts download returned error
         goto exit_error
     )
+    tar.exe -xf artifacts.zip
+    if not [!ERRORLEVEL!]==[0] (
+        echo.
+        echo %__MsgPrefix%Error: artifacts extraction returned error
+        goto exit_error
+    )
+    rename artifacts-0.9.26132.0 artifacts
+    del artifacts.zip
 )
 
 REM Setup test environment
 
 :test_environment_setup
 
-set __TestFramework=%_DefaultNetCoreApp%
+set "__TestFramework=%_DefaultNetCoreApp%"
 
-set __TestOutputDir=%__OutputDir%
-set __DjvuNetTestsProj=DjvuNet.Tests/DjvuNet.Tests.csproj
-set __DjvuNetWaveletTestsProj=DjvuNet.Wavelet.Tests/DjvuNet.Wavelet.Tests.csproj
-set __DjvuNetTestExeProj=DjvuNetTest/DjvuNetTest.csproj
-set __DjvuNetDjvuLibreTestsProj=DjvuNet.DjvuLibre.Tests/DjvuNet.DjvuLibre.Tests.csproj
+set "__TestOutputDir=!__PublishDir!"
+set "__DjvuNetTestsProj=DjvuNet.Tests/DjvuNet.Tests.csproj"
+set "__DjvuNetWaveletTestsProj=DjvuNet.Wavelet.Tests/DjvuNet.Wavelet.Tests.csproj"
+set "__DjvuNetTestExeProj=DjvuNetTest/DjvuNetTest.csproj"
+set "__DjvuNetDjvuLibreTestsProj=DjvuNet.DjvuLibre.Tests/DjvuNet.DjvuLibre.Tests.csproj"
 
 if not defined _Test (
     if not defined _BuildTests (
@@ -460,13 +702,16 @@ if not defined _Test (
 
 REM Restore test projects
 
-call :restore_dotnet_proj !__DjvuNetTestsProj!
-call :restore_dotnet_proj !__DjvuNetWaveletTestsProj!
-call :restore_dotnet_proj !__DjvuNetTestExeProj!
+call :restore_dotnet_proj !__DjvuNetTestsProj! DjvuNet.Tests.csproj
+call :restore_dotnet_proj !__DjvuNetWaveletTestsProj! DjvuNet.Wavelet.Tests.csproj
+call :restore_dotnet_proj !__DjvuNetTestExeProj! DjvuNetTest.csproj
 
-if defined _SkipNative goto :skip_djvunet_tests_restore
+if defined _SkipNative (
+    if "!_NativeFailed!"=="1" set "__FailedRestores=!__FailedRestores! DjvuNet.DjvuLibre.Tests.csproj"
+    goto :skip_djvunet_tests_restore
+)
 
-call :restore_dotnet_proj !__DjvuNetDjvuLibreTestsProj!
+call :restore_dotnet_proj !__DjvuNetDjvuLibreTestsProj! DjvuNet.DjvuLibre.Tests.csproj
 
 :skip_djvunet_tests_restore
 
@@ -474,9 +719,12 @@ REM Build and publish tests
 
 call :build_dotnet_proj !__DjvuNetTestsProj! DjvuNet.Tests.csproj
 call :build_dotnet_proj !__DjvuNetWaveletTestsProj! DjvuNet.Wavelet.Tests.csproj
-call :build_dotnet_proj !__DjvuNetTestExeProj! DjvuNetTest.exe.csproj
+call :build_dotnet_proj !__DjvuNetTestExeProj! DjvuNetTest.csproj
 
-if defined _SkipNative goto skip_djvulibre_tests_proj
+if defined _SkipNative (
+    if "!_NativeFailed!"=="1" set "__FailedBuilds=!__FailedBuilds! DjvuNet.DjvuLibre.Tests.csproj"
+    goto skip_djvulibre_tests_proj
+)
 call :build_dotnet_proj !__DjvuNetDjvuLibreTestsProj! DjvuNet.DjvuLibre.Tests.csproj
 :skip_djvulibre_tests_proj
 
@@ -498,19 +746,19 @@ echo %__MsgPrefix%                           STARTING TESTS
 echo %__MsgPrefix%======================================================================
 echo.
 
-set _DjvuNet_Tests=%__TestOutputDir%DjvuNet.Tests.exe
-set _DjvuNet_DjvuLibre_Tests=%__TestOutputDir%DjvuNet.DjvuLibre.Tests.exe
-set _DjvuNet_Wavelet_Tests=%__TestOutputDir%DjvuNet.Wavelet.Tests.exe
-set __TestResOutputDir=TestResults\!__Framework!\
-set __DotNetCommandx86=%ProgramFiles(x86)%\dotnet\dotnet
-set __DotNetCommandx64=!__DotNetCmd!
+set "_DjvuNet_Tests=%__TestOutputDir%DjvuNet.Tests.exe"
+set "_DjvuNet_DjvuLibre_Tests=%__TestOutputDir%DjvuNet.DjvuLibre.Tests.exe"
+set "_DjvuNet_Wavelet_Tests=%__TestOutputDir%DjvuNet.Wavelet.Tests.exe"
+set "__TestResOutputDir=TestResults/!__Framework!/"
+set "__DotNetCommandx86=%ProgramFiles(x86)%\dotnet\dotnet"
+set "__DotNetCommandx64=!__DotNetCmd!"
 
 if /i "%__TestFramework%" == "%_DefaultNetFX%" (
     if [%__ManagedPlatform%] == [x86] set _xUnit_console=!UserProfile!\.nuget\packages\xunit.runner.console\2.4.1\tools\!__TestFramework!\xunit.console.x86.exe
     if [%__ManagedPlatform%] == [AnyCPU] set _xUnit_console="%UserProfile%\.nuget\packages\xunit.runner.console\2.4.1\tools\%__TestFramework%\xunit.console.exe"
     if [%__ManagedPlatform%] == [x64] set _xUnit_console=!UserProfile!\.nuget\packages\xunit.runner.console\2.4.1\tools\!__TestFramework!\xunit.console.exe
-    set _Test_Options=-trait- "Category=skip-net472"
-    set __TestOutputFormat=html
+    set "_Test_Options=-trait- "Category=skip-net472""
+    set "__TestOutputFormat=html"
 )
 
 if /i "%__TestFramework%" == "%_DefaultNetCoreApp%" (
@@ -518,21 +766,21 @@ if /i "%__TestFramework%" == "%_DefaultNetCoreApp%" (
     if [%__ManagedPlatform%] == [x86] set _xUnit_console="!__DotNetCommandx86!" "!__OutputDir!xunit.console.dll"
     if [%__ManagedPlatform%] == [x64] set _xUnit_console="!__DotNetCommandx64!" "!__OutputDir!xunit.console.dll"
     if [%__ManagedPlatform%] == [AnyCPU] set _xUnit_console="!__DotNetCommandx64!" "!__OutputDir!xunit.console.dll"
-    set _Test_Options=-trait- "Category=skip-netcoreapp"
-    set __TestOutputFormat=xml
+    set "_Test_Options=-trait- "Category=skip-netcoreapp""
+    set "__TestOutputFormat=xml"
 )
 
 if /i "%__TestFramework%" == "%_DefaultNetStandard%" (
     if [%__ManagedPlatform%] == [x86] set _xUnit_console="!__DotNetCommandx86!" "!__OutputDir!xunit.console.dll"
     if [%__ManagedPlatform%] == [x64] set _xUnit_console="!__DotNetCommandx64!" "!__OutputDir!xunit.console.dll"
     if [%__ManagedPlatform%] == [AnyCPU] set _xUnit_console="!__DotNetCommandx64!" "!__OutputDir!xunit.console.dll"
-    set _Test_Options=-trait- "Category=skip-netcoreapp"
-    set __TestOutputFormat=xml
+    set "_Test_Options=-trait- "Category=skip-netcoreapp""
+    set "__TestOutputFormat=xml"
 )
 
 if /i [%_Verbosity%] == [d] set _Test_Options=!_Test_Options! -verbose
 if /i [%_Verbosity%] == [diag] set _Test_Options=!_Test_Options! -verbose -internaldiagnostics
-set _Test_Options=!_Test_Options! -trait- "Category=Skip" -nologo -nocolor
+set "_Test_Options=!_Test_Options! -trait- "Category=Skip" -nologo -nocolor"
 
 set "__XunitConfig=xunit.runner.json"
 
@@ -579,6 +827,14 @@ echo.
 echo %__MsgPrefix%======================================================================
 echo %__MsgPrefix%                           BUILD SUMMARY
 echo %__MsgPrefix%======================================================================
+if not "!__SuccessfulClones!" == "" (
+    echo %__MsgPrefix%Successfully cloned:
+    for %%A in (!__SuccessfulClones!) do echo %__MsgPrefix%  - %%A
+)
+if not "!__SuccessfulCommands!" == "" (
+    echo %__MsgPrefix%Successfully executed commands:
+    for %%A in (!__SuccessfulCommands!) do echo %__MsgPrefix%  - %%A
+)
 if not "!__SuccessfulRestores!" == "" (
     echo %__MsgPrefix%Successfully restored:
     for %%A in (!__SuccessfulRestores!) do echo %__MsgPrefix%  - %%A
@@ -590,6 +846,14 @@ if not "!__SuccessfulBuilds!" == "" (
 if not "!__SuccessfulPublishes!" == "" (
     echo %__MsgPrefix%Successfully published:
     for %%A in (!__SuccessfulPublishes!) do echo %__MsgPrefix%  - %%A
+)
+if not "!__FailedClones!" == "" (
+    echo %__MsgPrefix%Failed to clone:
+    for %%A in (!__FailedClones!) do echo %__MsgPrefix%  - %%A
+)
+if not "!__FailedCommands!" == "" (
+    echo %__MsgPrefix%Failed to execute commands:
+    for %%A in (!__FailedCommands!) do echo %__MsgPrefix%  - %%A
 )
 if not "!__FailedRestores!" == "" (
     echo %__MsgPrefix%Failed to restore:
@@ -620,11 +884,21 @@ goto :eof
 
 :restore_dotnet_proj
 
-set __DjvuTargetProject=%1
+set "__DjvuTargetProject=%~1"
+set "__DjvuTargetProjectName=%~2"
+
+set "__RestoreLogRootName=!__DjvuTargetProjectName!.Restore"
+set "__RestoreLog=!__LogsDir!!__RestoreLogRootName!.log"
+set "__RestoreWrn=!__LogsDir!!__RestoreLogRootName!.wrn"
+set "__RestoreErr=!__LogsDir!!__RestoreLogRootName!.err"
+set "__MsbuildLog=/flp:Verbosity=diag;LogFile=!__RestoreLog!"
+set "__MsbuildWrn=/flp1:WarningsOnly;LogFile=!__RestoreWrn!"
+set "__MsbuildErr=/flp2:ErrorsOnly;LogFile=!__RestoreErr!"
+set "__MsbuildLogging=!__MsbuildLog! !__MsbuildWrn! !__MsbuildErr!"
 
 echo %__MsgPrefix%Restoring %__DjvuTargetProject%
-echo %__MsgPrefix%Calling: !__RestoreCmd! !__RestoreCmdArgs! !__DjvuTargetProject!
-call !__RestoreCmd! !__RestoreCmdArgs! !__DjvuTargetProject!
+echo %__MsgPrefix%Calling: !__RestoreCmd! !__RestoreCmdArgs! !__MsbuildLogging! !__DjvuTargetProject!
+call !__RestoreCmd! !__RestoreCmdArgs! !__MsbuildLogging! !__DjvuTargetProject!
 
 if not [%ERRORLEVEL%]==[0] (
     echo %__MsgPrefix%Error: nuget restore of %__DjvuTargetProject% returned error
@@ -635,21 +909,24 @@ if not [%ERRORLEVEL%]==[0] (
     set "__SuccessfulRestores=!__SuccessfulRestores! %__DjvuTargetProject%"
 )
 
+echo.
+goto :eof
+echo.
 goto :eof
 
 :build_dotnet_proj
 
-set __BuildProj=%1
-set __BuildProjName=%2
+set "__BuildProj=%~1"
+set "__BuildProjName=%~2"
 
 set "__BuildLogRootName=!__BuildProjName!.!_MSB_Target!"
-set __BuildLog="!__LogsDir!!__BuildLogRootName!.log"
-set __BuildWrn="!__LogsDir!!__BuildLogRootName!.wrn"
-set __BuildErr="!__LogsDir!!__BuildLogRootName!.err"
-set __MsbuildLog=/flp:Verbosity=diag;LogFile=!__BuildLog!
-set __MsbuildWrn=/flp1:WarningsOnly;LogFile=!__BuildWrn!
-set __MsbuildErr=/flp2:ErrorsOnly;LogFile=!__BuildErr!
-set "__MsbuildLogging=!__MsbuildLog! !__MsbuildPubWrn! !__MsbuildErr!"
+set "__BuildLog=!__LogsDir!!__BuildLogRootName!.log"
+set "__BuildWrn=!__LogsDir!!__BuildLogRootName!.wrn"
+set "__BuildErr=!__LogsDir!!__BuildLogRootName!.err"
+set "__MsbuildLog=/flp:Verbosity=diag;LogFile=!__BuildLog!"
+set "__MsbuildWrn=/flp1:WarningsOnly;LogFile=!__BuildWrn!"
+set "__MsbuildErr=/flp2:ErrorsOnly;LogFile=!__BuildErr!"
+set "__MsbuildLogging=!__MsbuildLog! !__MsbuildWrn! !__MsbuildErr!"
 
 echo.
 echo %__MsgPrefix%Building %__BuildProj%
@@ -672,12 +949,12 @@ if not defined __SkipPublish (
     REM Scope environment changes start {
     setlocal
     set "__PublishLogRootName=!__BuildProjName!.Publish"
-    set __PublishLog="!__LogsDir!!__PublishLogRootName!.log"
-    set __PublishWrn="!__LogsDir!!__PublishLogRootName!.wrn"
-    set __PublishErr="!__LogsDir!!__PublishLogRootName!.err"
-    set __MsbuildPubLog=-flp:Verbosity=diag;LogFile=!__PublishLog!
-    set __MsbuildPubWrn=-flp1:WarningsOnly;LogFile=!__PublishWrn!
-    set __MsbuildPubErr=-flp2:ErrorsOnly;LogFile=!__PublishErr!
+    set "__PublishLog=!__LogsDir!!__PublishLogRootName!.log"
+    set "__PublishWrn=!__LogsDir!!__PublishLogRootName!.wrn"
+    set "__PublishErr=!__LogsDir!!__PublishLogRootName!.err"
+    set "__MsbuildPubLog=-flp:Verbosity=diag;LogFile=!__PublishLog!"
+    set "__MsbuildPubWrn=-flp1:WarningsOnly;LogFile=!__PublishWrn!"
+    set "__MsbuildPubErr=-flp2:ErrorsOnly;LogFile=!__PublishErr!"
     set "__MsbuildLogging=!__MsbuildPubLog! !__MsbuildPubWrn! !__MsbuildPubErr!"
 
     echo.
@@ -704,8 +981,8 @@ if not defined __SkipPublish (
 goto :eof
 
 :run_dotnet_test
-set __DjvuTargetTestExe=%~1
-set __DjvuTargetTestName=%~2
+set "__DjvuTargetTestExe=%~1"
+set "__DjvuTargetTestName=%~2"
 
 echo.
 if not exist "!__DjvuTargetTestExe!" (
@@ -758,44 +1035,95 @@ echo   -v, -Verbosity ^<level^>         Verbosity (q[uiet], m[inimal], n[ormal],
 echo.
 echo   -proc, -Processors ^<count^>     Number of build processes. Default: %%NUMBER_OF_PROCESSORS%%
 echo.
-echo   -OS ^<os^>                       Target OS (Windows_NT, Linux, OSX). Default: Windows_NT.
+echo   -OS ^<os^>                       Target OS (Windows, Linux, OSX). Default: Windows.
 echo.
 echo   -h, -?, -help                    Show this usage message.
 echo.
 exit /b 1
+
+:run_custom_command
+set "__CommandToRun=%~1"
+set "__CommandName=%~2"
+
+echo %__MsgPrefix%Running: !__CommandName!
+echo %__MsgPrefix%Calling: !__CommandToRun!
+call !__CommandToRun!
+
+if not [!ERRORLEVEL!]==[0] (
+    echo %__MsgPrefix%Error: !__CommandName! returned error code !ERRORLEVEL!
+    set "__FailedCommands=!__FailedCommands! !__CommandName!"
+    if defined _FastFail goto exit_error
+    exit /b 1
+) else (
+    set "__SuccessfulCommands=!__SuccessfulCommands! !__CommandName!"
+)
+goto :eof
+
+:download_retry
+setlocal
+set "url=%~1"
+set "dest=%~2"
+set "max_attempts=5"
+set "attempt=1"
+set "delay=10"
+set "base_timeout_sec=120"
+
+:download_loop
+set /a "current_timeout_sec=!base_timeout_sec! * !attempt!"
+echo %__MsgPrefix%download attempt !attempt! of !max_attempts! for !url! (Timeout: !current_timeout_sec!s)...
+curl.exe -L -s -o "!dest!" --max-time !current_timeout_sec! "!url!"
+if [!ERRORLEVEL!]==[0] (
+    endlocal
+    set "__SuccessfulCommands=!__SuccessfulCommands! download_!dest!"
+    exit /b 0
+)
+
+if !attempt! GEQ !max_attempts! (
+    echo %__MsgPrefix%Error: download failed or timed out after !max_attempts! attempts.
+    endlocal
+    set "__FailedCommands=!__FailedCommands! download_!dest!"
+    if defined _FastFail goto exit_error
+    exit /b 1
+)
+
+echo %__MsgPrefix%download failed. Retrying in !delay! seconds...
+ping 127.0.0.1 -n !delay! > nul
+set /a "delay=!delay! * 2"
+set /a "attempt=!attempt! + 1"
+goto download_loop
 
 :git_clone_retry
 setlocal
 set "url=%~1"
 set "dest=%~2"
 set "extra_args=%~3"
-set max_attempts=5
-set attempt=1
-set delay=10
-set base_timeout_ms=120000
+set "max_attempts=5"
+set "attempt=1"
+set "delay=10"
+set "base_timeout_ms=120000"
 
 :git_clone_loop
-set /a current_timeout_ms=!base_timeout_ms! * !attempt!
-set /a current_timeout_s=!current_timeout_ms! / 1000
+set /a "current_timeout_ms=!base_timeout_ms! * !attempt!"
+set /a "current_timeout_s=!current_timeout_ms! / 1000"
 echo %__MsgPrefix%git clone attempt !attempt! of !max_attempts! for !url! (Timeout: !current_timeout_s!s)...
 set "CLONE_CMD=clone !extra_args! !url! !dest!"
 powershell -NoProfile -ExecutionPolicy ByPass -Command "$p = Start-Process git -ArgumentList '!CLONE_CMD!' -PassThru -NoNewWindow; if (-not $p.WaitForExit(!current_timeout_ms!)) { $p.Kill(); exit 1 } else { exit $p.ExitCode }"
 if [!ERRORLEVEL!]==[0] (
     endlocal
+    set "__SuccessfulClones=!__SuccessfulClones! %dest%"
     exit /b 0
 )
 
 if !attempt! GEQ !max_attempts! (
     echo %__MsgPrefix%Error: git clone failed or timed out after !max_attempts! attempts.
     endlocal
+    set "__FailedClones=!__FailedClones! %dest%"
+    if defined _FastFail goto exit_error
     exit /b 1
 )
 
 echo %__MsgPrefix%git clone failed. Retrying in !delay! seconds...
 ping 127.0.0.1 -n !delay! > nul
-set /a delay=!delay! * 2
-set /a attempt=!attempt! + 1
-goto git_clone_loop
- 2
-set /a attempt=!attempt! + 1
+set /a "delay=!delay! * 2"
+set /a "attempt=!attempt! + 1"
 goto git_clone_loop

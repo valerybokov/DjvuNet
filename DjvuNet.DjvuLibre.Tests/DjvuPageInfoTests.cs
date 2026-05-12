@@ -710,7 +710,33 @@ namespace DjvuNet.DjvuLibre.Tests
         internal static class SafeNativeMethods
         {
             [DllImport("NtDll.dll", EntryPoint = "RtlMoveMemory")]
-            internal static extern void CopyMemory(IntPtr Destination, IntPtr Source, uint Length);
+            private static extern void CopyMemoryWindows(IntPtr Destination, IntPtr Source, uint Length);
+
+            [DllImport("libc", EntryPoint = "memmove")]
+            private static extern void CopyMemoryLinux(IntPtr Destination, IntPtr Source, UIntPtr Length);
+
+            [DllImport("libSystem.dylib", EntryPoint = "memmove")]
+            private static extern void CopyMemoryMac(IntPtr Destination, IntPtr Source, UIntPtr Length);
+
+            internal static void CopyMemory(IntPtr Destination, IntPtr Source, uint Length)
+            {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    CopyMemoryWindows(Destination, Source, Length);
+                }
+                else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                {
+                    CopyMemoryLinux(Destination, Source, (UIntPtr)Length);
+                }
+                else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                {
+                    CopyMemoryMac(Destination, Source, (UIntPtr)Length);
+                }
+                else
+                {
+                    throw new PlatformNotSupportedException("Memory copy is not supported but one can easily implement it.");
+                }
+            }
         }
 
         [Fact, Trait("Category", "DjvuLibre")]
@@ -892,7 +918,7 @@ namespace DjvuNet.DjvuLibre.Tests
                 IntPtr buffer = page.RenderPage(RenderMode.MaskOnly, ref pageRect, ref targetRect, format);
 
                 using (Bitmap bmp = new Bitmap(page.Width, page.Height, PixelFormat.Format24bppRgb))
-                using (Bitmap testBmp = new Bitmap(Path.Combine(Util.RepoRoot, "artifacts", "data", "test003CMask.png")))
+                using (Bitmap testBmp = new Bitmap(Path.Combine(Util.RepoRoot, "artifacts", "data", "test003Cmask.png")))
                 {
                     PixelFormat pf = testBmp.PixelFormat;
                     Assert.Equal<PixelFormat>(PixelFormat.Format24bppRgb, pf);
@@ -911,7 +937,7 @@ namespace DjvuNet.DjvuLibre.Tests
                     bmp.UnlockBits(data);
 
 #if DUMP_IMAGES
-                    bmp.Save(Path.Combine(Util.RepoRoot, "artifacts", "refdumps", "test003CMask.png"));
+                    bmp.Save(Path.Combine(Util.RepoRoot, "artifacts", "refdumps", "test003Cmask.png"));
 #endif
 
                     bool result = Util.CompareImagesForBinarySimilarity(testBmp, bmp, 0.0100, true, $"Testing libdjvulibre doc mask: \t\ttest003C.png, ");
@@ -1054,7 +1080,7 @@ namespace DjvuNet.DjvuLibre.Tests
                 IntPtr buffer = page.RenderPage(RenderMode.MaskOnly);
 
                 using (Bitmap bmp = new Bitmap((int)targetRect.Width, (int)targetRect.Height, PixelFormat.Format24bppRgb))
-                using (Bitmap testBmp = new Bitmap(Path.Combine(Util.RepoRoot, "artifacts", "data", "test074CMask.png")))
+                using (Bitmap testBmp = new Bitmap(Path.Combine(Util.RepoRoot, "artifacts", "data", "test074Cmask.png")))
                 {
                     Rectangle rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
 
@@ -1070,7 +1096,7 @@ namespace DjvuNet.DjvuLibre.Tests
                     bmp.UnlockBits(data);
 
 #if DUMP_IMAGES
-                    bmp.Save(Path.Combine(Util.RepoRoot, "artifacts", "refdumps", "test074CMask.png"));
+                    bmp.Save(Path.Combine(Util.RepoRoot, "artifacts", "refdumps", "test074Cmask.png"));
 #endif
 
                     bool result = Util.CompareImagesForBinarySimilarity(testBmp, bmp, 0.0100, true, $"Testing libdjvulibre doc mask: \t\ttest074C.png, ");
@@ -1251,7 +1277,7 @@ namespace DjvuNet.DjvuLibre.Tests
                     {
                         DjvuNet.DjvuPage managedPage = Assert.IsType<DjvuNet.DjvuPage>(managedDoc.FirstPage);
                         DjvuNet.DjvuImage managedImage = Assert.IsType<DjvuNet.DjvuImage>(managedPage.Image);
-                        
+
                         using (Bitmap managedBmp = managedImage.GetMaskImage(1))
                         using (Bitmap invertedManagedBmp = DjvuImage.InvertImage(managedBmp))
                         {

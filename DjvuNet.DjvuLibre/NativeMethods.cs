@@ -8,7 +8,7 @@ namespace DjvuNet.DjvuLibre
 {
     internal static class NativeMethods
     {
-        public const string DjVuLibrePath = "..\\libdjvulibre.dll";
+        public const string DjVuLibrePath = "../libdjvulibre";
         //  DDJVUAPI const char*
         //  ddjvu_get_version_string(void);
 

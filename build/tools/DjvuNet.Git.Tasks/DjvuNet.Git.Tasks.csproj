@@ -3,18 +3,24 @@
       DjvuNetPackaging.props should go always first due to pack target requirements:
       first PropertyGroup in project defines packaging props
    -->
-  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetPackaging.props))\DjvuNetPackaging.props" />
-  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.props))\DjvuNetBuild.props" />
+  <Import
+    Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetPackaging.props))\DjvuNetPackaging.props" />
+  <Import
+    Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.props))\DjvuNetBuild.props" />
 
   <PropertyGroup>
     <IsTool>true</IsTool>
     <Title>$(PackageId) - DjvuNet custom build tool</Title>
-    <Description>$(PackageId) implements custom MSBuild build tasks used in DjvuNet repository build infrastructure.</Description>
-    <TargetFrameworks>$(DotNetCoreFrameworkVersion);$(NetFXTargetFrameworkVersion)</TargetFrameworks>
-    <NETStandardImplicitPackageVersion>$(NETStandardPackageVersion)</NETStandardImplicitPackageVersion>
-    <!--<TargetFramework Condition="$(TargetFramework) == ''">$(DotNetCoreFrameworkVersion)</TargetFramework>-->
+    <Description>$(PackageId) implements custom MSBuild build tasks used in DjvuNet repository build
+      infrastructure.</Description>
+    <TargetFramework>$(DotNetCoreFrameworkVersion)</TargetFramework>
     <IsDjvuNetTestProject>false</IsDjvuNetTestProject>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <GenerateDependencyFile>true</GenerateDependencyFile>
+    <IncludeRuntimeDependencyGraph>true</IncludeRuntimeDependencyGraph>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <RuntimeIdentifiers>
+      win-x64;win-x86;win-arm64;linux-arm;linux-arm64;linux-musl-arm;linux-musl-arm64;linux-musl-x64;linux-x64;osx-arm64;osx-x64;win</RuntimeIdentifiers>
   </PropertyGroup>
   <PropertyGroup>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
@@ -42,36 +48,58 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="ModuleInitialization.cs" />
     <Compile Include="BuildMajorVersion.cs" />
     <Compile Include="FileUpdate.cs" />
     <Compile Include="GetDateTime.cs" />
     <Compile Include="GetLastCommit.cs" />
-    <Compile Include="$(RepoRootDir)System.Attributes/AssemblyPlatformAttribute.cs" />
+    <Compile Include="ResolveNativePdbs.cs" />
   </ItemGroup>
-
   <ItemGroup>
-    <PackageReference Include="LibGit2Sharp" Version="$(LibGit2SharpPackageVersion)" />
-    <PackageReference Include="System.Security.Cryptography.Xml" Version="$(MicrosoftNETCoreAppPackageVersion)" />
+    <ProjectReference Include="$(RepoRootDir)System.Attributes/System.Attributes.csproj" />
+    <ProjectReference Include="$(RepoRootDir)build/tools/libgit2sharp/LibGit2Sharp/LibGit2Sharp.csproj" />
+    <PackageReference Include="System.Security.Cryptography.Xml"
+      Version="$(MicrosoftNETCoreAppPackageVersion)" />
     <PackageReference Include="Microsoft.Build" Version="$(MicrosoftBuildPackageVersion)" />
     <PackageReference Include="Microsoft.Build.Framework" Version="$(MicrosoftBuildPackageVersion)" />
     <PackageReference Include="Microsoft.Build.Tasks.Core" Version="$(MicrosoftBuildPackageVersion)" />
-    <PackageReference Include="Microsoft.Build.Utilities.Core" Version="$(MicrosoftBuildPackageVersion)" />
+    <PackageReference Include="Microsoft.Build.Utilities.Core"
+      Version="$(MicrosoftBuildPackageVersion)" />
   </ItemGroup>
 
-  <Target Name="CopyTasksAssemblyToTools" AfterTargets="Build" Inputs="$(TargetPath)" Outputs="$(RepoRootDir)Tools\DjvuNet\$(TargetFramework)\$(TargetFileName)">
-    <MakeDir Directories="$(RepoRootDir)Tools\DjvuNet\$(TargetFramework)" />
-    <!-- Can not move if file with the same name already exists - just delete it. -->
-    <Delete Condition="Exists('$(RepoRootDir)Tools\DjvuNet\$(TargetFramework)\$(TargetFileName).bak')"
-            Files="$(RepoRootDir)Tools\DjvuNet\$(TargetFramework)\$(TargetFileName).bak" />
-    <Move
-      SourceFiles="$(RepoRootDir)Tools\DjvuNet\$(TargetFramework)\$(TargetFileName)"
-      DestinationFiles="$(RepoRootDir)Tools\DjvuNet\$(TargetFramework)\$(TargetFileName).bak"
-      Condition="Exists('$(RepoRootDir)Tools\DjvuNet\$(TargetFramework)\$(TargetFileName)')" />
-    <ItemGroup>
-      <_OutputFiles Include="$(TargetDir)**\*.*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_OutputFiles)" DestinationFolder="$(RepoRootDir)Tools/DjvuNet/$(TargetFramework)/%(RecursiveDir)" SkipUnchangedFiles="true" />
-  </Target>
+  <Import
+    Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.targets))\DjvuNetBuild.targets" />
 
-  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.targets))\DjvuNetBuild.targets" />
+  <Target Name="DeployTasksAssemblyToTools" AfterTargets="Build">
+    <PropertyGroup>
+      <ToolOutputDir>$(RepoRootDir)Tools\DjvuNet\$(TargetFramework)\</ToolOutputDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(ToolOutputDir)" />
+
+    <!-- 1. Casually clean up old .bak files from previous MSBuild runs. Ignore errors if they are
+    still locked. -->
+    <ItemGroup>
+      <OldBakFiles Include="$(ToolOutputDir)*.bak" />
+    </ItemGroup>
+    <Delete Files="@(OldBakFiles)" ContinueOnError="true" />
+
+    <!-- 2. Bypass the lock on the current DLL by renaming it to a unique timestamp -->
+    <Move SourceFiles="$(ToolOutputDir)$(TargetFileName)"
+      DestinationFiles="$(ToolOutputDir)$(TargetFileName).$([System.DateTime]::Now.Ticks).bak"
+      Condition="Exists('$(ToolOutputDir)$(TargetFileName)')" />
+    <Move SourceFiles="$(ToolOutputDir)$(TargetName).pdb"
+      DestinationFiles="$(ToolOutputDir)$(TargetName).pdb.$([System.DateTime]::Now.Ticks).bak"
+      Condition="Exists('$(ToolOutputDir)$(TargetName).pdb')" />
+    <Move SourceFiles="$(ToolOutputDir)LibGit2Sharp.dll"
+      DestinationFiles="$(ToolOutputDir)LibGit2Sharp.dll.$([System.DateTime]::Now.Ticks).bak"
+      Condition="Exists('$(ToolOutputDir)LibGit2Sharp.dll')" />
+    <Move SourceFiles="$(ToolOutputDir)LibGit2Sharp.pdb"
+      DestinationFiles="$(ToolOutputDir)LibGit2Sharp.pdb.$([System.DateTime]::Now.Ticks).bak"
+      Condition="Exists('$(ToolOutputDir)LibGit2Sharp.pdb')" />
+
+    <!-- 3. Use native MSBuild Publish to cleanly resolve the dependency graph (LibGit2Sharp,
+    deps.json) into the Tools folder -->
+    <MSBuild Projects="$(MSBuildProjectFile)" Targets="Publish"
+      Properties="PublishDir=$(ToolOutputDir);NoBuild=true" />
+  </Target>
 </Project>

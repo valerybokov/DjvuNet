@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# Prevent WSL from exposing Windows executables (like Strawberry Perl pkg-config) to the Linux build environment
+if [ -n "$WSL_DISTRO_NAME" ] || [ -n "$WSL_INTEROP" ]; then
+    export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v -iE '^/mnt/[a-z]($|/)' | paste -sd ':' -)
+fi
+
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
 
@@ -37,31 +42,64 @@ usage()
     echo ""
     echo "  -proc, -Processors <count>     Number of build processes. Default: number of logical processors."
     echo ""
-    echo "  -OS <os>                       Target OS (Windows_NT, Linux, OSX). Default: Linux."
+    echo "  -OS <os>                       Target OS (Windows, Linux, OSX). Default: Linux."
     echo ""
     echo "  -h, --help                     Show this usage message."
     echo ""
 }
 
+run_custom_command() {
+    local cmd_name=$1
+    shift
+    local cmd_array=("$@")
+
+    echo "BUILD: Running: $cmd_name"
+    echo "BUILD: Calling: ${cmd_array[*]}"
+    "${cmd_array[@]}"
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        echo "BUILD: Error: $cmd_name returned error code $exit_code"
+        __FailedCommands+=("$cmd_name")
+        if [[ -n "$_FastFail" ]]; then exit 1; fi
+        return 1
+    else
+        __SuccessfulCommands+=("$cmd_name")
+        return 0
+    fi
+}
+
 git_clone_retry()
 {
-    local extra_args=$1
-    local url=$2
-    local dest=$3
+    local url=$1
+    local dest=$2
+    shift 2
+    local extra_args=("$@")
+    
     local max_attempts=3
-    local timeout_sec=120
+    local timeout_sec=600
     local attempt=1
     local delay=5
 
     while [ $attempt -le $max_attempts ]; do
+        local actual_dest="$dest"
+        if [ -z "$actual_dest" ]; then
+            actual_dest=$(basename "$url" .git)
+        fi
+        
+        if [ -n "$actual_dest" ] && [ "$actual_dest" != "." ] && [ -d "$actual_dest" ]; then
+            echo "BUILD: Cleaning up destination directory $actual_dest before cloning..."
+            rm -rf "$actual_dest"
+        fi
+
         echo "BUILD: git clone attempt $attempt of $max_attempts for $url..."
         if command -v timeout >/dev/null 2>&1; then
-            timeout ${timeout_sec}s git clone $extra_args "$url" "$dest"
+            timeout ${timeout_sec}s git clone --progress "${extra_args[@]}" "$url" "$dest" < /dev/null 2>&1
         else
-            git clone $extra_args "$url" "$dest"
+            git clone --progress "${extra_args[@]}" "$url" "$dest" < /dev/null 2>&1
         fi
         
         if [ $? -eq 0 ]; then
+            __SuccessfulClones+=("$dest")
             return 0
         fi
         
@@ -72,13 +110,46 @@ git_clone_retry()
     done
     
     echo "BUILD: Error: git clone failed after $max_attempts attempts."
+    __FailedClones+=("$dest")
+    if [[ -n "$_FastFail" ]]; then exit 1; fi
+    return 1
+}
+
+download_retry()
+{
+    local url=$1
+    local dest=$2
+    
+    local max_attempts=5
+    local timeout_sec=120
+    local attempt=1
+    local delay=5
+
+    while [ $attempt -le $max_attempts ]; do
+        echo "BUILD: download attempt $attempt of $max_attempts for $url..."
+        curl -L -s -o "$dest" --max-time $timeout_sec "$url"
+        
+        if [ $? -eq 0 ]; then
+            __SuccessfulCommands+=("download_$dest")
+            return 0
+        fi
+        
+        echo "BUILD: download failed or timed out. Retrying in $delay seconds..."
+        sleep $delay
+        delay=$((delay * 2))
+        attempt=$((attempt + 1))
+    done
+    
+    echo "BUILD: Error: download failed after $max_attempts attempts."
+    __FailedCommands+=("download_$dest")
+    if [[ -n "$_FastFail" ]]; then exit 1; fi
     return 1
 }
 
 initHostDistroRid()
 {
     __HostDistroRid=""
-    if [ "$__HostOS" == "Linux" ]; then
+    if [ "$__HostOS" == "linux" ]; then
         if [ -e /etc/os-release ]; then
             source /etc/os-release
             if [[ $ID == "alpine" ]]; then
@@ -93,7 +164,7 @@ initHostDistroRid()
             fi
         fi
     fi
-    if [ "$__HostOS" == "FreeBSD" ]; then
+    if [ "$__HostOS" == "freebsd" ]; then
         __freebsd_version=`sysctl -n kern.osrelease | cut -f1 -d'.'`
         __HostDistroRid="freebsd.$__freebsd_version-$__HostArch"
     fi
@@ -106,7 +177,7 @@ initHostDistroRid()
 initTargetDistroRid()
 {
     if [ "$__CrossBuild" == "1" ]; then
-        if [ "$__BuildOS" == "Linux" ]; then
+        if [ "$__BuildOS" == "linux" ]; then
             if [ ! -e $ROOTFS_DIR/etc/os-release ]; then
                 if [ -e $ROOTFS_DIR/android_platform ]; then
                     source $ROOTFS_DIR/android_platform
@@ -126,11 +197,11 @@ initTargetDistroRid()
 
     # Portable builds target the base RID
     if [ $__PortableBuild == 1 ]; then
-        if [ "$__BuildOS" == "Linux" ]; then
+        if [ "$__BuildOS" == "linux" ]; then
             export __DistroRid="linux-$__BuildArch"
-        elif [ "$__BuildOS" == "OSX" ]; then
+        elif [ "$__BuildOS" == "osx" ]; then
             export __DistroRid="osx-$__BuildArch"
-        elif [ "$__BuildOS" == "FreeBSD" ]; then
+        elif [ "$__BuildOS" == "freebsd" ]; then
             export __DistroRid="freebsd-$__BuildArch"
         fi
     fi
@@ -159,65 +230,115 @@ check_prereqs()
 
     success=1
 
-    # Check if system dotnet exists AND satisfies global.json
-    __LocalDotNet=1
-    if ! hash dotnet 2>/dev/null; then
-        __LocalDotNet=0
-    else
-        # dotnet --version respects global.json. It returns 0 if satisfied, 1 if not.
-        if ! __DotnetVer=$(dotnet --version 2>/dev/null); then
-            __LocalDotNet=0
-        fi
-    fi
-if [ "$__LocalDotNet" == "0" ]; then
-    echo "System dotnet is missing or does not satisfy global.json. Falling back to local tools..."
-    # Let init-tools.sh determine the highly specific directory name or calculate it here
-    __LocalDotNetDir="$__ProjectRoot/Tools/coreclr/dotnetcli/$__OSName/$__Libc/$__ArchName"
-    bash "$__ProjectRoot/init-tools.sh" "$__LocalDotNetDir"
-    if [ $? -ne 0 ]; then
-        echo "Error initializing tools."
-        exit 1
-    fi
-    export DOTNET_ROOT="$__LocalDotNetDir"
-    export PATH="${__LocalDotNetDir}:$PATH"
-    __DotnetVer=$(dotnet --version)
-fi
-export __DotnetCmd="dotnet"
-
-echo "dotnet $__DotnetVer installed"
-    __MSBuildVer=$(dotnet msbuild /nologo /version)
-    if [[ -z "$__MSBuildVer" ]]; then
-        echo "dotnet sdk not installed $__MSBuildVer"
-        success=0
-    else
-        echo "msbuild $__MSBuildVer installed"
-    fi
+    local __MissingPkgs=""
+    local __InstalledPkgs=()
+    local __MissingPkgsArray=()
 
     # Check presence of git on the path
     hash git 2>/dev/null
     if ! [[ $? -eq 0 ]]; then
-        echo "git not installed";
         success=0;
+        __MissingPkgs="$__MissingPkgs git"
+        __MissingPkgsArray+=("git")
     else
-        echo "git installed"
+        __InstalledPkgs+=("git")
     fi
 
     # Check presence of unzip on the path
      hash unzip 2>/dev/null
      if ! [[ $? -eq 0 ]]; then
-        echo >&2 "unzip not installed";
         success=0;
+        __MissingPkgs="$__MissingPkgs unzip"
+        __MissingPkgsArray+=("unzip")
     else
-        echo "unzip installed"
+        __InstalledPkgs+=("unzip")
+    fi
+
+    # Check presence of vcpkg dependencies on the path
+    for tool in curl zip tar cmake pkg-config jq; do
+        hash $tool 2>/dev/null
+        if ! [[ $? -eq 0 ]]; then
+            success=0
+            __MissingPkgs="$__MissingPkgs $tool"
+            __MissingPkgsArray+=("$tool")
+        else
+            __InstalledPkgs+=("$tool")
+        fi
+    done
+    if ! command -v ninja >/dev/null 2>&1 && ! command -v ninja-build >/dev/null 2>&1; then
+        success=0
+        if [ "$__HostOS" == "linux" ]; then
+            __MissingPkgs="$__MissingPkgs ninja-build"
+            __MissingPkgsArray+=("ninja-build")
+        else
+            __MissingPkgs="$__MissingPkgs ninja"
+            __MissingPkgsArray+=("ninja")
+        fi
+    else
+        __InstalledPkgs+=("ninja")
+    fi
+
+    # Check for Autotools suite
+    if ! command -v autoreconf >/dev/null 2>&1; then
+        success=0
+        __MissingPkgs="$__MissingPkgs autoconf"
+        __MissingPkgsArray+=("autoconf")
+    else
+        __InstalledPkgs+=("autoconf")
+    fi
+
+    if ! command -v automake >/dev/null 2>&1; then
+        success=0
+        __MissingPkgs="$__MissingPkgs automake"
+        __MissingPkgsArray+=("automake")
+    else
+        __InstalledPkgs+=("automake")
+    fi
+
+    if ! command -v libtoolize >/dev/null 2>&1 && ! command -v libtool >/dev/null 2>&1; then
+        success=0
+        __MissingPkgs="$__MissingPkgs libtool"
+        __MissingPkgsArray+=("libtool")
+    else
+        __InstalledPkgs+=("libtool")
+    fi
+
+    if [ "$__CrossBuild" == "1" ]; then
+        for tool in "$CC" "$CXX"; do
+            if [ -n "$tool" ]; then
+                hash "$tool" 2>/dev/null
+                if ! [[ $? -eq 0 ]]; then
+                    success=0
+                    local pkgName="$tool"
+                    if [ "$__HostOS" == "linux" ]; then
+                        if [[ "$tool" == *"-gcc" ]]; then
+                            pkgName="gcc-${tool%-gcc}"
+                        elif [[ "$tool" == *"-g++" ]]; then
+                            pkgName="g++-${tool%-g++}"
+                        fi
+                    fi
+                    __MissingPkgs="$__MissingPkgs $pkgName"
+                    __MissingPkgsArray+=("$pkgName")
+                else
+                    __InstalledPkgs+=("$tool")
+                fi
+            fi
+        done
     fi
 
     # Check presence of libgdiplus
     ldconfig -p | grep libgdiplus >/dev/null
     if [[ $? -ne 0 ]]; then
-        echo "libgdiplus not installed";
         success=0;
+        if [ "$__HostOS" == "osx" ]; then
+            __MissingPkgs="$__MissingPkgs mono-libgdiplus"
+            __MissingPkgsArray+=("mono-libgdiplus")
+        else
+            __MissingPkgs="$__MissingPkgs libgdiplus"
+            __MissingPkgsArray+=("libgdiplus")
+        fi
     else
-        echo "libgdiplus installed"
+        __InstalledPkgs+=("libgdiplus")
     fi
 
     # Minimum required version of clang is version 3.9 for arm/armel cross build
@@ -241,7 +362,106 @@ echo "dotnet $__DotnetVer installed"
         fi
     fi
 
-    if [ $success -eq 0 ]; then exit 1; fi
+    if [ ${#__InstalledPkgs[@]} -ne 0 ]; then
+        echo "BUILD: Installed prerequisites:"
+        for p in "${__InstalledPkgs[@]}"; do echo "BUILD:   - $p"; done
+    fi
+
+    if [ $success -eq 0 ]; then
+        echo ""
+        echo "BUILD: ======================================================================"
+        echo "BUILD:                      MISSING PREREQUISITES"
+        echo "BUILD: ======================================================================"
+        for p in "${__MissingPkgsArray[@]}"; do echo "BUILD:   - $p"; done
+        echo ""
+        if [ -n "$__MissingPkgs" ]; then
+            echo "BUILD: To build DjvuNet, please install the missing dependencies:"
+            if [ "$__HostOS" == "linux" ]; then
+                echo "BUILD:   Ubuntu/Debian: sudo apt-get install$__MissingPkgs"
+                echo "BUILD:   Fedora/RHEL:   sudo dnf install$__MissingPkgs"
+            elif [ "$__HostOS" == "osx" ]; then
+                echo "BUILD:   macOS (Homebrew): brew install$__MissingPkgs"
+            elif [ "$__HostOS" == "freebsd" ]; then
+                echo "BUILD:   FreeBSD: pkg install$__MissingPkgs"
+            fi
+        fi
+        echo "BUILD: Refer to README.md for complete environment setup instructions."
+        echo "BUILD: Aborting build."
+        exit 1
+    fi
+
+    __GlobalJson="$__ProjectRoot/global.json"
+    __SdkVersion=$(jq -r '.sdk.version' "$__GlobalJson")
+    __SdkChannel=$(echo "$__SdkVersion" | cut -d'.' -f1,2)
+    export __SdkVersion
+    export __SdkChannel
+
+    echo "BUILD: Target .NET SDK Channel resolved to $__SdkChannel"
+
+    # Query Microsoft for the absolute latest patch in this channel
+    __LatestPatchUrl="https://dotnetcli.blob.core.windows.net/dotnet/Sdk/${__SdkChannel}/latest.version"
+    if command -v curl >/dev/null 2>&1; then
+        __LatestAvailable=$(curl -sL "$__LatestPatchUrl" | tr -d '\r\n')
+    else
+        __LatestAvailable=$(wget -qO- "$__LatestPatchUrl" | tr -d '\r\n')
+    fi
+
+    # Check if system dotnet exists AND satisfies the latest secure patch
+    __UseLocalDotnet=1
+    __SystemDotnetVer=""
+    if hash dotnet 2>/dev/null; then
+        __SystemDotnetVer=$(dotnet --version 2>/dev/null | tr -d '\r\n')
+        if [ "$__SystemDotnetVer" == "$__LatestAvailable" ]; then
+            __UseLocalDotnet=0
+            __DotnetVer="$__SystemDotnetVer"
+        fi
+    fi
+
+    if [ $__UseLocalDotnet -eq 0 ]; then
+        echo "BUILD: Globally installed System .NET SDK is up-to-date with latest secure patch: $__LatestAvailable"
+    else
+        echo "BUILD: ======================================================================"
+        if [ -n "$__SystemDotnetVer" ]; then
+            echo "BUILD: WARNING: System .NET SDK ($__SystemDotnetVer) is OUTDATED."
+        else
+            echo "BUILD: WARNING: System .NET SDK is MISSING."
+        fi
+        echo "BUILD:          The latest secure patch for channel $__SdkChannel is $__LatestAvailable."
+        echo "BUILD:          Falling back to isolated local tools to ensure build security."
+        echo "BUILD:"
+        echo "BUILD: STATUS:  A secure, isolated .NET SDK [$__LatestAvailable] is fully provisioned"
+        echo "BUILD:          within the repository context (Tools/coreclr/dotnetcli)."
+        echo "BUILD:          All compilation and tool execution will map to this local instance"
+        echo "BUILD:          to maintain hermetic build guarantees and prevent CI state bleed."
+        echo "BUILD: ======================================================================"
+
+        __LocalDotNetDir="$__ProjectRoot/Tools/coreclr/dotnetcli/$__OSName/$__Libc/$__ArchName"
+        
+        if [ -n "$__LatestAvailable" ] && [ "$__LatestAvailable" != "$__SdkVersion" ]; then
+            echo "BUILD: Updating global.json to track target SDK version $__LatestAvailable before initialization"
+            jq --arg v "$__LatestAvailable" '.sdk.version = $v' "$__GlobalJson" > "${__GlobalJson}.tmp" && mv "${__GlobalJson}.tmp" "$__GlobalJson"
+        fi
+
+        bash "$__ProjectRoot/init-tools.sh" "$__LocalDotNetDir"
+        if [ $? -ne 0 ]; then
+            echo "BUILD: Error initializing tools."
+            exit 1
+        fi
+
+        export DOTNET_ROOT="$__LocalDotNetDir"
+        export PATH="${__LocalDotNetDir}:$PATH"
+        __DotnetVer=$(dotnet --version | tr -d '\r\n')
+    fi
+    export __DotnetCmd="dotnet"
+
+    echo "dotnet $__DotnetVer installed"
+    __MSBuildVer=$(dotnet msbuild /nologo /version)
+    if [[ -z "$__MSBuildVer" ]]; then
+        echo "dotnet sdk not installed $__MSBuildVer"
+        exit 1
+    else
+        echo "msbuild $__MSBuildVer installed"
+    fi
 }
 
 build_native()
@@ -326,14 +546,14 @@ build_native()
 
 isMSBuildOnNETCoreSupported()
 {
-    __isMSBuildOnNETCoreSupported=$__msbuildonunsupportedplatform
+    __isMSBuildOnNETCoreSupported="${__msbuildonunsupportedplatform:-0}"
 
-    if [ $__isMSBuildOnNETCoreSupported == 1 ]; then
+    if [ "$__isMSBuildOnNETCoreSupported" == "1" ]; then
         return
     fi
 
     if [ "$__HostArch" == "x64" ]; then
-        if [ "$__HostOS" == "Linux" ]; then
+        if [ "$__HostOS" == "linux" ]; then
             __isMSBuildOnNETCoreSupported=1
             # note: the RIDs below can use globbing patterns
             UNSUPPORTED_RIDS=("debian.9-x64" "ubuntu.17.04-x64")
@@ -344,7 +564,7 @@ isMSBuildOnNETCoreSupported()
                     break
                 fi
             done
-        elif [ "$__HostOS" == "OSX" ]; then
+        elif [ "$__HostOS" == "osx" ]; then
             __isMSBuildOnNETCoreSupported=1
         fi
     fi
@@ -367,7 +587,7 @@ build_CoreLib_ni()
             exit 1
         fi
 
-        if [ "$__BuildOS" == "Linux" ]; then
+        if [ "$__BuildOS" == "linux" ]; then
             echo "Generating symbol file for System.Private.CoreLib."
             $__BinDir/crossgen /CreatePerfMap $__BinDir $__BinDir/System.Private.CoreLib.dll
             if [ $? -ne 0 ]; then
@@ -555,10 +775,14 @@ __FailedRestores=()
 __FailedBuilds=()
 __FailedPublishes=()
 __FailedTests=()
+__FailedClones=()
+__FailedCommands=()
 __SuccessfulRestores=()
 __SuccessfulBuilds=()
 __SuccessfulPublishes=()
 __SuccessfulTests=()
+__SuccessfulClones=()
+__SuccessfulCommands=()
 _DefaultNetCoreApp="net10.0"
 _NetCoreAppId=".NETCoreApp"
 _NetCoreAppTFM=".NETCoreApp,Version=v10.0"
@@ -619,16 +843,24 @@ _MSB_Platform=$(echo "$_MSB_Platform" | tr '[:upper:]' '[:lower:]')
 
 if [[ "$_MSB_Platform" == "arm" || "$_MSB_Platform" == "arm64" || "$_MSB_Platform" == "armel" ]]; then
     __ManagedPlatform="AnyCPU"
+    __BuildArch="$_MSB_Platform"
+    if [[ "$__HostArch" != "$__BuildArch" ]]; then __CrossBuild=1; fi
     if [[ "$__HostArch" == "x64" ]]; then __SkipNativeTests=1; fi
 elif [[ "$_MSB_Platform" == "anycpu" ]]; then
     _MSB_Platform="x64"
     __ManagedPlatform="AnyCPU"
+    __BuildArch="x64"
+    if [[ "$__HostArch" != "$__BuildArch" ]]; then __CrossBuild=1; fi
 elif [[ "$_MSB_Platform" == "x64" ]]; then
     _MSB_Platform="x64"
     __ManagedPlatform="x64"
+    __BuildArch="x64"
+    if [[ "$__HostArch" != "$__BuildArch" ]]; then __CrossBuild=1; fi
 elif [[ "$_MSB_Platform" == "x86" ]]; then
     _MSB_Platform="x86"
     __ManagedPlatform="x86"
+    __BuildArch="x86"
+    if [[ "$__HostArch" != "$__BuildArch" ]]; then __CrossBuild=1; fi
 else
     echo "Invalid command line parameter -p/-Platform: $_MSB_Platform"; usage; exit 1
 fi
@@ -651,6 +883,8 @@ elif [[ "$_FrameworkLower" == "netstandard" || "$_FrameworkLower" == "$_DefaultN
 else
     echo "Invalid command line parameter -f/-Framework: $_Framework"; usage; exit 1
 fi
+
+export TargetFramework="$_Framework"
 
 if [[ -n "$_Test" ]]; then _BuildDjvuNet=1; _BuildTests=1; _RunTests=1; fi
 
@@ -690,6 +924,22 @@ if [ "$__CrossBuild" == "1" ]; then
     if ! [[ -n "$ROOTFS_DIR" ]]; then
         export ROOTFS_DIR="$__ProjectRoot/cross/rootfs/$__BuildArch"
     fi
+    
+    if [ -z "${CC:-}" ] || [ -z "${CXX:-}" ]; then
+        if [ "$__BuildArch" == "arm64" ]; then
+            export CC="aarch64-linux-gnu-gcc"
+            export CXX="aarch64-linux-gnu-g++"
+        elif [ "$__BuildArch" == "arm" ] || [ "$__BuildArch" == "armel" ]; then
+            export CC="arm-linux-gnueabihf-gcc"
+            export CXX="arm-linux-gnueabihf-g++"
+        elif [ "$__BuildArch" == "x64" ]; then
+            export CC="x86_64-linux-gnu-gcc"
+            export CXX="x86_64-linux-gnu-g++"
+        elif [ "$__BuildArch" == "x86" ]; then
+            export CC="i686-linux-gnu-gcc"
+            export CXX="i686-linux-gnu-g++"
+        fi
+    fi
 fi
 
 # Check prerequisites
@@ -699,13 +949,14 @@ __RootBuildDir="${__ProjectRoot}/build/bin/"
 __RuntimeIdentifier="linux-${_MSB_Platform}"
 
 __SystemAttrProj="System.Attributes/System.Attributes.csproj"
+__LibGit2SharpProj="build/tools/libgit2sharp/LibGit2Sharp/LibGit2Sharp.csproj"
 __DjvuNetGitTasksProj="build/tools/DjvuNet.Git.Tasks/DjvuNet.Git.Tasks.csproj"
 __DjvuNetProj="DjvuNet/DjvuNet.csproj"
 __DjvuNetDjvuLibreProj="DjvuNet.DjvuLibre/DjvuNet.DjvuLibre.csproj"
 
 __OutputDir="${__RootBuildDir}${_OS}.${__ManagedPlatform}.${_MSB_Configuration}/binaries/${_Framework}/"
 __PublishDir="${__OutputDir}${__RuntimeIdentifier}/publish/"
-__LogsDir="${__RootBuildDir}${_OS}.${_MSB_Platform}.${_MSB_Configuration}/logs/"
+__LogsDir="${__RootBuildDir}${_OS}.${_MSB_Platform}.${_MSB_Configuration}/logs/${_Framework}/"
 
 echo "BUILD: __OutputDir [${__OutputDir}]"
 echo "BUILD: __PublishDir [${__PublishDir}]"
@@ -717,9 +968,17 @@ mkdir -p "$__LogsDir"
 
 restore_dotnet_proj() {
     local __DjvuTargetProject=$1
+    local __DjvuTargetProjectName=$2
+
+    local __RestoreLogRootName="${__DjvuTargetProjectName}.Restore"
+    local __RestoreLog="${__LogsDir}${__RestoreLogRootName}.log"
+    local __RestoreWrn="${__LogsDir}${__RestoreLogRootName}.wrn"
+    local __RestoreErr="${__LogsDir}${__RestoreLogRootName}.err"
+    local __MsbuildLogging=("/flp:Verbosity=diag;LogFile=${__RestoreLog}" "/flp1:WarningsOnly;LogFile=${__RestoreWrn}" "/flp2:ErrorsOnly;LogFile=${__RestoreErr}")
+
     echo "BUILD: Restoring $__DjvuTargetProject"
-    echo "BUILD: Calling: $__DotnetCmd msbuild /t:Restore ${__RestoreCmdArgs[@]} $__DjvuTargetProject"
-    "$__DotnetCmd" msbuild /t:Restore "${__RestoreCmdArgs[@]}" "$__DjvuTargetProject"
+    echo "BUILD: Calling: $__DotnetCmd msbuild /t:Restore ${__RestoreCmdArgs[@]} -tl ${__MsbuildLogging[@]} $__DjvuTargetProject"
+    "$__DotnetCmd" msbuild /t:Restore "${__RestoreCmdArgs[@]}" -tl "${__MsbuildLogging[@]}" "$__DjvuTargetProject"
     if [[ $? -ne 0 ]]; then
         echo "BUILD: Error: nuget restore of $__DjvuTargetProject returned error"
         __FailedRestores+=("$__DjvuTargetProject")
@@ -799,15 +1058,205 @@ run_dotnet_test() {
     fi
 }
 
+
+__NativeDepsSemaphore="deps/{87E5AD66-912F-477C-BDA5-52F7785AE705}"
+if [ ! -f "$__NativeDepsSemaphore" ]; then
+    if [ -d "deps" ]; then
+        echo "BUILD: Not found semaphore file: $__NativeDepsSemaphore"
+        rm -rf deps
+        echo "BUILD: Deleted deps directory"
+    fi
+    echo "BUILD: Downloading native dependencies (deps.zip)"
+    download_retry "https://github.com/DjvuNet/artifacts/releases/download/v0.9.26132.0/deps.zip" "deps.zip"
+    if [ $? -eq 0 ]; then
+        unzip -q deps.zip -d deps
+        rm deps.zip
+        touch "$__NativeDepsSemaphore"
+        echo "BUILD: Created NativeDependencies semaphore $__NativeDepsSemaphore"
+    else
+        echo "BUILD: Error: downloading deps.zip returned error"
+        _SkipNative=1
+    fi
+else
+    echo "BUILD: NativeDependencies already restored"
+fi
+
+if [ -z "$_SkipNative" ]; then
+    __DjvuLibreDir="djvulibre"
+
+    if [ ! -f "$__ProjectRoot/$__DjvuLibreDir/autogen.sh" ]; then
+        echo "BUILD: Setting up DjVuLibre"
+        git_clone_retry "https://github.com/DjvuNet/DjVuLibre.git" "$__DjvuLibreDir" --depth 1 -c core.autocrlf=false
+        if [ $? -ne 0 ]; then _SkipNative=1; fi
+    else
+        echo "BUILD: DjvuLibre already cloned"
+    fi
+
+    if [ -z "$_SkipNative" ]; then
+        __VcpkgBaseline=$(awk -F'"' '/"builtin-baseline"[ \t]*:/ {print $4}' "$__ProjectRoot/$__DjvuLibreDir/vcpkg.json" 2>/dev/null || true)
+        
+        is_valid_vcpkg() {
+            local dir=$1
+            if [ ! -f "$dir/vcpkg" ] && [ ! -f "$dir/vcpkg.exe" ]; then return 1; fi
+            if [ ! -d "$dir/.git" ]; then return 1; fi
+            if [ -n "$__VcpkgBaseline" ]; then
+                if ! git -C "$dir" cat-file -e -- "${__VcpkgBaseline}^{commit}" >/dev/null 2>&1; then
+                    return 1
+                fi
+            fi
+            return 0
+        }
+
+        __GlobalVcpkgRoot=""
+        if [ -n "${VCPKG_ROOT:-}" ] && is_valid_vcpkg "$VCPKG_ROOT"; then
+            __GlobalVcpkgRoot="$VCPKG_ROOT"
+        elif command -v vcpkg >/dev/null 2>&1 && is_valid_vcpkg "$(dirname "$(command -v vcpkg)")"; then
+            __GlobalVcpkgRoot=$(dirname "$(command -v vcpkg)")
+        else
+            __GlobalVcpkgRoot="$__ProjectRoot/vcpkg"
+        fi
+        __GlobalVcpkgRoot="${__GlobalVcpkgRoot%/}"
+
+        if [ "$__GlobalVcpkgRoot" == "$__ProjectRoot/vcpkg" ]; then
+            
+            clone_valid=0
+            if [ -d "$__GlobalVcpkgRoot/.git" ] && [ -f "$__GlobalVcpkgRoot/bootstrap-vcpkg.sh" ] && [ -f "$__GlobalVcpkgRoot/vcpkg" ]; then
+                if [ -n "$__VcpkgBaseline" ]; then
+                    if git -C "$__GlobalVcpkgRoot" cat-file -e -- "${__VcpkgBaseline}^{commit}" >/dev/null 2>&1; then
+                        clone_valid=1
+                    fi
+                else
+                    clone_valid=1
+                fi
+            fi
+
+            if [ $clone_valid -eq 0 ]; then
+                if [ -d "$__GlobalVcpkgRoot" ]; then
+                    echo "BUILD: Removing broken vcpkg baseline at $__GlobalVcpkgRoot"
+                    rm -rf "$__GlobalVcpkgRoot"
+                fi
+                
+                echo "BUILD: Cloning local Microsoft vcpkg baseline"
+                
+                git_clone_retry "https://github.com/Microsoft/vcpkg.git" "vcpkg" -c core.autocrlf=false
+                if [ $? -ne 0 ]; then 
+                    _SkipNative=1
+                fi
+            fi
+            
+            if [ -z "$_SkipNative" ] && [ ! -f "$__GlobalVcpkgRoot/vcpkg" ]; then
+                echo "BUILD: Bootstrapping vcpkg"
+                run_custom_command "vcpkg_bootstrap" "$__GlobalVcpkgRoot/bootstrap-vcpkg.sh" "-disableMetrics"
+                
+                if [ $? -ne 0 ]; then 
+                    _SkipNative=1
+                fi
+            fi
+            
+        fi
+    fi
+
+    if [ -z "$_SkipNative" ]; then
+        __VcpkgOS=$(echo "$_OS" | tr '[:upper:]' '[:lower:]')
+        if [ "$__VcpkgOS" == "windows_nt" ]; then __VcpkgOS="windows"; fi
+        if [ "$__VcpkgOS" == "osx" ]; then __VcpkgOS="osx"; fi
+        __VcpkgTriplet="${_MSB_Platform}-${__VcpkgOS}"
+
+        echo "BUILD: Building native libdjvulibre via Autotools ($__VcpkgTriplet)"
+        if [ -n "$WSL_DISTRO_NAME" ] || [ -n "$WSL_INTEROP" ]; then
+            echo "BUILD: Diagnostic - Original PATH: $PATH"
+            export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v -iE '^/mnt/[a-z]($|/)' | paste -sd ':' -)
+            echo "BUILD: Diagnostic - Filtered PATH: $PATH"
+        fi
+        export PKG_CONFIG=$(command -v pkg-config)
+        echo "BUILD: Diagnostic - PKG_CONFIG resolved to: $PKG_CONFIG"
+        export PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH:-}"
+        run_custom_command "vcpkg_install" "$__GlobalVcpkgRoot/vcpkg" "install" "--x-manifest-root=$__ProjectRoot/$__DjvuLibreDir" "--triplet" "$__VcpkgTriplet"
+        
+        if [ $? -eq 0 ]; then
+            cd "$__ProjectRoot/$__DjvuLibreDir" || exit 1
+            
+            cp_flags="-I$__ProjectRoot/$__DjvuLibreDir/vcpkg_installed/$__VcpkgTriplet/include"
+            ld_flags="-L$__ProjectRoot/$__DjvuLibreDir/vcpkg_installed/$__VcpkgTriplet/lib"
+            pkg_cfg="$__ProjectRoot/$__DjvuLibreDir/vcpkg_installed/$__VcpkgTriplet/lib/pkgconfig"
+            
+            __ConfigureArgs=()
+            if [ "$_MSB_Platform" != "$__HostArch" ]; then
+                gnu_arch="$_MSB_Platform"
+                if [ "$_MSB_Platform" == "arm64" ]; then
+                    gnu_arch="aarch64"
+                elif [ "$_MSB_Platform" == "arm" ]; then
+                    gnu_arch="arm"
+                elif [ "$_MSB_Platform" == "x86" ]; then
+                    gnu_arch="i686"
+                fi
+                
+                gnu_os="$__VcpkgOS"
+                gnu_host="${gnu_arch}-${gnu_os}-${__Libc}"
+                
+                if [ "$gnu_host" == "arm-linux-gnu" ]; then
+                    gnu_host="arm-linux-gnueabihf"
+                fi
+                
+                __ConfigureArgs+=("--host=$gnu_host")
+                echo "BUILD: Cross-compiling detected. GNU Host Triplet: $gnu_host"
+            fi
+            
+            _last_triplet=""
+            if [ -f ".lastbuildtriplet" ]; then
+                _last_triplet=$(cat .lastbuildtriplet)
+            fi
+            
+            _MSB_TargetLower=$(echo "$_MSB_Target" | tr '[:upper:]' '[:lower:]')
+            
+            if [ "$_last_triplet" != "$__VcpkgTriplet" ] || [ "$_MSB_TargetLower" == "rebuild" ] || [ "$_MSB_TargetLower" == "clean" ]; then
+                if [ -f "Makefile" ]; then
+                    run_custom_command "djvulibre_clean" "make" "clean"
+                fi
+                echo "$__VcpkgTriplet" > .lastbuildtriplet
+            fi
+            
+            export NOCONFIGURE=1
+            run_custom_command "djvulibre_autogen" "./autogen.sh"
+            unset NOCONFIGURE
+            if [ $? -eq 0 ]; then
+                run_custom_command "djvulibre_configure" "./configure" "${__ConfigureArgs[@]}" "CPPFLAGS=$cp_flags" "LDFLAGS=$ld_flags" "PKG_CONFIG_PATH=$pkg_cfg"
+                if [ $? -eq 0 ]; then
+                    run_custom_command "djvulibre_make" "make" "-j${_Processors:-1}"
+                    if [ $? -eq 0 ]; then
+                        mkdir -p "$__OutputDir"
+                        __ParentPublishDir="${__OutputDir}${__RuntimeIdentifier}"
+                        mkdir -p "$__ParentPublishDir"
+                        if [ "$__VcpkgOS" == "osx" ]; then
+                            cp -Pf libdjvu/.libs/libdjvulibre*.dylib "$__OutputDir"
+                            ln -sf "../libdjvulibre.dylib" "$__ParentPublishDir/libdjvulibre.dylib"
+                        else
+                            cp -Pf libdjvu/.libs/libdjvulibre.so* "$__OutputDir"
+                            ln -sf "../libdjvulibre.so" "$__ParentPublishDir/libdjvulibre.so"
+                        fi
+                    fi
+                fi
+            fi
+            cd "$__ProjectRoot" || exit 1
+        fi
+        
+        if [ ${#__FailedCommands[@]} -gt 0 ] || [ ${#__FailedClones[@]} -gt 0 ]; then 
+            _SkipNative=1 
+        fi
+    fi
+fi
+
 if [ -n "$_BuildDjvuNet" ]; then
     # Build core projects
-    restore_dotnet_proj "$__DjvuNetGitTasksProj"
-    restore_dotnet_proj "$__SystemAttrProj"
-    restore_dotnet_proj "$__DjvuNetProj"
-    if [ -z "$_SkipNative" ]; then restore_dotnet_proj "$__DjvuNetDjvuLibreProj"; fi
+    restore_dotnet_proj "$__SystemAttrProj" "System.Attributes.csproj"
+    restore_dotnet_proj "$__LibGit2SharpProj" "LibGit2Sharp.csproj"
+    restore_dotnet_proj "$__DjvuNetGitTasksProj" "DjvuNet.Git.Tasks.csproj"
+    restore_dotnet_proj "$__DjvuNetProj" "DjvuNet.csproj"
+    if [ -z "$_SkipNative" ]; then restore_dotnet_proj "$__DjvuNetDjvuLibreProj" "DjvuNet.DjvuLibre.csproj"; fi
 
-    build_dotnet_proj "$__DjvuNetGitTasksProj" "DjvuNet.Git.Tasks.csproj"
     build_dotnet_proj "$__SystemAttrProj" "System.Attributes.csproj"
+    build_dotnet_proj "$__LibGit2SharpProj" "LibGit2Sharp.csproj"
+    build_dotnet_proj "$__DjvuNetGitTasksProj" "DjvuNet.Git.Tasks.csproj"
     build_dotnet_proj "$__DjvuNetProj" "DjvuNet.csproj"
     if [ -z "$_SkipNative" ]; then build_dotnet_proj "$__DjvuNetDjvuLibreProj" "DjvuNet.DjvuLibre.csproj"; fi
 fi
@@ -816,9 +1265,12 @@ if [ -n "$_BuildTests" ]; then
     # Clone test data
     if [ ! -f "./artifacts/test001C.djvu" ]; then
         echo ""
-        echo "BUILD: Cloning test data from https://github.com/DjvuNet/artifacts.git"
-        git_clone_retry "--depth 1 -c core.autocrlf=false" "https://github.com/DjvuNet/artifacts.git" ""
-        if [ $? -ne 0 ]; then echo "BUILD: Error: git clone returned error"; exit 1; fi
+        echo "BUILD: Downloading test data from https://github.com/DjvuNet/artifacts/archive/refs/tags/v0.9.26132.0.tar.gz"
+        download_retry "https://github.com/DjvuNet/artifacts/archive/refs/tags/v0.9.26132.0.tar.gz" "artifacts.tar.gz"
+        if [ $? -ne 0 ]; then echo "BUILD: Error: downloading artifacts.tar.gz returned error"; exit 1; fi
+        tar -xzf artifacts.tar.gz
+        mv artifacts-0.9.26132.0 artifacts
+        rm artifacts.tar.gz
     fi
 
     # Build test projects
@@ -827,16 +1279,76 @@ if [ -n "$_BuildTests" ]; then
     __DjvuNetTestExeProj="DjvuNetTest/DjvuNetTest.csproj"
     __DjvuNetDjvuLibreTestsProj="DjvuNet.DjvuLibre.Tests/DjvuNet.DjvuLibre.Tests.csproj"
 
-    restore_dotnet_proj "$__DjvuNetTestsProj"
-    restore_dotnet_proj "$__DjvuNetWaveletTestsProj"
-    restore_dotnet_proj "$__DjvuNetTestExeProj"
-    if [ -z "$_SkipNative" ]; then restore_dotnet_proj "$__DjvuNetDjvuLibreTestsProj"; fi
+    restore_dotnet_proj "$__DjvuNetTestsProj" "DjvuNet.Tests.csproj"
+    restore_dotnet_proj "$__DjvuNetWaveletTestsProj" "DjvuNet.Wavelet.Tests.csproj"
+    restore_dotnet_proj "$__DjvuNetTestExeProj" "DjvuNetTest.csproj"
+    if [ -z "$_SkipNative" ]; then restore_dotnet_proj "$__DjvuNetDjvuLibreTestsProj" "DjvuNet.DjvuLibre.Tests.csproj"; fi
 
     build_dotnet_proj "$__DjvuNetTestsProj" "DjvuNet.Tests.csproj"
     build_dotnet_proj "$__DjvuNetWaveletTestsProj" "DjvuNet.Wavelet.Tests.csproj"
     build_dotnet_proj "$__DjvuNetTestExeProj" "DjvuNetTest.csproj"
     if [ -z "$_SkipNative" ]; then build_dotnet_proj "$__DjvuNetDjvuLibreTestsProj" "DjvuNet.DjvuLibre.Tests.csproj"; fi
 fi
+
+print_build_summary() {
+    echo ""
+    echo "BUILD: ======================================================================"
+    echo "BUILD:                            BUILD SUMMARY"
+    echo "BUILD: ======================================================================"
+    if [ ${#__SuccessfulClones[@]} -ne 0 ]; then
+        echo "BUILD: Successfully cloned:"
+        for p in "${__SuccessfulClones[@]}"; do echo "BUILD:   - $p"; done
+    fi
+    if [ ${#__SuccessfulCommands[@]} -ne 0 ]; then
+        echo "BUILD: Successfully executed commands:"
+        for p in "${__SuccessfulCommands[@]}"; do echo "BUILD:   - $p"; done
+    fi
+    if [ ${#__SuccessfulRestores[@]} -ne 0 ]; then
+        echo "BUILD: Successfully restored:"
+        for p in "${__SuccessfulRestores[@]}"; do echo "BUILD:   - $p"; done
+    fi
+    if [ ${#__SuccessfulBuilds[@]} -ne 0 ]; then
+        echo "BUILD: Successfully built:"
+        for p in "${__SuccessfulBuilds[@]}"; do echo "BUILD:   - $p"; done
+    fi
+    if [ ${#__SuccessfulPublishes[@]} -ne 0 ]; then
+        echo "BUILD: Successfully published:"
+        for p in "${__SuccessfulPublishes[@]}"; do echo "BUILD:   - $p"; done
+    fi
+    if [ ${#__FailedClones[@]} -ne 0 ]; then
+        echo "BUILD: Failed to clone:"
+        for p in "${__FailedClones[@]}"; do echo "BUILD:   - $p"; done
+    fi
+    if [ ${#__FailedCommands[@]} -ne 0 ]; then
+        echo "BUILD: Failed to execute commands:"
+        for p in "${__FailedCommands[@]}"; do echo "BUILD:   - $p"; done
+    fi
+    if [ ${#__FailedRestores[@]} -ne 0 ]; then
+        echo "BUILD: Failed to restore:"
+        for p in "${__FailedRestores[@]}"; do echo "BUILD:   - $p"; done
+    fi
+    if [ ${#__FailedBuilds[@]} -ne 0 ]; then
+        echo "BUILD: Failed to build:"
+        for p in "${__FailedBuilds[@]}"; do echo "BUILD:   - $p"; done
+    fi
+    if [ ${#__FailedPublishes[@]} -ne 0 ]; then
+        echo "BUILD: Failed to publish:"
+        for p in "${__FailedPublishes[@]}"; do echo "BUILD:   - $p"; done
+    fi
+}
+
+print_full_summary() {
+    print_build_summary
+    if [ ${#__SuccessfulTests[@]} -ne 0 ]; then
+        echo "BUILD: Successfully tested:"
+        for p in "${__SuccessfulTests[@]}"; do echo "BUILD:   - $p"; done
+    fi
+    if [ ${#__FailedTests[@]} -ne 0 ]; then
+        echo "BUILD: Failed tests:"
+        for p in "${__FailedTests[@]}"; do echo "BUILD:   - $p"; done
+    fi
+    echo ""
+}
 
 if [ -n "$_RunTests" ]; then
     print_build_summary
@@ -881,52 +1393,9 @@ if [ -n "$_RunTests" ]; then
     fi
 
     run_dotnet_test "$_DjvuNet_Wavelet_Tests" "DjvuNet.Wavelet.Tests"
+fi
 
-print_build_summary() {
-    echo ""
-    echo "BUILD: ======================================================================"
-    echo "BUILD:                            BUILD SUMMARY"
-    echo "BUILD: ======================================================================"
-    if [ ${#__SuccessfulRestores[@]} -ne 0 ]; then
-        echo "BUILD: Successfully restored:"
-        for p in "${__SuccessfulRestores[@]}"; do echo "BUILD:   - $p"; done
-    fi
-    if [ ${#__SuccessfulBuilds[@]} -ne 0 ]; then
-        echo "BUILD: Successfully built:"
-        for p in "${__SuccessfulBuilds[@]}"; do echo "BUILD:   - $p"; done
-    fi
-    if [ ${#__SuccessfulPublishes[@]} -ne 0 ]; then
-        echo "BUILD: Successfully published:"
-        for p in "${__SuccessfulPublishes[@]}"; do echo "BUILD:   - $p"; done
-    fi
-    if [ ${#__FailedRestores[@]} -ne 0 ]; then
-        echo "BUILD: Failed to restore:"
-        for p in "${__FailedRestores[@]}"; do echo "BUILD:   - $p"; done
-    fi
-    if [ ${#__FailedBuilds[@]} -ne 0 ]; then
-        echo "BUILD: Failed to build:"
-        for p in "${__FailedBuilds[@]}"; do echo "BUILD:   - $p"; done
-    fi
-    if [ ${#__FailedPublishes[@]} -ne 0 ]; then
-        echo "BUILD: Failed to publish:"
-        for p in "${__FailedPublishes[@]}"; do echo "BUILD:   - $p"; done
-    fi
-}
-
-print_full_summary() {
-    print_build_summary
-    if [ ${#__SuccessfulTests[@]} -ne 0 ]; then
-        echo "BUILD: Successfully tested:"
-        for p in "${__SuccessfulTests[@]}"; do echo "BUILD:   - $p"; done
-    fi
-    if [ ${#__FailedTests[@]} -ne 0 ]; then
-        echo "BUILD: Failed tests:"
-        for p in "${__FailedTests[@]}"; do echo "BUILD:   - $p"; done
-    fi
-    echo ""
-}
-
-if [ ${#__FailedRestores[@]} -ne 0 ] || [ ${#__FailedBuilds[@]} -ne 0 ] || [ ${#__FailedPublishes[@]} -ne 0 ] || [ ${#__FailedTests[@]} -ne 0 ]; then
+if [ ${#__FailedRestores[@]} -ne 0 ] || [ ${#__FailedBuilds[@]} -ne 0 ] || [ ${#__FailedPublishes[@]} -ne 0 ] || [ ${#__FailedTests[@]} -ne 0 ] || [ ${#__FailedClones[@]} -ne 0 ] || [ ${#__FailedCommands[@]} -ne 0 ]; then
     echo ""
     echo "BUILD: Error: Build Failed at $(date +"%Y-%m-%d %H:%M:%S.%2N")"
     print_full_summary

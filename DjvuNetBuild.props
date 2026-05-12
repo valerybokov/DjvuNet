@@ -1,41 +1,8 @@
 ﻿<Project>
 
-  <PropertyGroup>
-    <RepoRootDir>$(MSBuildThisFileDirectory)</RepoRootDir>
-  </PropertyGroup>
-
-  <PropertyGroup>
-    <SignAssembly>true</SignAssembly>
-    <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)Snk.snk</AssemblyOriginatorKeyFile>
-    <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
-    <NoWarn>$(NoWarn);8002;NU1701;CA1416;CS7035;NU1510;xUnit2020;</NoWarn>
-  </PropertyGroup>
-
-  <PropertyGroup>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
-  </PropertyGroup>
-
-  <PropertyGroup>
-    <NetFXTargetFrameworkVersion>net472</NetFXTargetFrameworkVersion>
-    <DotNetCoreFrameworkVersion>net10.0</DotNetCoreFrameworkVersion>
-    <DotNetStandardVersion>netstandard2.1</DotNetStandardVersion>
-  </PropertyGroup>
-
-  <PropertyGroup>
-    <!--<NETStandardPackageVersion>2.0.3</NETStandardPackageVersion>-->
-  </PropertyGroup>
-
-  <PropertyGroup>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <FileAlignment>512</FileAlignment>
-    <Platforms>AnyCPU;x64;x86;arm;arm64</Platforms>
-    <Feature>strict</Feature>
-  </PropertyGroup>
-
-  <PropertyGroup>
-    <LangVersion>latest</LangVersion>
-  </PropertyGroup>
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.Drawing.EnableUnixSupport" Value="true" />
+  </ItemGroup>
 
   <PropertyGroup>
     <_HasReferenceToSystemRuntime>true</_HasReferenceToSystemRuntime>
@@ -46,9 +13,11 @@
     <GenerateSupportedPlatformAnalyzer>false</GenerateSupportedPlatformAnalyzer>
   </PropertyGroup>
 
+
+
   <PropertyGroup>
-    <NugetRootPackagesDir Condition="$(NugetRootPackagesDir) == '' And '$(OS)' == 'Windows_NT'">$(UserProfile)/.nuget/packages/</NugetRootPackagesDir>
-    <NugetRootPackagesDir Condition="$(NugetRootPackagesDir) == '' And '$(OS)' != 'Windows_NT'">~/.nuget/packages/</NugetRootPackagesDir>
+    <NugetRootPackagesDir Condition="$(NugetRootPackagesDir) == '' And '$(TargetOS)' == 'Windows'">$(UserProfile)/.nuget/packages/</NugetRootPackagesDir>
+    <NugetRootPackagesDir Condition="$(NugetRootPackagesDir) == '' And '$(TargetOS)' != 'Windows'">~/.nuget/packages/</NugetRootPackagesDir>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -169,21 +138,5 @@
     <PlatformTarget>Arm64</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
-
-  <ItemGroup Condition="$(TargetFramework) == $(NetFXTargetFrameworkVersion)">
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Properties\AssemblyInfoCommon.cs" />
-  </ItemGroup>
-
-  <ItemGroup Condition="$(TargetFramework) != $(NetFXTargetFrameworkVersion)">
-    <Compile Include="Properties\AssemblyInfo.$(TargetFramework).cs" />
-    <Compile Include="Properties\AssemblyInfoCommon.$(TargetFramework).cs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="Properties\AssemblyInfo.Template.cs" />
-  </ItemGroup>
-
-  <Import Project="dependencies.props" Condition="Exists('dependencies.props')"/>
 
 </Project>

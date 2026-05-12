@@ -1,74 +1,21 @@
 ﻿<Project>
 
   <PropertyGroup>
-    <DepsRootDir>$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.props))/deps/</DepsRootDir>
     <CalculatedPlatform Condition="$(PlatformTarget) == 'AnyCPU' And $(CalculatedPlatform) == ''">x64</CalculatedPlatform>
     <CalculatedPlatform Condition="$(CalculatedPlatform) == ''">$(PlatformTarget)</CalculatedPlatform>
   </PropertyGroup>
 
   <ItemGroup>
-    <DjvuLibreFiles Condition="'$(ProjectDir)..\build\$(CalculatedPlatform)\$(Configuration)\$(TargetFramework)\' != '' And HasTrailingSlash('$(ProjectDir)..\build\$(CalculatedPlatform)\$(Configuration)\$(TargetFramework)\')"
-                        Include="$(ProjectDir)..\build\$(CalculatedPlatform)\$(Configuration)\$(TargetFramework)\**\libdjvulibre.dll" />
-    <DjvuLibreFiles Condition="'$(ProjectDir)..\build\$(CalculatedPlatform)\$(Configuration)\$(TargetFramework)\' != '' And HasTrailingSlash('$(ProjectDir)..\build\$(CalculatedPlatform)\$(Configuration)\$(TargetFramework)\')"
-                    Include="$(ProjectDir)..\build\$(CalculatedPlatform)\$(Configuration)\$(TargetFramework)\**\libdjvulibre.pdb" />
-    <DjvuLibreFiles Condition="'$(ProjectDir)..\build\$(CalculatedPlatform)\$(Configuration)\$(TargetFramework)\' != '' And HasTrailingSlash('$(ProjectDir)..\build\$(CalculatedPlatform)\$(Configuration)\$(TargetFramework)\') And
-                                   $(Configuration) != 'ReleaseStatic' And $(Configuration) != 'DebugStatic'"
-                Include="$(DepsRootDir)$(CalculatedPlatform)\$(Configuration)\jpeg62.dll" />
-    <DjvuLibreFiles Condition="'$(ProjectDir)..\build\$(CalculatedPlatform)\$(Configuration)\$(TargetFramework)\' != '' And HasTrailingSlash('$(ProjectDir)..\build\$(CalculatedPlatform)\$(Configuration)\$(TargetFramework)\') And $(Configuration) != 'ReleaseStatic' And $(Configuration) != 'DebugStatic'"
-            Include="$(DepsRootDir)$(CalculatedPlatform)\$(Configuration)\jpeg.pdb" />
+    <!-- Windows: Dynamically grab libdjvulibre and all vcpkg transitive dependencies from the central binary drop -->
+    <NativeBinaryFiles Condition="'$(TargetOS)' == 'Windows'"
+                       Include="$(RepoRootDir)build\bin\$(TargetOS).$(CalculatedPlatform).$(Configuration)\binaries\*.dll" 
+                       Exclude="$(RepoRootDir)build\bin\$(TargetOS).$(CalculatedPlatform).$(Configuration)\binaries\*DjvuNet*.dll" />
+    
+    <!-- Linux/macOS: Grab the .so/.dylib files directly from the C++ output tree -->
+    <NativeBinaryFiles Condition="'$(TargetOS)' == 'Linux'"
+                       Include="$(ProjectDir)..\djvulibre\libdjvu\.libs\libdjvulibre.so*" />
+    <NativeBinaryFiles Condition="'$(TargetOS)' == 'OSX'"
+                       Include="$(ProjectDir)..\djvulibre\libdjvu\.libs\libdjvulibre.dylib*" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(ContentDjvuLibreFiles)' != '' And '$(ContentDjvuLibreFiles)' != 'false' And '@(DjvuLibreFiles)' != ''">
-    <Content Include="@(DjvuLibreFiles)">
-      <Link>%(RecursiveDir)%(FileName)%(Extension)</Link>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-
-  <Target  Name="CopyDjvuLibreFiles" BeforeTargets="AfterBuild"
-          Condition="'$(CopyDjvuLibreFiles)' != 'false' And '$(OutDir)' != '' And HasTrailingSlash('$(OutDir)') And Exists('$(OutDir)')"
-          Inputs="@(DjvuLibreFiles)"
-          Outputs="@(DjvuLibreFiles -> '$(OutDir)%(RecursiveDir)%(Filename)%(Extension)')">
-    <Message Importance="high"  Text="Copying DjvuLibre files and dependencies to output directory"/>
-    <Copy SourceFiles="@(DjvuLibreFiles)"
-          DestinationFiles="@(DjvuLibreFiles -> '$(OutDir)%(RecursiveDir)%(Filename)%(Extension)')" />
-  </Target>
-
-
-  <Target Name="CleanDjvuLibreFiles" BeforeTargets="Clean"
-          Condition="'$(CleanDjvuLibreFiles)' != 'false' And '$(OutDir)' != '' And HasTrailingSlash('$(OutDir)') And Exists('$(OutDir)')">
-    <Message Importance="high"  Text="Deleting DjvuLibre files and dependencies from output directory"/>
-    <Delete Files="@(DjvuLibreFiles -> '$(OutDir)%(RecursiveDir)%(Filename)%(Extension)')" />
-  </Target>
-
-  <Target Name="CollectDjvuLibreFiles"
-          Condition="'$(CollectDjvuLibreFiles)' != 'false'">
-    <ItemGroup>
-      <FilesForPackagingFromProject Include="@(DjvuLibreFiles)">
-        <DestinationRelativePath>bin\%(RecursiveDir)%(Filename)%(Extension)</DestinationRelativePath>
-      </FilesForPackagingFromProject>
-    </ItemGroup>
-  </Target>
-
-  <PropertyGroup>
-    <PostBuildEventDependsOn>
-      $(PostBuildEventDependsOn);
-      CopyDjvuLibreFiles;
-    </PostBuildEventDependsOn>
-    <BuildDependsOn>
-      $(BuildDependsOn);
-      CopyDjvuLibreFiles;
-    </BuildDependsOn>
-    <CleanDependsOn>
-      $(CleanDependsOn);
-      CleanDjvuLibreFiles;
-    </CleanDependsOn>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(VisualStudioVersion)' == '' Or '$(VisualStudioVersion)' == '10.0' Or '$(VisualStudioVersion)' == '11.0' Or '$(VisualStudioVersion)' == '12.0' Or '$(VisualStudioVersion)' == '14.0' Or '$(VisualStudioVersion)' == '15.0' Or '$(VisualStudioVersion)' == '16.0'">
-    <PipelineCollectFilesPhaseDependsOn>
-      CollectDjvuLibreFiles;
-      $(PipelineCollectFilesPhaseDependsOn);
-    </PipelineCollectFilesPhaseDependsOn>
-  </PropertyGroup>
 </Project>

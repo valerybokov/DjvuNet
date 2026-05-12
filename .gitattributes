@@ -46,9 +46,13 @@
 #
 # image files are treated as binary by default.
 ###############################################################################
-#*.jpg   binary
-#*.png   binary
-#*.gif   binary
+*.jpg   binary
+*.png   binary
+*.gif   binary
+*.ico   binary
+*.djvu  binary
+*.pdf   binary
+*.snk   binary
 
 ###############################################################################
 # diff behavior for common document formats

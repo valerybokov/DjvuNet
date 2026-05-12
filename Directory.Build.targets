@@ -1,0 +1,21 @@
+<Project>
+  <Import Project="$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.targets" Condition="'$(MSBuildProjectExtension)' == '.vcxproj' And '$(VcpkgRoot)' != '' And Exists('$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.targets') And !Exists('$(LocalAppData)\vcpkg\vcpkg.user.targets')" />
+
+  <UsingTask TaskName="DjvuNet.Git.Tasks.ResolveNativePdbs" Runtime="NET" AssemblyFile="$(GitTasksAssembly)" Condition="'$(GitTasksAssembly)' != ''" />
+
+  <Target Name="ResolveNativePdbsTarget" BeforeTargets="AssignTargetPaths" Condition="'@(NativeBinaryFiles)' != '' And '$(GitTasksAssembly)' != ''">
+    <ResolveNativePdbs DllFiles="@(NativeBinaryFiles)">
+      <Output TaskParameter="ResolvedPdbs" ItemName="Content" />
+    </ResolveNativePdbs>
+  </Target>
+
+  <!-- Centralized Native Binary Routing Architecture -->
+  <ItemGroup Condition="'@(NativeBinaryFiles)' != ''">
+    <!-- Map native files as Content, forcing them UP one level out of the publish/ directory into the RID directory -->
+    <Content Include="@(NativeBinaryFiles)">
+      <Link>..\%(FileName)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+</Project>
