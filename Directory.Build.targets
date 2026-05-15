@@ -1,7 +1,7 @@
 <Project>
   <Import Project="$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.targets" Condition="'$(MSBuildProjectExtension)' == '.vcxproj' And '$(VcpkgRoot)' != '' And Exists('$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.targets') And !Exists('$(LocalAppData)\vcpkg\vcpkg.user.targets')" />
 
-  <UsingTask TaskName="DjvuNet.Git.Tasks.ResolveNativePdbs" Runtime="NET" AssemblyFile="$(GitTasksAssembly)" Condition="'$(GitTasksAssembly)' != ''" />
+  <UsingTask TaskName="DjvuNet.Build.Tasks.ResolveNativePdbs" Runtime="NET" AssemblyFile="$(GitTasksAssembly)" TaskFactory="DjvuNet.Build.Tasks.DjvuNetBuildTaskFactory" Condition="'$(GitTasksAssembly)' != ''" />
 
   <Target Name="ResolveNativePdbsTarget" BeforeTargets="AssignTargetPaths" Condition="'@(NativeBinaryFiles)' != '' And '$(GitTasksAssembly)' != ''">
     <ResolveNativePdbs DllFiles="@(NativeBinaryFiles)">

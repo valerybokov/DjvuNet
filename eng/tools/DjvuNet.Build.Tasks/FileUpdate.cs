@@ -44,8 +44,7 @@ using System.Text.RegularExpressions;
 using System.IO;
 using Microsoft.Build.Utilities;
 using Microsoft.Build.Framework;
-
-
+using DjvuNet.Build.Tasks;
 
 namespace MSBuild.Community.Tasks
 {
@@ -159,7 +158,7 @@ namespace MSBuild.Community.Tasks
             set { _replacementTextEmpty = value; }
         }
 
-        private string _replacementText;
+        private string _replacementText = string.Empty;
 
         /// <summary>
         /// Gets or sets the replacement text.
@@ -239,6 +238,7 @@ namespace MSBuild.Community.Tasks
         /// </returns>
         public override bool Execute()
         {
+            TaskLogger.Current = this.Log;
             RegexOptions options = RegexOptions.None;
 
             if (_ignoreCase)

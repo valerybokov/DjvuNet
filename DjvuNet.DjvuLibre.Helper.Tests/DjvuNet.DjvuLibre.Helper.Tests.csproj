@@ -2,7 +2,6 @@
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.props))\DjvuNetBuild.props" />
 
   <PropertyGroup>
-    <TargetFrameworks>$(DotNetCoreFrameworkVersion)</TargetFrameworks>
     <!-- <NETStandardImplicitPackageVersion>$(NETStandardPackageVersion)</NETStandardImplicitPackageVersion> -->
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>

@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <RepoRootDir>$(MSBuildThisFileDirectory)</RepoRootDir>
+    <TargetFramework Condition="'$(MSBuildProjectExtension)' == '.csproj' Or '$(MSBuildProjectExtension)' == '.shproj'">net10.0</TargetFramework>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -69,9 +70,6 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <DotNetCoreFrameworkVersion>net10.0</DotNetCoreFrameworkVersion>
-  </PropertyGroup>
 
   <PropertyGroup>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -89,7 +87,7 @@
     <Compile Include="Properties\AssemblyInfoCommon.cs" />
   </ItemGroup> -->
 
-  <ItemGroup Condition="$(TargetFramework) != $(NetFXTargetFrameworkVersion)">
+  <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.$(TargetFramework).cs" />
     <Compile Include="Properties\AssemblyInfoCommon.$(TargetFramework).cs" />
   </ItemGroup>
@@ -98,12 +96,28 @@
     <None Include="Properties\AssemblyInfo.Template.cs" />
   </ItemGroup>
 
-  <PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectExtension)' != '.vcxproj'">
     <OutDir>$([MSBuild]::EnsureTrailingSlash('$(MSBuildThisFileDirectory)'))build/bin/$(TargetOS).$(TargetPlatform).$(Configuration)/binaries/$(TargetFramework)/</OutDir>
     <OutputPath>$(OutDir)</OutputPath>
     <OutDir Condition="'$(IsTool)' == 'true'">$([MSBuild]::EnsureTrailingSlash('$(MSBuildThisFileDirectory)'))build/bin/tools/$(TargetOS).$(TargetPlatform).$(Configuration)/binaries/$(TargetFramework)/</OutDir>
     <OutputPath Condition="'$(IsTool)' == 'true'">$(OutDir)</OutputPath>
   </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.vcxproj'">
+    <SolutionFileName>DjvuNet.sln</SolutionFileName>
+    <TargetPlatform Condition="'$(TargetPlatform)' == 'Win32' Or (('$(TargetPlatform)' == '' Or '$(TargetPlatform)' == 'AnyCPU' ) And '$(Platform)' == 'Win32')">x86</TargetPlatform>
+    <OutDir>$([MSBuild]::EnsureTrailingSlash('$(MSBuildThisFileDirectory)'))build/bin/$(TargetOS).$(TargetPlatform).$(Configuration)/binaries/</OutDir>
+    <IntDir>$([MSBuild]::EnsureTrailingSlash('$(MSBuildThisFileDirectory)'))build/bin/$(TargetOS).$(TargetPlatform).$(Configuration)/obj/native/</IntDir>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup Condition="'$(MSBuildProjectExtension)' == '.vcxproj'">
+    <ClCompile>
+      <PreprocessorDefinitions>HAVE_NAMESPACES;NEED_JPEG_DECODER;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>jpeg.lib;Advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
 
   <Import Project="dependencies.props" Condition="Exists('dependencies.props')"/>
   <Import Project="$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.props" Condition="'$(MSBuildProjectExtension)' == '.vcxproj' And '$(VcpkgRoot)' != '' And Exists('$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.props') And !Exists('$(LocalAppData)\vcpkg\vcpkg.user.props')" />

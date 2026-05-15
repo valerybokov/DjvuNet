@@ -3,24 +3,32 @@
   <PropertyGroup>
     <!-- <IntermediateOutputPath>$(MSBuildThisFileDirectory)/build/bin/obj/$(TargetOS).$(TargetPlatform).$(Configuration)/$(AssemblyName)/</IntermediateOutputPath> -->
     <DefineConstants Condition="$(APPVEYOR) == 'True'">_APPVEYOR;$(DefineConstans)</DefineConstants>
-    <GitTasksAssembly Condition="$(GitTasksAssembly) == '' And '$(MSBuildRuntimeType)' == 'Core'">$(MSBuildThisFileDirectory)Tools/DjvuNet/$(DotNetCoreFrameworkVersion)/DjvuNet.Git.Tasks.dll</GitTasksAssembly>
-    <GitTasksAssembly Condition="$(GitTasksAssembly) == '' And '$(MSBuildRuntimeType)' != 'Core'">$(MSBuildThisFileDirectory)Tools/DjvuNet/$(DotNetCoreFrameworkVersion)/DjvuNet.Git.Tasks.dll</GitTasksAssembly>
+    
+    <!-- STAGE 3 CLEANUP -->
+    <UseDjvuNetTaskFactory>true</UseDjvuNetTaskFactory>
+    <GitTasksAssembly>$(MSBuildThisFileDirectory)Tools/DjvuNet/$(TargetFramework)/DjvuNet.Build.Tasks.dll</GitTasksAssembly>
   </PropertyGroup>
 
-  <UsingTask TaskName="BuildMajorVersion" Runtime="NET" AssemblyFile="$(GitTasksAssembly)"/>
-  <UsingTask TaskName="GetLastCommit" Runtime="NET" AssemblyFile="$(GitTasksAssembly)"/>
-  <UsingTask TaskName="GetDateTime" Runtime="NET" AssemblyFile="$(GitTasksAssembly)"/>
-  <UsingTask TaskName="FileUpdate" Runtime="NET" AssemblyFile="$(GitTasksAssembly)"/>
+  <!-- New Tooling / Stage 2+ (With TaskFactory, New Namespace) -->
+  <UsingTask TaskName="DjvuNet.Build.Tasks.BuildMajorVersion" Runtime="NET" AssemblyFile="$(GitTasksAssembly)" TaskFactory="DjvuNet.Build.Tasks.DjvuNetBuildTaskFactory" />
+  <UsingTask TaskName="DjvuNet.Build.Tasks.GetLastCommit" Runtime="NET" AssemblyFile="$(GitTasksAssembly)" TaskFactory="DjvuNet.Build.Tasks.DjvuNetBuildTaskFactory" />
+  <UsingTask TaskName="DjvuNet.Build.Tasks.GetDateTime" Runtime="NET" AssemblyFile="$(GitTasksAssembly)" TaskFactory="DjvuNet.Build.Tasks.DjvuNetBuildTaskFactory" />
+  <UsingTask TaskName="MSBuild.Community.Tasks.FileUpdate" Runtime="NET" AssemblyFile="$(GitTasksAssembly)" TaskFactory="DjvuNet.Build.Tasks.DjvuNetBuildTaskFactory" />
 
   <Target Name="CalculateVersion" BeforeTargets="InjectVersion">
     <ReadLinesFromFile File="$(MSBuildThisFileDirectory)library.version">
       <Output TaskParameter="Lines" PropertyName="LibraryVersion" />
     </ReadLinesFromFile>
 
-    <GetLastCommit Condition="Exists('$(MSBuildThisFileDirectory).git/HEAD')" RepoRoot="$(MSBuildThisFileDirectory)">
+    <GetLastCommit Condition="Exists('$(MSBuildThisFileDirectory).git')" RepoRoot="$(MSBuildThisFileDirectory)">
       <Output TaskParameter="CommitHash" PropertyName="CommitVersion" />
       <Output TaskParameter="BranchName" PropertyName="BuildBranch" />
     </GetLastCommit>
+
+    <PropertyGroup>
+      <CommitVersion Condition="'$(CommitVersion)' == ''">N/A</CommitVersion>
+      <BuildBranch Condition="'$(BuildBranch)' == ''">N/A</BuildBranch>
+    </PropertyGroup>
 
     <GetDateTime Format="yyyy-MM-ddTHH:mm:ssZ">
       <Output TaskParameter="Year" PropertyName="BYear" />
@@ -75,7 +83,7 @@
 
     <PropertyGroup>
       <UtilRepoRootUpdate>$(ProjectName.EndsWith(`.Tests`))</UtilRepoRootUpdate>
-      <UtilTestFile>$(ProjectDir)..\DjvuNet.Shared.Tests\UtilRoot.cs</UtilTestFile>
+      <UtilTestFile>$(RepoRootDir)DjvuNet.Shared.Tests/UtilRoot*.cs</UtilTestFile>
     </PropertyGroup>
 
     <Message Importance="High"
@@ -87,7 +95,7 @@
           DestinationFiles="$(ProjectDir)Properties\AssemblyInfoCommon.$(TargetFramework).cs"/>
 
     <Copy SourceFiles="$(MSBuildThisFileDirectory)Templates\UtilRoot.Template.cs" Condition="$(UtilRepoRootUpdate) == true"
-          DestinationFiles="$(ProjectDir)../DjvuNet.Shared.Tests/UtilRoot.cs"/>
+          DestinationFiles="$(RepoRootDir)DjvuNet.Shared.Tests/UtilRoot.cs"/>
 
     <ItemGroup>
       <WriteFiles Include='$(ProjectDir)Properties\AssemblyInfo.$(TargetFramework).cs' />

@@ -4,7 +4,7 @@ using LibGit2Sharp;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
 
-namespace DjvuNet.Git.Tasks
+namespace DjvuNet.Build.Tasks
 {
     public class BuildMajorVersion : Task
     {
@@ -21,6 +21,7 @@ namespace DjvuNet.Git.Tasks
 
         public override bool Execute()
         {
+            TaskLogger.Current = this.Log;
             try
             {
                 if (!System.Version.TryParse(MajorMinorVersion, out System.Version baseVersion))

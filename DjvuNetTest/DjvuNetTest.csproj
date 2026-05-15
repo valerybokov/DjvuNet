@@ -3,7 +3,6 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>$(DotNetCoreFrameworkVersion)</TargetFrameworks>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>DjvuNetTest</RootNamespace>
     <AssemblyName>DjvuNetTest</AssemblyName>

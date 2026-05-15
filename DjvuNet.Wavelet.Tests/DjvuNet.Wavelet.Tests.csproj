@@ -3,7 +3,6 @@
   <Import Project="$(MSBuildThisFileDirectory)..\DjvuNet.DjvuLibre\DjvuNet.DjvuLibre.props" />
 
   <PropertyGroup>
-    <TargetFrameworks>$(DotNetCoreFrameworkVersion)</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>DjvuNet.Wavelet.Tests</RootNamespace>

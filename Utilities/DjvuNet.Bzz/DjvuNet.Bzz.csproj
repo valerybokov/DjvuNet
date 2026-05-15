@@ -1,7 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.props))\DjvuNetBuild.props" />
   <PropertyGroup>
-    <TargetFrameworks>$(DotNetCoreFrameworkVersion)</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <RootNamespace>DjvuNet.Bzz</RootNamespace>
     <AssemblyName>DjvuNet.Bzz</AssemblyName>

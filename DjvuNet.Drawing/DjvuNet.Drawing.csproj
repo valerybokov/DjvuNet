@@ -10,8 +10,6 @@
   <PropertyGroup>
     <Title>$(PackageId) - DjVu Document .NET Library System.Drawing Support</Title>
     <Description>DjvuNet is a managed library for working with a DjVu documents. It is binary compatible with a reference implementation - DjvuLibre.</Description>
-    <TargetFramework Condition="$(TargetFramework) != ''">$(TargetFramework)</TargetFramework>
-    <TargetFrameworks>$(DotNetCoreFrameworkVersion)</TargetFrameworks>
     <RuntimeIdentifiers>linux-x64;osx-x64;win-x64</RuntimeIdentifiers>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -23,7 +21,7 @@
 
   <PropertyGroup>
     <DefineConstants Condition="$(TargetFramework) == $(DotNetStandardVersion)" Label="Define_NETSTANDARD">NETSTANDARD</DefineConstants>
-    <DefineConstants Condition="$(TargetFramework) == $(DotNetCoreFrameworkVersion)" Label="Define_NETCOREAPP">NETCOREAPP</DefineConstants>
+    <DefineConstants Condition="'$(TargetFramework)' == 'net10.0'" Label="Define_NETCOREAPP">NETCOREAPP</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">

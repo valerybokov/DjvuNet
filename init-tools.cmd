@@ -5,7 +5,9 @@ set "__MsgPrefix=BUILD: "
 
 if /i [%PLATFORM%] == [] set "PLATFORM=%1"
 
-set "INIT_TOOLS_LOG=%~dp0init-tools.log"
+set "INIT_TOOLS_LOG_DIR=%~dp0build"
+if NOT exist "%INIT_TOOLS_LOG_DIR%" mkdir "%INIT_TOOLS_LOG_DIR%"
+set "INIT_TOOLS_LOG=%INIT_TOOLS_LOG_DIR%\init-tools.log"
 if [%PACKAGES_DIR%]==[] set "PACKAGES_DIR=%~dp0packages\"
 if [%TOOLRUNTIME_DIR%]==[] set "TOOLRUNTIME_DIR=%~dp0Tools\coreclr\"
 set "__GlobalJson=%~dp0global.json"

@@ -735,7 +735,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "build", "build", "{6575B4E4
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{1C4777B0-B3DC-4EF4-A14F-CA6753E9DBCE}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DjvuNet.Artifacts.Build", "build\tools\DjvuNet.Artifacts.Build\DjvuNet.Artifacts.Build.csproj", "{8971D9F4-82A4-4ABC-8A6E-B15097972011}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DjvuNet.Artifacts.Build", "eng/tools/DjvuNet.Artifacts.Build/DjvuNet.Artifacts.Build.csproj", "{8971D9F4-82A4-4ABC-8A6E-B15097972011}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Utilities", "Utilities", "{80502DC2-0A63-448F-BD4F-2E651AFD0662}"
 EndProject
@@ -743,9 +743,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DjvuNet.Bzz", "Utilities\Dj
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DjvuNet.DjvuLibre.Helper.Tests", "DjvuNet.DjvuLibre.Helper.Tests\DjvuNet.DjvuLibre.Helper.Tests.csproj", "{FCECDFF8-938C-4F1F-B47F-55C28D482D5E}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DjvuNet.Git.Tasks", "build\tools\DjvuNet.Git.Tasks\DjvuNet.Git.Tasks.csproj", "{004B17AF-8587-4793-B838-803799BFC587}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DjvuNet.Build.Tasks", "eng/tools/DjvuNet.Build.Tasks/DjvuNet.Build.Tasks.csproj", "{004B17AF-8587-4793-B838-803799BFC587}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DjvuNet.Git.Tasks.Tests", "build\tools\DjvuNet.Git.Tasks.Tests\DjvuNet.Git.Tasks.Tests.csproj", "{2E3DF5C2-8A38-4A03-86D7-8D463C917E47}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DjvuNet.Build.Tasks.Tests", "eng/tools/DjvuNet.Build.Tasks.Tests/DjvuNet.Build.Tasks.Tests.csproj", "{2E3DF5C2-8A38-4A03-86D7-8D463C917E47}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tools", "Tools", "{C7A00994-1B4D-41AD-841E-9D21D04A41A5}"
 EndProject

@@ -8,6 +8,9 @@ fi
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
 
+# Ensure Ctrl+C kills the script and all its children immediately
+trap 'echo "BUILD: Interrupted by user. Exiting..."; exit 130' INT
+
 # Uncommment set -x to trace execution of the script
 # set -x
 
@@ -790,6 +793,11 @@ _DefaultNetStandard="netstandard2.1"
 _NetStandardId=".NETStandard"
 _NetStandardTFM=".NETStandard,Version=v2.1"
 _Framework="$_DefaultNetCoreApp"
+__ArtifactsReleaseTag="v0.9.26135.0"
+__GithubDjvuNetReleaseUri="https://github.com/DjvuNet/artifacts/releases/download/${__ArtifactsReleaseTag}/"
+__ArtifactsTestDataUri="https://github.com/DjvuNet/artifacts/archive/refs/tags/${__ArtifactsReleaseTag}.tar.gz"
+__ArtifactsDirName="artifacts-${__ArtifactsReleaseTag#v}"
+__LibGit2SharpRepoUri="https://github.com/4creators/libgit2sharp"
 
 # Parse command line
 while [[ $# -gt 0 ]]; do
@@ -948,11 +956,45 @@ check_prereqs
 __RootBuildDir="${__ProjectRoot}/build/bin/"
 __RuntimeIdentifier="linux-${_MSB_Platform}"
 
+__BuildToolsUri="${__GithubDjvuNetReleaseUri}Tools.tar.gz"
+if [ ! -f "Tools.tar.gz" ] || [ ! -d "Tools" ]; then
+    echo "BUILD: Downloading ready-to-use DjvuNet build tools"
+    download_retry "$__BuildToolsUri" "Tools.tar.gz"
+    if [ $? -eq 0 ]; then
+        mkdir -p Tools
+        tar -xzf Tools.tar.gz -C Tools
+        chmod -R a+rX Tools
+        echo "BUILD: Extracted build tools successfully"
+    else
+        echo "BUILD: Error: Failed to download build tools from $__BuildToolsUri"
+        __FailedCommands+=("download_Tools.tar.gz")
+        if [[ -n "$_FastFail" ]]; then exit 1; fi
+    fi
+else
+    echo "BUILD: BuildTools already restored"
+fi
+
 __SystemAttrProj="System.Attributes/System.Attributes.csproj"
-__LibGit2SharpProj="build/tools/libgit2sharp/LibGit2Sharp/LibGit2Sharp.csproj"
-__DjvuNetGitTasksProj="build/tools/DjvuNet.Git.Tasks/DjvuNet.Git.Tasks.csproj"
+__LibGit2SharpProj="eng/tools/libgit2sharp/LibGit2Sharp/LibGit2Sharp.csproj"
+__DjvuNetGitTasksProj="eng/tools/DjvuNet.Build.Tasks/DjvuNet.Build.Tasks.csproj"
 __DjvuNetProj="DjvuNet/DjvuNet.csproj"
 __DjvuNetDjvuLibreProj="DjvuNet.DjvuLibre/DjvuNet.DjvuLibre.csproj"
+
+if [ ! -f "${__ProjectRoot}/${__LibGit2SharpProj}" ]; then
+    echo "BUILD: Setting up libgit2sharp"
+    __Lg2sArchiveUrl="${__LibGit2SharpRepoUri}/archive/refs/tags/${__ArtifactsReleaseTag}.tar.gz"
+    echo "BUILD: Attempting to download ${__ArtifactsReleaseTag} archive for libgit2sharp..."
+    download_retry "$__Lg2sArchiveUrl" "libgit2sharp.tar.gz"
+    if [ $? -eq 0 ]; then
+        echo "BUILD: Extracting libgit2sharp archive"
+        mkdir -p "${__ProjectRoot}/eng/tools/libgit2sharp"
+        tar -xzf libgit2sharp.tar.gz -C "${__ProjectRoot}/eng/tools/libgit2sharp" --strip-components=1
+        rm libgit2sharp.tar.gz
+    else
+        echo "BUILD: Download failed, falling back to git clone"
+        git_clone_retry "${__LibGit2SharpRepoUri}.git" "eng/tools/libgit2sharp" "--depth 1 -c core.autocrlf=false"
+    fi
+fi
 
 __OutputDir="${__RootBuildDir}${_OS}.${__ManagedPlatform}.${_MSB_Configuration}/binaries/${_Framework}/"
 __PublishDir="${__OutputDir}${__RuntimeIdentifier}/publish/"
@@ -1066,15 +1108,17 @@ if [ ! -f "$__NativeDepsSemaphore" ]; then
         rm -rf deps
         echo "BUILD: Deleted deps directory"
     fi
-    echo "BUILD: Downloading native dependencies (deps.zip)"
-    download_retry "https://github.com/DjvuNet/artifacts/releases/download/v0.9.26132.0/deps.zip" "deps.zip"
+    echo "BUILD: Downloading native dependencies (deps.tar.gz)"
+    download_retry "${__GithubDjvuNetReleaseUri}deps.tar.gz" "deps.tar.gz"
     if [ $? -eq 0 ]; then
-        unzip -q deps.zip -d deps
-        rm deps.zip
+        mkdir -p deps
+        tar -xzf deps.tar.gz -C deps
+        chmod -R a+rX deps
+        rm deps.tar.gz
         touch "$__NativeDepsSemaphore"
         echo "BUILD: Created NativeDependencies semaphore $__NativeDepsSemaphore"
     else
-        echo "BUILD: Error: downloading deps.zip returned error"
+        echo "BUILD: Error: downloading deps.tar.gz returned error"
         _SkipNative=1
     fi
 else
@@ -1086,7 +1130,17 @@ if [ -z "$_SkipNative" ]; then
 
     if [ ! -f "$__ProjectRoot/$__DjvuLibreDir/autogen.sh" ]; then
         echo "BUILD: Setting up DjVuLibre"
-        git_clone_retry "https://github.com/DjvuNet/DjVuLibre.git" "$__DjvuLibreDir" --depth 1 -c core.autocrlf=false
+        __ArchiveUrl="https://github.com/DjvuNet/DjVuLibre/archive/refs/tags/${__ArtifactsReleaseTag}.tar.gz"
+        echo "BUILD: Attempting to download ${__ArtifactsReleaseTag} archive..."
+        if curl -s -f -L -o djvulibre.tar.gz "$__ArchiveUrl"; then
+            echo "BUILD: Extracting DjVuLibre archive"
+            mkdir -p "$__DjvuLibreDir"
+            tar -xzf djvulibre.tar.gz -C "$__DjvuLibreDir" --strip-components=1
+            rm djvulibre.tar.gz
+        else
+            echo "BUILD: Download failed, falling back to git clone"
+            git_clone_retry "https://github.com/DjvuNet/DjVuLibre.git" "$__DjvuLibreDir" --depth 1 -c core.autocrlf=false
+        fi
         if [ $? -ne 0 ]; then _SkipNative=1; fi
     else
         echo "BUILD: DjvuLibre already cloned"
@@ -1250,13 +1304,13 @@ if [ -n "$_BuildDjvuNet" ]; then
     # Build core projects
     restore_dotnet_proj "$__SystemAttrProj" "System.Attributes.csproj"
     restore_dotnet_proj "$__LibGit2SharpProj" "LibGit2Sharp.csproj"
-    restore_dotnet_proj "$__DjvuNetGitTasksProj" "DjvuNet.Git.Tasks.csproj"
+    restore_dotnet_proj "$__DjvuNetGitTasksProj" "DjvuNet.Build.Tasks.csproj"
     restore_dotnet_proj "$__DjvuNetProj" "DjvuNet.csproj"
     if [ -z "$_SkipNative" ]; then restore_dotnet_proj "$__DjvuNetDjvuLibreProj" "DjvuNet.DjvuLibre.csproj"; fi
 
     build_dotnet_proj "$__SystemAttrProj" "System.Attributes.csproj"
     build_dotnet_proj "$__LibGit2SharpProj" "LibGit2Sharp.csproj"
-    build_dotnet_proj "$__DjvuNetGitTasksProj" "DjvuNet.Git.Tasks.csproj"
+    build_dotnet_proj "$__DjvuNetGitTasksProj" "DjvuNet.Build.Tasks.csproj"
     build_dotnet_proj "$__DjvuNetProj" "DjvuNet.csproj"
     if [ -z "$_SkipNative" ]; then build_dotnet_proj "$__DjvuNetDjvuLibreProj" "DjvuNet.DjvuLibre.csproj"; fi
 fi
@@ -1265,12 +1319,14 @@ if [ -n "$_BuildTests" ]; then
     # Clone test data
     if [ ! -f "./artifacts/test001C.djvu" ]; then
         echo ""
-        echo "BUILD: Downloading test data from https://github.com/DjvuNet/artifacts/archive/refs/tags/v0.9.26132.0.tar.gz"
-        download_retry "https://github.com/DjvuNet/artifacts/archive/refs/tags/v0.9.26132.0.tar.gz" "artifacts.tar.gz"
-        if [ $? -ne 0 ]; then echo "BUILD: Error: downloading artifacts.tar.gz returned error"; exit 1; fi
-        tar -xzf artifacts.tar.gz
-        mv artifacts-0.9.26132.0 artifacts
-        rm artifacts.tar.gz
+        echo "BUILD: Downloading test data from ${__ArtifactsTestDataUri}"
+        download_retry "${__ArtifactsTestDataUri}" "artifacts.tar.gz"
+        if [ $? -eq 0 ]; then
+            rm -rf artifacts
+            mkdir artifacts
+            tar -xzf artifacts.tar.gz -C artifacts --strip-components=1
+            rm artifacts.tar.gz
+        fi
     fi
 
     # Build test projects

@@ -3,8 +3,6 @@
   <Import Project="$(MSBuildThisFileDirectory)..\DjvuNet.DjvuLibre\DjvuNet.DjvuLibre.props" />
 
   <PropertyGroup>
-    <TargetFramework Condition="$(TargetFramework) != ''">$(TargetFramework)</TargetFramework>
-    <TargetFrameworks>$(DotNetCoreFrameworkVersion)</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>DjvuNet.Tests</RootNamespace>
@@ -13,7 +11,7 @@
     <IsDjvuNetTestProject>True</IsDjvuNetTestProject>
     <NoWarn>xUnit1026;NU1510</NoWarn>
     <!--<DisableImplicitFrameworkReferences
-      Condition="$(TargetFramework) == $(DotNetCoreFrameworkVersion)">true</DisableImplicitFrameworkReferences>-->
+      Condition="'$(TargetFramework)' == 'net10.0'">true</DisableImplicitFrameworkReferences>-->
   </PropertyGroup>
 
   <PropertyGroup>

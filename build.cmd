@@ -91,7 +91,11 @@ set "_DefaultNetCoreApp=net10.0"
 set "_NetCoreAppId=.NETCoreApp"
 set "_NetCoreAppTFM=.NETCoreApp,Version=v10.0"
 set "_Framework=%_DefaultNetCoreApp%"
-set "__GithubDjvuNetReleaseUri=https://github.com/DjvuNet/artifacts/releases/download/v0.9.26132.0/"
+set "__ArtifactsReleaseTag=v0.9.26135.0"
+set "__GithubDjvuNetReleaseUri=https://github.com/DjvuNet/artifacts/releases/download/%__ArtifactsReleaseTag%/"
+set "__ArtifactsTestDataUri=https://github.com/DjvuNet/artifacts/archive/refs/tags/%__ArtifactsReleaseTag%.zip"
+set "__ArtifactsDirName=artifacts-%__ArtifactsReleaseTag:v=%"
+set "__LibGit2SharpRepoUri=https://github.com/4creators/libgit2sharp"
 
 REM Parse command line
 
@@ -386,10 +390,21 @@ REM ---------------------------------------------------------------------------
 if not exist ".\%__DjvuLibreDir%\win32\djvulibre\libdjvulibre\libdjvulibre.vcxproj" (
     echo %__MsgPrefix%Setting up DjVuLibre
 
-    call :git_clone_retry ^
-        "https://github.com/DjvuNet/DjVuLibre.git" ^
-        "%__DjvuLibreDir%" ^
-        "--depth 1 -c core.autocrlf=false"
+    set "__ArchiveUrl=https://github.com/DjvuNet/DjVuLibre/archive/refs/tags/!__ArtifactsReleaseTag!.tar.gz"
+    echo %__MsgPrefix%Attempting to download !__ArtifactsReleaseTag! archive...
+    curl -s -f -L -o djvulibre.tar.gz "!__ArchiveUrl!"
+    if !ERRORLEVEL! EQU 0 (
+        echo %__MsgPrefix%Extracting DjVuLibre archive
+        if not exist "%__DjvuLibreDir%" mkdir "%__DjvuLibreDir%"
+        tar -xzf djvulibre.tar.gz -C "%__DjvuLibreDir%" --strip-components=1
+        del /f /q djvulibre.tar.gz
+    ) else (
+        echo %__MsgPrefix%Download failed, falling back to git clone
+        call :git_clone_retry ^
+            "https://github.com/DjvuNet/DjVuLibre.git" ^
+            "%__DjvuLibreDir%" ^
+            "--depth 1 -c core.autocrlf=false"
+    )
 
     if not [!ERRORLEVEL!]==[0] goto :skip_native_setup
 ) else (
@@ -525,10 +540,29 @@ if /i "%_Framework%" == "%_DefaultNetCoreApp%" (
 )
 
 set "__SystemAttrProj=System.Attributes/System.Attributes.csproj"
-set "__LibGit2SharpProj=build/tools/libgit2sharp/LibGit2Sharp/LibGit2Sharp.csproj"
-set "__DjvuNetGitTasksProj=build/tools/DjvuNet.Git.Tasks/DjvuNet.Git.Tasks.csproj"
+set "__LibGit2SharpProj=eng/tools/libgit2sharp/LibGit2Sharp/LibGit2Sharp.csproj"
+set "__DjvuNetGitTasksProj=eng/tools/DjvuNet.Build.Tasks/DjvuNet.Build.Tasks.csproj"
 set "__DjvuNetProj=DjvuNet/DjvuNet.csproj"
 set "__DjvuNetDjvuLibreProj=DjvuNet.DjvuLibre/DjvuNet.DjvuLibre.csproj"
+
+if not exist "!__RepoRootDir!!__LibGit2SharpProj!" (
+    echo !__MsgPrefix!Setting up libgit2sharp
+    set "__Lg2sArchiveUrl=!__LibGit2SharpRepoUri!/archive/refs/tags/!__ArtifactsReleaseTag!.tar.gz"
+    echo !__MsgPrefix!Attempting to download !__ArtifactsReleaseTag! archive for libgit2sharp...
+    call :download_retry "!__Lg2sArchiveUrl!" "libgit2sharp.tar.gz"
+    if !ERRORLEVEL! EQU 0 (
+        echo !__MsgPrefix!Extracting libgit2sharp archive
+        if not exist "!__RepoRootDir!eng\tools\libgit2sharp" mkdir "!__RepoRootDir!eng\tools\libgit2sharp"
+        tar.exe -xzf libgit2sharp.tar.gz -C "!__RepoRootDir!eng\tools\libgit2sharp" --strip-components=1
+        del /f /q libgit2sharp.tar.gz
+    ) else (
+        echo !__MsgPrefix!Download failed, falling back to git clone
+        call :git_clone_retry ^
+            "!__LibGit2SharpRepoUri!.git" ^
+            "eng\tools\libgit2sharp" ^
+            "--depth 1 -c core.autocrlf=false"
+    )
+)
 
 set "__OutputDir=!__RootBuildDir!!_TargetOS!.!__ManagedPlatform!.!_MSB_Configuration!/binaries/!__Framework!/"
 set "__PublishDir=!__OutputDir!!__RuntimeIdentifier!/publish/"
@@ -552,7 +586,7 @@ set "__RestoreCmdArgs=!__BuildCommandArgs!"
 
 call :restore_dotnet_proj !__SystemAttrProj! System.Attributes.csproj
 call :restore_dotnet_proj !__LibGit2SharpProj! LibGit2Sharp.csproj
-call :restore_dotnet_proj !__DjvuNetGitTasksProj! DjvuNet.Git.Tasks.csproj
+call :restore_dotnet_proj !__DjvuNetGitTasksProj! DjvuNet.Build.Tasks.csproj
 call :restore_dotnet_proj !__DjvuNetProj! DjvuNet.csproj
 
 :end_dotnet_restore
@@ -584,9 +618,9 @@ if defined __BuildLibDjvuLibre (
     set "__BuildLog=!__NativeLogsDir!!__BuildLogRootName!.log"
     set "__BuildWrn=!__NativeLogsDir!!__BuildLogRootName!.wrn"
     set "__BuildErr=!__NativeLogsDir!!__BuildLogRootName!.err"
-    set "__MsbuildLog=-flp:Verbosity=diag;LogFile=!__BuildLog!"
-    set "__MsbuildWrn=/flp1:WarningsOnly;LogFile=!__BuildWrn!"
-    set "__MsbuildErr=/flp2:ErrorsOnly;LogFile=!__BuildErr!"
+    set "__MsbuildLog="-flp:Verbosity=diag;LogFile=!__BuildLog!""
+    set "__MsbuildWrn="/flp1:WarningsOnly;LogFile=!__BuildWrn!""
+    set "__MsbuildErr="/flp2:ErrorsOnly;LogFile=!__BuildErr!""
     set "__MsbuildLogging=!__MsbuildLog! !__MsbuildWrn! !__MsbuildErr!"
 
     set "__VcpkgRootArg="
@@ -628,7 +662,7 @@ if not exist "!__LogsDir!" md "!__LogsDir!"
 
 call :build_dotnet_proj !__SystemAttrProj! System.Attributes.csproj
 call :build_dotnet_proj !__LibGit2SharpProj! LibGit2Sharp.csproj
-call :build_dotnet_proj !__DjvuNetGitTasksProj! DjvuNet.Git.Tasks.csproj
+call :build_dotnet_proj !__DjvuNetGitTasksProj! DjvuNet.Build.Tasks.csproj
 call :build_dotnet_proj !__DjvuNetProj! DjvuNet.csproj
 
 if defined _SkipNative (
@@ -663,21 +697,22 @@ if not defined _Test (
 
 if not exist .\artifacts\test001C.djvu (
     echo.
-    echo %__MsgPrefix%Downloading test data from https://github.com/DjvuNet/artifacts/archive/refs/tags/v0.9.26132.0.zip
-    call :download_retry "https://github.com/DjvuNet/artifacts/archive/refs/tags/v0.9.26132.0.zip" "artifacts.zip"
+    echo !__MsgPrefix!Downloading test data from !__ArtifactsTestDataUri!
+    call :download_retry "!__ArtifactsTestDataUri!" "artifacts.tar.gz"
     if not [!ERRORLEVEL!]==[0] (
         echo.
-        echo %__MsgPrefix%Error: artifacts download returned error
+        echo !__MsgPrefix!Error: artifacts download returned error
         goto exit_error
     )
-    tar.exe -xf artifacts.zip
+    if exist artifacts\ rmdir /s /q artifacts
+    mkdir artifacts
+    tar.exe -xzf artifacts.tar.gz -C artifacts --strip-components=1
     if not [!ERRORLEVEL!]==[0] (
         echo.
-        echo %__MsgPrefix%Error: artifacts extraction returned error
+        echo !__MsgPrefix!Error: artifacts extraction returned error
         goto exit_error
     )
-    rename artifacts-0.9.26132.0 artifacts
-    del artifacts.zip
+    del artifacts.tar.gz
 )
 
 REM Setup test environment
@@ -891,9 +926,9 @@ set "__RestoreLogRootName=!__DjvuTargetProjectName!.Restore"
 set "__RestoreLog=!__LogsDir!!__RestoreLogRootName!.log"
 set "__RestoreWrn=!__LogsDir!!__RestoreLogRootName!.wrn"
 set "__RestoreErr=!__LogsDir!!__RestoreLogRootName!.err"
-set "__MsbuildLog=/flp:Verbosity=diag;LogFile=!__RestoreLog!"
-set "__MsbuildWrn=/flp1:WarningsOnly;LogFile=!__RestoreWrn!"
-set "__MsbuildErr=/flp2:ErrorsOnly;LogFile=!__RestoreErr!"
+set "__MsbuildLog="/flp:Verbosity=diag;LogFile=!__RestoreLog!""
+set "__MsbuildWrn="/flp1:WarningsOnly;LogFile=!__RestoreWrn!""
+set "__MsbuildErr="/flp2:ErrorsOnly;LogFile=!__RestoreErr!""
 set "__MsbuildLogging=!__MsbuildLog! !__MsbuildWrn! !__MsbuildErr!"
 
 echo %__MsgPrefix%Restoring %__DjvuTargetProject%
@@ -923,9 +958,9 @@ set "__BuildLogRootName=!__BuildProjName!.!_MSB_Target!"
 set "__BuildLog=!__LogsDir!!__BuildLogRootName!.log"
 set "__BuildWrn=!__LogsDir!!__BuildLogRootName!.wrn"
 set "__BuildErr=!__LogsDir!!__BuildLogRootName!.err"
-set "__MsbuildLog=/flp:Verbosity=diag;LogFile=!__BuildLog!"
-set "__MsbuildWrn=/flp1:WarningsOnly;LogFile=!__BuildWrn!"
-set "__MsbuildErr=/flp2:ErrorsOnly;LogFile=!__BuildErr!"
+set "__MsbuildLog="/flp:Verbosity=diag;LogFile=!__BuildLog!""
+set "__MsbuildWrn="/flp1:WarningsOnly;LogFile=!__BuildWrn!""
+set "__MsbuildErr="/flp2:ErrorsOnly;LogFile=!__BuildErr!""
 set "__MsbuildLogging=!__MsbuildLog! !__MsbuildWrn! !__MsbuildErr!"
 
 echo.
@@ -952,9 +987,9 @@ if not defined __SkipPublish (
     set "__PublishLog=!__LogsDir!!__PublishLogRootName!.log"
     set "__PublishWrn=!__LogsDir!!__PublishLogRootName!.wrn"
     set "__PublishErr=!__LogsDir!!__PublishLogRootName!.err"
-    set "__MsbuildPubLog=-flp:Verbosity=diag;LogFile=!__PublishLog!"
-    set "__MsbuildPubWrn=-flp1:WarningsOnly;LogFile=!__PublishWrn!"
-    set "__MsbuildPubErr=-flp2:ErrorsOnly;LogFile=!__PublishErr!"
+    set "__MsbuildPubLog="-flp:Verbosity=diag;LogFile=!__PublishLog!""
+    set "__MsbuildPubWrn="-flp1:WarningsOnly;LogFile=!__PublishWrn!""
+    set "__MsbuildPubErr="-flp2:ErrorsOnly;LogFile=!__PublishErr!""
     set "__MsbuildLogging=!__MsbuildPubLog! !__MsbuildPubWrn! !__MsbuildPubErr!"
 
     echo.

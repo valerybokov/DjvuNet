@@ -2,7 +2,7 @@
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
 
-namespace DjvuNet.Git.Tasks
+namespace DjvuNet.Build.Tasks
 {
     public class GetDateTime : Task
     {
@@ -34,6 +34,7 @@ namespace DjvuNet.Git.Tasks
 
         public override bool Execute()
         {
+            TaskLogger.Current = this.Log;
             if (String.IsNullOrWhiteSpace(Format))
             {
                 Format = "yyyy-MM-dd HH:mm:ss";

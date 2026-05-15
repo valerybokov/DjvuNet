@@ -10,7 +10,6 @@
   <PropertyGroup>
     <Title>$(PackageId) - DjVuLibre .NET Bindings</Title>
     <Description>DjvuNet is a managed library for working with a DjVu documents. It is binary compatible with a reference implementation - DjvuLibre.</Description>
-    <TargetFrameworks>$(DotNetCoreFrameworkVersion)</TargetFrameworks>
     <NETStandardImplicitPackageVersion>$(NETStandardPackageVersion)</NETStandardImplicitPackageVersion>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
