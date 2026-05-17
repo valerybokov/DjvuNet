@@ -1002,14 +1002,18 @@ if not defined __SkipPublish (
         echo     !__PublishLog!
         echo     !__PublishWrn!
         echo     !__PublishErr!
-        endlocal
-        set "__FailedPublishes=!__FailedPublishes! %__BuildProjName%"
+        for %%F in ("%__BuildProjName%") do (
+            endlocal
+            set "__FailedPublishes=!__FailedPublishes! %%~F"
+        )
         if defined _FastFail goto exit_error
         goto :eof
-    ) else (
-        set "__SuccessfulPublishes=!__SuccessfulPublishes! %__BuildProjName%"
     )
-    endlocal
+
+    for %%F in ("%__BuildProjName%") do (
+        endlocal
+        set "__SuccessfulPublishes=!__SuccessfulPublishes! %%~F"
+    )
     REM } Scope environment changes end
 )
 
@@ -1108,15 +1112,19 @@ set /a "current_timeout_sec=!base_timeout_sec! * !attempt!"
 echo %__MsgPrefix%download attempt !attempt! of !max_attempts! for !url! (Timeout: !current_timeout_sec!s)...
 curl.exe -L -s -o "!dest!" --max-time !current_timeout_sec! "!url!"
 if [!ERRORLEVEL!]==[0] (
-    endlocal
-    set "__SuccessfulCommands=!__SuccessfulCommands! download_!dest!"
+    for %%F in ("!dest!") do (
+        endlocal
+        set "__SuccessfulCommands=!__SuccessfulCommands! download_%%~F"
+    )
     exit /b 0
 )
 
 if !attempt! GEQ !max_attempts! (
     echo %__MsgPrefix%Error: download failed or timed out after !max_attempts! attempts.
-    endlocal
-    set "__FailedCommands=!__FailedCommands! download_!dest!"
+    for %%F in ("!dest!") do (
+        endlocal
+        set "__FailedCommands=!__FailedCommands! download_%%~F"
+    )
     if defined _FastFail goto exit_error
     exit /b 1
 )
@@ -1144,15 +1152,19 @@ echo %__MsgPrefix%git clone attempt !attempt! of !max_attempts! for !url! (Timeo
 set "CLONE_CMD=clone !extra_args! !url! !dest!"
 powershell -NoProfile -ExecutionPolicy ByPass -Command "$p = Start-Process git -ArgumentList '!CLONE_CMD!' -PassThru -NoNewWindow; if (-not $p.WaitForExit(!current_timeout_ms!)) { $p.Kill(); exit 1 } else { exit $p.ExitCode }"
 if [!ERRORLEVEL!]==[0] (
-    endlocal
-    set "__SuccessfulClones=!__SuccessfulClones! %dest%"
+    for %%F in ("!dest!") do (
+        endlocal
+        set "__SuccessfulClones=!__SuccessfulClones! %%~F"
+    )
     exit /b 0
 )
 
 if !attempt! GEQ !max_attempts! (
     echo %__MsgPrefix%Error: git clone failed or timed out after !max_attempts! attempts.
-    endlocal
-    set "__FailedClones=!__FailedClones! %dest%"
+    for %%F in ("!dest!") do (
+        endlocal
+        set "__FailedClones=!__FailedClones! %%~F"
+    )
     if defined _FastFail goto exit_error
     exit /b 1
 )

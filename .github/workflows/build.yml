@@ -1,0 +1,68 @@
+name: CI Build
+
+on:
+  push:
+    branches: [ "master", "djvunet-ci" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }} ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows
+          # Specs: https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md
+          - os: windows-latest
+            platform: x64
+          - os: windows-11-arm
+            platform: arm64
+            
+          # Linux
+          # Specs: https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md
+          - os: ubuntu-latest
+            platform: x64
+          - os: ubuntu-24.04-arm
+            platform: arm64
+            
+          # macOS
+          # Specs: https://github.com/actions/runner-images/blob/main/images/macos/macos-14-Readme.md
+          - os: macos-latest  # Automatically points to Apple Silicon (arm64)
+            platform: arm64
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Dependencies (Ubuntu)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        # git, unzip, curl, zip, tar, cmake, jq, gcc, g++ are pre-installed
+        sudo apt-get install -y pkg-config ninja-build autoconf automake libtool libgdiplus
+        
+        # Install cross-compilation toolchains if building for arm64 on an x64 runner
+        if [ "${{ matrix.platform }}" == "arm64" ] && [ "$(uname -m)" == "x86_64" ]; then
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+        fi
+
+    - name: Install Dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        # cmake, jq, ninja, apple-clang are pre-installed
+        brew install pkg-config autoconf automake libtool mono-libgdiplus
+
+    - name: Run Build (Windows)
+      if: runner.os == 'Windows'
+      shell: cmd
+      run: |
+        build.cmd -p ${{ matrix.platform }} -c Release -f net10.0 -Test
+
+    - name: Run Build (Linux/macOS)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        ./build.sh -p ${{ matrix.platform }} -c Release -f net10.0 -Test
