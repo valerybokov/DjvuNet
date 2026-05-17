@@ -77,7 +77,7 @@ git_clone_retry()
     local dest=$2
     shift 2
     local extra_args=("$@")
-    
+
     local max_attempts=3
     local timeout_sec=600
     local attempt=1
@@ -88,7 +88,7 @@ git_clone_retry()
         if [ -z "$actual_dest" ]; then
             actual_dest=$(basename "$url" .git)
         fi
-        
+
         if [ -n "$actual_dest" ] && [ "$actual_dest" != "." ] && [ -d "$actual_dest" ]; then
             echo "BUILD: Cleaning up destination directory $actual_dest before cloning..."
             rm -rf "$actual_dest"
@@ -100,18 +100,18 @@ git_clone_retry()
         else
             git clone --progress "${extra_args[@]}" "$url" "$dest" < /dev/null 2>&1
         fi
-        
+
         if [ $? -eq 0 ]; then
             __SuccessfulClones+=("$dest")
             return 0
         fi
-        
+
         echo "BUILD: git clone failed or timed out. Retrying in $delay seconds..."
         sleep $delay
         delay=$((delay * 2))
         attempt=$((attempt + 1))
     done
-    
+
     echo "BUILD: Error: git clone failed after $max_attempts attempts."
     __FailedClones+=("$dest")
     if [[ -n "$_FastFail" ]]; then exit 1; fi
@@ -122,7 +122,7 @@ download_retry()
 {
     local url=$1
     local dest=$2
-    
+
     local max_attempts=5
     local timeout_sec=120
     local attempt=1
@@ -131,18 +131,18 @@ download_retry()
     while [ $attempt -le $max_attempts ]; do
         echo "BUILD: download attempt $attempt of $max_attempts for $url..."
         curl -L -s -o "$dest" --max-time $timeout_sec "$url"
-        
+
         if [ $? -eq 0 ]; then
             __SuccessfulCommands+=("download_$dest")
             return 0
         fi
-        
+
         echo "BUILD: download failed or timed out. Retrying in $delay seconds..."
         sleep $delay
         delay=$((delay * 2))
         attempt=$((attempt + 1))
     done
-    
+
     echo "BUILD: Error: download failed after $max_attempts attempts."
     __FailedCommands+=("download_$dest")
     if [[ -n "$_FastFail" ]]; then exit 1; fi
@@ -371,7 +371,7 @@ check_prereqs()
                     compiler_type="gcc"
                     min_ver=11
                 fi
-                
+
                 local compiler_ver=""
                 if [ "$compiler_type" == "gcc" ]; then
                     compiler_ver=$($CC -dumpversion | cut -d'.' -f1)
@@ -443,11 +443,11 @@ check_prereqs()
             else
                 echo >&2 "Please install a valid C/C++ compiler before running this script."
                 echo >&2 "Details:$compiler_errors"
-                
+
                 # Dynamically build the missing packages list based on what was found
                 local missing_msg=""
                 local apt_pkgs=""
-                
+
                 if [ "$has_gcc" -eq 1 ] && [ "$has_gxx" -eq 0 ]; then
                     missing_msg="g++ (to complete GCC toolchain)"
                     apt_pkgs="g++"
@@ -546,7 +546,7 @@ check_prereqs()
         echo "BUILD: ======================================================================"
 
         __LocalDotNetDir="$__ProjectRoot/Tools/coreclr/dotnetcli/$__OSName/$__Libc/$__ArchName"
-        
+
         if [ -n "$__LatestAvailable" ] && [ "$__LatestAvailable" != "$__SdkVersion" ]; then
             echo "BUILD: Updating global.json to track target SDK version $__LatestAvailable before initialization"
             jq --arg v "$__LatestAvailable" '.sdk.version = $v' "$__GlobalJson" > "${__GlobalJson}.tmp" && mv "${__GlobalJson}.tmp" "$__GlobalJson"
@@ -792,13 +792,13 @@ __ProjectRoot="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # Detect OS Family based on TestPlatforms matrix
 __UnameOS=$(uname -s | tr '[:upper:]' '[:lower:]')
 case $__UnameOS in
-    linux)   
+    linux)
         # Differentiate Android from standard Linux
-        if [ -n "$ANDROID_STORAGE" ] || [ -d "/system/app" ]; then __OSName="android"; else __OSName="linux"; fi 
+        if [ -n "$ANDROID_STORAGE" ] || [ -d "/system/app" ]; then __OSName="android"; else __OSName="linux"; fi
         ;;
-    darwin)  
+    darwin)
         # Differentiate iOS/tvOS/MacCatalyst from OSX natively if possible, default to osx
-        if [ "$TARGET_OS" == "ios" ]; then __OSName="ios"; 
+        if [ "$TARGET_OS" == "ios" ]; then __OSName="ios";
         elif [ "$TARGET_OS" == "tvos" ]; then __OSName="tvos";
         elif [ "$TARGET_OS" == "maccatalyst" ]; then __OSName="maccatalyst";
         else __OSName="osx"; fi
@@ -806,7 +806,7 @@ case $__UnameOS in
     freebsd) __OSName="freebsd" ;;
     netbsd)  __OSName="netbsd" ;;
     openbsd) __OSName="openbsd" ;;
-    sunos)   
+    sunos)
         # Differentiate illumos from legacy Solaris
         if uname -v | grep -qi "illumos"; then __OSName="illumos"; else __OSName="solaris"; fi
         ;;
@@ -1032,7 +1032,7 @@ if [ "$__CrossBuild" == "1" ]; then
     if ! [[ -n "$ROOTFS_DIR" ]]; then
         export ROOTFS_DIR="$__ProjectRoot/cross/rootfs/$__BuildArch"
     fi
-    
+
     if [ -z "${CC:-}" ] || [ -z "${CXX:-}" ]; then
         if [ "$__BuildArch" == "arm64" ]; then
             export CC="aarch64-linux-gnu-gcc"
@@ -1058,20 +1058,20 @@ __RuntimeIdentifier="linux-${_MSB_Platform}"
 
 __BuildToolsUri="${__GithubDjvuNetReleaseUri}Tools.tar.gz"
 if [ ! -f "Tools.tar.gz" ] || [ ! -d "Tools" ]; then
-    echo "BUILD: Downloading ready-to-use DjvuNet build tools"
+    echo "BUILD: Downloading DjvuNet.Build.Tools from ${__BuildToolsUri}"
     download_retry "$__BuildToolsUri" "Tools.tar.gz"
     if [ $? -eq 0 ]; then
         mkdir -p Tools
         tar -xzf Tools.tar.gz -C Tools
         chmod -R a+rX Tools
-        echo "BUILD: Extracted build tools successfully"
+        echo "BUILD: Extracted DjvuNet.Build.Tools successfully"
     else
-        echo "BUILD: Error: Failed to download build tools from $__BuildToolsUri"
+        echo "BUILD: Error: Failed to download DjvuNet.Build.Tools from $__BuildToolsUri"
         __FailedCommands+=("download_Tools.tar.gz")
         if [[ -n "$_FastFail" ]]; then exit 1; fi
     fi
 else
-    echo "BUILD: BuildTools already restored"
+    echo "BUILD: DjvuNet.Build.Tools already restored"
 fi
 
 __SystemAttrProj="System.Attributes/System.Attributes.csproj"
@@ -1208,7 +1208,7 @@ if [ ! -f "$__NativeDepsSemaphore" ]; then
         rm -rf deps
         echo "BUILD: Deleted deps directory"
     fi
-    echo "BUILD: Downloading native dependencies (deps.tar.gz)"
+    echo "BUILD: Downloading custom System.Drawing.Common dependencies from ${__GithubDjvuNetReleaseUri}deps.tar.gz"
     download_retry "${__GithubDjvuNetReleaseUri}deps.tar.gz" "deps.tar.gz"
     if [ $? -eq 0 ]; then
         mkdir -p deps
@@ -1216,13 +1216,13 @@ if [ ! -f "$__NativeDepsSemaphore" ]; then
         chmod -R a+rX deps
         rm deps.tar.gz
         touch "$__NativeDepsSemaphore"
-        echo "BUILD: Created NativeDependencies semaphore $__NativeDepsSemaphore"
+        echo "BUILD: Created custom System.Drawing.Common dependencies semaphore $__NativeDepsSemaphore"
     else
-        echo "BUILD: Error: downloading deps.tar.gz returned error"
+        echo "BUILD: Error: Failed to download custom System.Drawing.Common dependencies from ${__GithubDjvuNetReleaseUri}deps.tar.gz"
         _SkipNative=1
     fi
 else
-    echo "BUILD: NativeDependencies already restored"
+    echo "BUILD: Custom System.Drawing.Common dependencies already restored"
 fi
 
 if [ -z "$_SkipNative" ]; then
@@ -1232,7 +1232,8 @@ if [ -z "$_SkipNative" ]; then
         echo "BUILD: Setting up DjVuLibre"
         __ArchiveUrl="https://github.com/DjvuNet/DjVuLibre/archive/refs/tags/${__ArtifactsReleaseTag}.tar.gz"
         echo "BUILD: Downloading release archive of DjVuLibre for tag ${__ArtifactsReleaseTag}"
-        if curl -s -f -L -o djvulibre.tar.gz "$__ArchiveUrl"; then
+        download_retry "$__ArchiveUrl" "djvulibre.tar.gz"
+        if [ $? -eq 0 ]; then
             echo "BUILD: Extracting DjVuLibre archive"
             mkdir -p "$__DjvuLibreDir"
             tar -xzf djvulibre.tar.gz -C "$__DjvuLibreDir" --strip-components=1
@@ -1248,7 +1249,7 @@ if [ -z "$_SkipNative" ]; then
 
     if [ -z "$_SkipNative" ]; then
         __VcpkgBaseline=$(awk -F'"' '/"builtin-baseline"[ \t]*:/ {print $4}' "$__ProjectRoot/$__DjvuLibreDir/vcpkg.json" 2>/dev/null || true)
-        
+
         is_valid_vcpkg() {
             local dir=$1
             if [ ! -f "$dir/vcpkg" ] && [ ! -f "$dir/vcpkg.exe" ]; then return 1; fi
@@ -1272,7 +1273,7 @@ if [ -z "$_SkipNative" ]; then
         __GlobalVcpkgRoot="${__GlobalVcpkgRoot%/}"
 
         if [ "$__GlobalVcpkgRoot" == "$__ProjectRoot/vcpkg" ]; then
-            
+
             clone_valid=0
             if [ -d "$__GlobalVcpkgRoot/.git" ] && [ -f "$__GlobalVcpkgRoot/bootstrap-vcpkg.sh" ] && [ -f "$__GlobalVcpkgRoot/vcpkg" ]; then
                 if [ -n "$__VcpkgBaseline" ]; then
@@ -1289,24 +1290,24 @@ if [ -z "$_SkipNative" ]; then
                     echo "BUILD: Removing broken vcpkg baseline at $__GlobalVcpkgRoot"
                     rm -rf "$__GlobalVcpkgRoot"
                 fi
-                
+
                 echo "BUILD: Cloning local Microsoft vcpkg baseline"
-                
+
                 git_clone_retry "https://github.com/Microsoft/vcpkg.git" "vcpkg" -c core.autocrlf=false
-                if [ $? -ne 0 ]; then 
+                if [ $? -ne 0 ]; then
                     _SkipNative=1
                 fi
             fi
-            
+
             if [ -z "$_SkipNative" ] && [ ! -f "$__GlobalVcpkgRoot/vcpkg" ]; then
                 echo "BUILD: Bootstrapping vcpkg"
                 run_custom_command "vcpkg_bootstrap" "$__GlobalVcpkgRoot/bootstrap-vcpkg.sh" "-disableMetrics"
-                
-                if [ $? -ne 0 ]; then 
+
+                if [ $? -ne 0 ]; then
                     _SkipNative=1
                 fi
             fi
-            
+
         fi
     fi
 
@@ -1326,14 +1327,14 @@ if [ -z "$_SkipNative" ]; then
         echo "BUILD: Diagnostic - PKG_CONFIG resolved to: $PKG_CONFIG"
         export PKG_CONFIG_PATH="/usr/lib/pkgconfig:/usr/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH:-}"
         run_custom_command "vcpkg_install" "$__GlobalVcpkgRoot/vcpkg" "install" "--x-manifest-root=$__ProjectRoot/$__DjvuLibreDir" "--triplet" "$__VcpkgTriplet"
-        
+
         if [ $? -eq 0 ]; then
             cd "$__ProjectRoot/$__DjvuLibreDir" || exit 1
-            
+
             cp_flags="-I$__ProjectRoot/$__DjvuLibreDir/vcpkg_installed/$__VcpkgTriplet/include"
             ld_flags="-L$__ProjectRoot/$__DjvuLibreDir/vcpkg_installed/$__VcpkgTriplet/lib"
             pkg_cfg="$__ProjectRoot/$__DjvuLibreDir/vcpkg_installed/$__VcpkgTriplet/lib/pkgconfig"
-            
+
             __ConfigureArgs=()
             if [ "$_MSB_Platform" != "$__HostArch" ]; then
                 gnu_arch="$_MSB_Platform"
@@ -1344,32 +1345,32 @@ if [ -z "$_SkipNative" ]; then
                 elif [ "$_MSB_Platform" == "x86" ]; then
                     gnu_arch="i686"
                 fi
-                
+
                 gnu_os="$__VcpkgOS"
                 gnu_host="${gnu_arch}-${gnu_os}-${__Libc}"
-                
+
                 if [ "$gnu_host" == "arm-linux-gnu" ]; then
                     gnu_host="arm-linux-gnueabihf"
                 fi
-                
+
                 __ConfigureArgs+=("--host=$gnu_host")
                 echo "BUILD: Cross-compiling detected. GNU Host Triplet: $gnu_host"
             fi
-            
+
             _last_triplet=""
             if [ -f ".lastbuildtriplet" ]; then
                 _last_triplet=$(cat .lastbuildtriplet)
             fi
-            
+
             _MSB_TargetLower=$(echo "$_MSB_Target" | tr '[:upper:]' '[:lower:]')
-            
+
             if [ "$_last_triplet" != "$__VcpkgTriplet" ] || [ "$_MSB_TargetLower" == "rebuild" ] || [ "$_MSB_TargetLower" == "clean" ]; then
                 if [ -f "Makefile" ]; then
                     run_custom_command "djvulibre_clean" "make" "clean"
                 fi
                 echo "$__VcpkgTriplet" > .lastbuildtriplet
             fi
-            
+
             export NOCONFIGURE=1
             run_custom_command "djvulibre_autogen" "./autogen.sh"
             unset NOCONFIGURE
@@ -1393,9 +1394,9 @@ if [ -z "$_SkipNative" ]; then
             fi
             cd "$__ProjectRoot" || exit 1
         fi
-        
-        if [ ${#__FailedCommands[@]} -gt 0 ] || [ ${#__FailedClones[@]} -gt 0 ]; then 
-            _SkipNative=1 
+
+        if [ ${#__FailedCommands[@]} -gt 0 ] || [ ${#__FailedClones[@]} -gt 0 ]; then
+            _SkipNative=1
         fi
     fi
 fi
@@ -1532,10 +1533,10 @@ if [ -n "$_RunTests" ]; then
     fi
 
     _VerbosityLower=$(echo "$_Verbosity" | tr '[:upper:]' '[:lower:]')
-    if [[ "$_VerbosityLower" == "d" || "$_VerbosityLower" == "detailed" ]]; then 
+    if [[ "$_VerbosityLower" == "d" || "$_VerbosityLower" == "detailed" ]]; then
         _Test_Options="$_Test_Options -verbose"
     fi
-    if [[ "$_VerbosityLower" == "diag" || "$_VerbosityLower" == "diagnostic" ]]; then 
+    if [[ "$_VerbosityLower" == "diag" || "$_VerbosityLower" == "diagnostic" ]]; then
         _Test_Options="$_Test_Options -verbose -internaldiagnostics"
     fi
     _Test_Options="$_Test_Options -trait- Category=Skip -nologo -nocolor"

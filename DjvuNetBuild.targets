@@ -10,10 +10,10 @@
   </PropertyGroup>
 
   <!-- New Tooling / Stage 2+ (With TaskFactory, New Namespace) -->
-  <UsingTask TaskName="DjvuNet.Build.Tasks.BuildMajorVersion" Runtime="NET" AssemblyFile="$(GitTasksAssembly)" TaskFactory="DjvuNet.Build.Tasks.DjvuNetBuildTaskFactory" />
-  <UsingTask TaskName="DjvuNet.Build.Tasks.GetLastCommit" Runtime="NET" AssemblyFile="$(GitTasksAssembly)" TaskFactory="DjvuNet.Build.Tasks.DjvuNetBuildTaskFactory" />
-  <UsingTask TaskName="DjvuNet.Build.Tasks.GetDateTime" Runtime="NET" AssemblyFile="$(GitTasksAssembly)" TaskFactory="DjvuNet.Build.Tasks.DjvuNetBuildTaskFactory" />
-  <UsingTask TaskName="MSBuild.Community.Tasks.FileUpdate" Runtime="NET" AssemblyFile="$(GitTasksAssembly)" TaskFactory="DjvuNet.Build.Tasks.DjvuNetBuildTaskFactory" />
+  <UsingTask TaskName="DjvuNet.Build.Tasks.BuildMajorVersion" Runtime="NET" Architecture="CurrentArchitecture" AssemblyFile="$(GitTasksAssembly)" TaskFactory="DjvuNet.Build.Tasks.DjvuNetBuildTaskFactory" />
+  <UsingTask TaskName="DjvuNet.Build.Tasks.GetLastCommit" Runtime="NET" Architecture="CurrentArchitecture" AssemblyFile="$(GitTasksAssembly)" TaskFactory="DjvuNet.Build.Tasks.DjvuNetBuildTaskFactory" />
+  <UsingTask TaskName="DjvuNet.Build.Tasks.GetDateTime" Runtime="NET" Architecture="CurrentArchitecture" AssemblyFile="$(GitTasksAssembly)" TaskFactory="DjvuNet.Build.Tasks.DjvuNetBuildTaskFactory" />
+  <UsingTask TaskName="MSBuild.Community.Tasks.FileUpdate" Runtime="NET" Architecture="CurrentArchitecture" AssemblyFile="$(GitTasksAssembly)" TaskFactory="DjvuNet.Build.Tasks.DjvuNetBuildTaskFactory" />
 
   <Target Name="CalculateVersion" BeforeTargets="InjectVersion">
     <ReadLinesFromFile File="$(MSBuildThisFileDirectory)library.version">

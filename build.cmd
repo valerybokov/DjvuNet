@@ -272,20 +272,38 @@ REM Download ready to use DjvuNet build tools
 
 set "__BuildToolsUri=!__GithubDjvuNetReleaseUri!Tools.zip"
 
-call %__PSCmd% -NoProfile -ExecutionPolicy ByPass -NoLogo -NonInteractive -File DjvuNet.Build\Get-Tools.ps1 %__BuildToolsUri% Tools.zip Tools BuildTools {314FA7B0-6864-4842-B539-5728CBC73F27} %__MsgPrefix%
-if not [%ERRORLEVEL%]==[0] (
-    echo %__MsgPrefix%Error: Failed to download build tools from %__BuildToolsUri%
-    goto exit_error
+if not exist ".\Tools\" (
+    echo %__MsgPrefix%Downloading DjvuNet.Build.Tools from !__BuildToolsUri!
+    call :download_retry "!__BuildToolsUri!" "Tools.zip"
+    if not [!ERRORLEVEL!]==[0] (
+        echo %__MsgPrefix%Error: Failed to download DjvuNet.Build.Tools from !__BuildToolsUri!
+        if defined _FastFail goto exit_error
+    ) else (
+        mkdir Tools
+        tar.exe -xf Tools.zip -C Tools
+        del /f /q Tools.zip
+    )
+) else (
+    echo %__MsgPrefix%DjvuNet.Build.Tools already restored
 )
 
 REM Download native build and test deps
 
 set "__NativeDepsUri=!__GithubDjvuNetReleaseUri!deps.zip"
 
-call %__PSCmd% -NoProfile -ExecutionPolicy ByPass -NoLogo -NonInteractive -File DjvuNet.Build/Get-Tools.ps1 %__NativeDepsUri% deps.zip deps NativeDependencies {87E5AD66-912F-477C-BDA5-52F7785AE705} %__MsgPrefix%
-if not [%ERRORLEVEL%]==[0] (
-    echo %__MsgPrefix%Error: Failed to download native dependencies from %__NativeDepsUri%
-    goto exit_error
+if not exist ".\deps\" (
+    echo %__MsgPrefix%Downloading custom System.Drawing.Common dependencies from !__NativeDepsUri!
+    call :download_retry "!__NativeDepsUri!" "deps.zip"
+    if not [!ERRORLEVEL!]==[0] (
+        echo %__MsgPrefix%Error: Failed to download custom System.Drawing.Common dependencies from !__NativeDepsUri!
+        if defined _FastFail goto exit_error
+    ) else (
+        mkdir deps
+        tar.exe -xf deps.zip -C deps
+        del /f /q deps.zip
+    )
+) else (
+    echo %__MsgPrefix%Custom System.Drawing.Common dependencies already restored
 )
 
 REM Download and initialize our own .NETCore SDK
@@ -392,7 +410,7 @@ if not exist ".\%__DjvuLibreDir%\win32\djvulibre\libdjvulibre\libdjvulibre.vcxpr
 
     set "__ArchiveUrl=https://github.com/DjvuNet/DjVuLibre/archive/refs/tags/!__ArtifactsReleaseTag!.tar.gz"
     echo %__MsgPrefix%Downloading release archive of DjVuLibre for tag !__ArtifactsReleaseTag!
-    curl -s -f -L -o djvulibre.tar.gz "!__ArchiveUrl!"
+    call :download_retry "!__ArchiveUrl!" "djvulibre.tar.gz"
     if !ERRORLEVEL! EQU 0 (
         echo %__MsgPrefix%Extracting DjVuLibre archive
         if not exist "%__DjvuLibreDir%" mkdir "%__DjvuLibreDir%"
@@ -713,6 +731,7 @@ if not exist .\artifacts\test001C.djvu (
         goto exit_error
     )
     del artifacts.tar.gz
+    echo.
 )
 
 REM Setup test environment
