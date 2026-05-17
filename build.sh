@@ -330,8 +330,19 @@ check_prereqs()
     fi
 
     # Check presence of libgdiplus
-    ldconfig -p | grep libgdiplus >/dev/null
-    if [[ $? -ne 0 ]]; then
+    local has_gdiplus=0
+    if [ "$__HostOS" == "osx" ]; then
+        # Check standard Homebrew paths for Intel and Apple Silicon
+        if [ -f "/usr/local/lib/libgdiplus.dylib" ] || [ -f "/opt/homebrew/lib/libgdiplus.dylib" ]; then
+            has_gdiplus=1
+        fi
+    else
+        if command -v ldconfig >/dev/null 2>&1 && ldconfig -p | grep -q libgdiplus; then
+            has_gdiplus=1
+        fi
+    fi
+
+    if [ "$has_gdiplus" -eq 0 ]; then
         success=0;
         if [ "$__HostOS" == "osx" ]; then
             __MissingPkgs="$__MissingPkgs mono-libgdiplus"
@@ -344,24 +355,120 @@ check_prereqs()
         __InstalledPkgs+=("libgdiplus")
     fi
 
-    # Minimum required version of clang is version 3.9 for arm/armel cross build
-    if [[ $__CrossBuild == 1 && ("$__BuildArch" == "arm" || "$__BuildArch" == "armel") ]]; then
-        if ! [[ "$__ClangMajorVersion" -gt "3" || ( $__ClangMajorVersion == 3 && $__ClangMinorVersion == 9 ) ]]; then
-            echo "Please install clang3.9 or newer for arm/armel cross build";
-            success=0;
-        fi
-    fi
+    # Check C/C++ compiler presence and minimum version
+    if [ -z "$_SkipNative" ]; then
+        local valid_compiler_found=0
+        local compiler_errors=""
 
-    # Check for clang
-    hash clang-$__ClangMajorVersion.$__ClangMinorVersion 2>/dev/null
-    if ! [[ $? -eq 0 ]]; then
-        hash clang$__ClangMajorVersion$__ClangMinorVersion 2>/dev/null
-        if ! [[ $? -eq 0 ]]; then
-            hash clang 2>/dev/null
-            if ! [[ $? -eq 0 ]]; then
-                echo >&2 "Please install clang-$__ClangMajorVersion.$__ClangMinorVersion before running this script";
-                success=0;
+        if [ "$__CrossBuild" == "1" ]; then
+            if command -v "$CC" >/dev/null 2>&1; then
+                local compiler_type=""
+                local min_ver=11 # default to gcc min version
+                if [[ "$CC" == *"clang"* ]]; then
+                    compiler_type="clang"
+                    min_ver=14
+                elif [[ "$CC" == *"gcc"* ]]; then
+                    compiler_type="gcc"
+                    min_ver=11
+                fi
+                
+                local compiler_ver=""
+                if [ "$compiler_type" == "gcc" ]; then
+                    compiler_ver=$($CC -dumpversion | cut -d'.' -f1)
+                elif [ "$compiler_type" == "clang" ]; then
+                    compiler_ver=$($CC --version | head -n1 | grep -Eo '[0-9]+\.[0-9]+' | head -n1 | cut -d'.' -f1)
+                fi
+
+                if [ -n "$compiler_ver" ] && [ "$compiler_ver" -ge "$min_ver" ]; then
+                    valid_compiler_found=1
+                    __InstalledPkgs+=("$CC (v$compiler_ver)")
+                else
+                    compiler_errors="[Found cross-compiler $CC v$compiler_ver, but require minimum version $min_ver]"
+                fi
+            else
+                compiler_errors="[Cross-compiler $CC not found]"
             fi
+        else
+            # Native build: check GCC toolchain
+            local has_gcc=0
+            local has_gxx=0
+            if command -v gcc >/dev/null 2>&1; then has_gcc=1; fi
+            if command -v g++ >/dev/null 2>&1; then has_gxx=1; fi
+
+            if [ "$has_gcc" -eq 1 ] && [ "$has_gxx" -eq 1 ]; then
+                local gcc_ver=$(gcc -dumpversion | cut -d'.' -f1)
+                if [ -n "$gcc_ver" ] && [ "$gcc_ver" -ge 11 ]; then
+                    valid_compiler_found=1
+                    __InstalledPkgs+=("gcc/g++ (v$gcc_ver)")
+                else
+                    compiler_errors="$compiler_errors [gcc/g++ found but version $gcc_ver is < 11]"
+                fi
+            elif [ "$has_gcc" -eq 0 ] && [ "$has_gxx" -eq 0 ]; then
+                compiler_errors="$compiler_errors [both gcc and g++ missing]"
+            elif [ "$has_gcc" -eq 0 ]; then
+                compiler_errors="$compiler_errors [gcc missing]"
+            else
+                compiler_errors="$compiler_errors [g++ missing]"
+            fi
+
+            # Native build: check Clang toolchain
+            local has_clang=0
+            local has_clangxx=0
+            if command -v clang >/dev/null 2>&1; then has_clang=1; fi
+            if command -v clang++ >/dev/null 2>&1; then has_clangxx=1; fi
+
+            if [ "$has_clang" -eq 1 ] && [ "$has_clangxx" -eq 1 ]; then
+                local clang_ver=$(clang --version | head -n1 | grep -Eo '[0-9]+\.[0-9]+' | head -n1 | cut -d'.' -f1)
+                if [ -n "$clang_ver" ] && [ "$clang_ver" -ge 14 ]; then
+                    valid_compiler_found=1
+                    __InstalledPkgs+=("clang/clang++ (v$clang_ver)")
+                else
+                    compiler_errors="$compiler_errors [clang/clang++ found but version $clang_ver is < 14]"
+                fi
+            elif [ "$has_clang" -eq 0 ] && [ "$has_clangxx" -eq 0 ]; then
+                compiler_errors="$compiler_errors [both clang and clang++ missing]"
+            elif [ "$has_clang" -eq 0 ]; then
+                compiler_errors="$compiler_errors [clang missing]"
+            else
+                compiler_errors="$compiler_errors [clang++ missing]"
+            fi
+        fi
+
+        if [ "$valid_compiler_found" -eq 0 ]; then
+            if [ "$__CrossBuild" == "1" ]; then
+                echo >&2 "Please install a valid cross-compiler before running this script."
+                echo >&2 "Details: $compiler_errors"
+                __MissingPkgs="$__MissingPkgs $CC"
+                __MissingPkgsArray+=("cross-compiler ($CC) >= $min_ver")
+            else
+                echo >&2 "Please install a valid C/C++ compiler before running this script."
+                echo >&2 "Details:$compiler_errors"
+                
+                # Dynamically build the missing packages list based on what was found
+                local missing_msg=""
+                local apt_pkgs=""
+                
+                if [ "$has_gcc" -eq 1 ] && [ "$has_gxx" -eq 0 ]; then
+                    missing_msg="g++ (to complete GCC toolchain)"
+                    apt_pkgs="g++"
+                elif [ "$has_gcc" -eq 0 ] && [ "$has_gxx" -eq 1 ]; then
+                    missing_msg="gcc (to complete GCC toolchain)"
+                    apt_pkgs="gcc"
+                else
+                    # Neither gcc nor clang are fully installed or versions were too old
+                    missing_msg="Full C/C++ toolchain (e.g. gcc >= 11 AND g++ >= 11, OR clang >= 14)"
+                    apt_pkgs="build-essential"
+                fi
+
+                if [ "$__HostOS" == "linux" ]; then
+                    __MissingPkgs="$__MissingPkgs $apt_pkgs"
+                    __MissingPkgsArray+=("$missing_msg")
+                else
+                    __MissingPkgs="$__MissingPkgs compiler"
+                    __MissingPkgsArray+=("$missing_msg")
+                fi
+            fi
+            success=0;
         fi
     fi
 
@@ -900,13 +1007,6 @@ if [[ -z "$_BuildDjvuNet" ]]; then
     if [[ -n "$_BuildTests" ]]; then _BuildDjvuNet=1; fi
 fi
 
-# Set default clang version
-if [[ $__ClangMajorVersion == 0 && $__ClangMinorVersion == 0 ]]; then
-    __ClangMajorVersion=3
-    __ClangMinorVersion=9
-fi
-
-
 # init the host distro name
 initHostDistroRid
 
@@ -983,7 +1083,7 @@ __DjvuNetDjvuLibreProj="DjvuNet.DjvuLibre/DjvuNet.DjvuLibre.csproj"
 if [ ! -f "${__ProjectRoot}/${__LibGit2SharpProj}" ]; then
     echo "BUILD: Setting up libgit2sharp"
     __Lg2sArchiveUrl="${__LibGit2SharpRepoUri}/archive/refs/tags/${__ArtifactsReleaseTag}.tar.gz"
-    echo "BUILD: Attempting to download ${__ArtifactsReleaseTag} archive for libgit2sharp..."
+    echo "BUILD: Downloading release archive of libgit2sharp for tag ${__ArtifactsReleaseTag}"
     download_retry "$__Lg2sArchiveUrl" "libgit2sharp.tar.gz"
     if [ $? -eq 0 ]; then
         echo "BUILD: Extracting libgit2sharp archive"
@@ -1131,7 +1231,7 @@ if [ -z "$_SkipNative" ]; then
     if [ ! -f "$__ProjectRoot/$__DjvuLibreDir/autogen.sh" ]; then
         echo "BUILD: Setting up DjVuLibre"
         __ArchiveUrl="https://github.com/DjvuNet/DjVuLibre/archive/refs/tags/${__ArtifactsReleaseTag}.tar.gz"
-        echo "BUILD: Attempting to download ${__ArtifactsReleaseTag} archive..."
+        echo "BUILD: Downloading release archive of DjVuLibre for tag ${__ArtifactsReleaseTag}"
         if curl -s -f -L -o djvulibre.tar.gz "$__ArchiveUrl"; then
             echo "BUILD: Extracting DjVuLibre archive"
             mkdir -p "$__DjvuLibreDir"
@@ -1319,7 +1419,7 @@ if [ -n "$_BuildTests" ]; then
     # Clone test data
     if [ ! -f "./artifacts/test001C.djvu" ]; then
         echo ""
-        echo "BUILD: Downloading test data from ${__ArtifactsTestDataUri}"
+        echo "BUILD: Downloading release archive of artifacts for tag ${__ArtifactsReleaseTag}"
         download_retry "${__ArtifactsTestDataUri}" "artifacts.tar.gz"
         if [ $? -eq 0 ]; then
             rm -rf artifacts

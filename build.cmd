@@ -391,7 +391,7 @@ if not exist ".\%__DjvuLibreDir%\win32\djvulibre\libdjvulibre\libdjvulibre.vcxpr
     echo %__MsgPrefix%Setting up DjVuLibre
 
     set "__ArchiveUrl=https://github.com/DjvuNet/DjVuLibre/archive/refs/tags/!__ArtifactsReleaseTag!.tar.gz"
-    echo %__MsgPrefix%Attempting to download !__ArtifactsReleaseTag! archive...
+    echo %__MsgPrefix%Downloading release archive of DjVuLibre for tag !__ArtifactsReleaseTag!
     curl -s -f -L -o djvulibre.tar.gz "!__ArchiveUrl!"
     if !ERRORLEVEL! EQU 0 (
         echo %__MsgPrefix%Extracting DjVuLibre archive
@@ -548,7 +548,7 @@ set "__DjvuNetDjvuLibreProj=DjvuNet.DjvuLibre/DjvuNet.DjvuLibre.csproj"
 if not exist "!__RepoRootDir!!__LibGit2SharpProj!" (
     echo !__MsgPrefix!Setting up libgit2sharp
     set "__Lg2sArchiveUrl=!__LibGit2SharpRepoUri!/archive/refs/tags/!__ArtifactsReleaseTag!.tar.gz"
-    echo !__MsgPrefix!Attempting to download !__ArtifactsReleaseTag! archive for libgit2sharp...
+    echo !__MsgPrefix!Downloading release archive of libgit2sharp for tag !__ArtifactsReleaseTag!
     call :download_retry "!__Lg2sArchiveUrl!" "libgit2sharp.tar.gz"
     if !ERRORLEVEL! EQU 0 (
         echo !__MsgPrefix!Extracting libgit2sharp archive
@@ -697,7 +697,7 @@ if not defined _Test (
 
 if not exist .\artifacts\test001C.djvu (
     echo.
-    echo !__MsgPrefix!Downloading test data from !__ArtifactsTestDataUri!
+    echo !__MsgPrefix!Downloading release archive of artifacts for tag !__ArtifactsReleaseTag!
     call :download_retry "!__ArtifactsTestDataUri!" "artifacts.tar.gz"
     if not [!ERRORLEVEL!]==[0] (
         echo.
