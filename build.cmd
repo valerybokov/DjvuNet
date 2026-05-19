@@ -92,7 +92,7 @@ set "_DefaultNetCoreApp=net10.0"
 set "_NetCoreAppId=.NETCoreApp"
 set "_NetCoreAppTFM=.NETCoreApp,Version=v10.0"
 set "_Framework=%_DefaultNetCoreApp%"
-set "__ArtifactsReleaseTag=v0.9.26135.0"
+set "__ArtifactsReleaseTag=v0.9.26139.0"
 set "__GithubDjvuNetReleaseUri=https://github.com/DjvuNet/artifacts/releases/download/%__ArtifactsReleaseTag%/"
 set "__ArtifactsTestDataUri=https://github.com/DjvuNet/artifacts/archive/refs/tags/%__ArtifactsReleaseTag%.zip"
 set "__ArtifactsDirName=artifacts-%__ArtifactsReleaseTag:v=%"
@@ -573,21 +573,21 @@ set "__DjvuNetDjvuLibreProj=DjvuNet.DjvuLibre/DjvuNet.DjvuLibre.csproj"
 if defined _BuildTools (
     if not exist "!__RepoRootDir!!__LibGit2SharpProj!" (
         echo !__MsgPrefix!Setting up libgit2sharp
-        REM set "__Lg2sArchiveUrl=!__LibGit2SharpRepoUri!/archive/refs/tags/!__ArtifactsReleaseTag!.tar.gz"
-        REM echo !__MsgPrefix!Downloading release archive of libgit2sharp for tag !__ArtifactsReleaseTag!
-        REM call :download_retry "!__Lg2sArchiveUrl!" "libgit2sharp.tar.gz"
-        REM if !ERRORLEVEL! EQU 0 (
-        REM     echo !__MsgPrefix!Extracting libgit2sharp archive
-        REM     if not exist "!__RepoRootDir!eng\tools\libgit2sharp" mkdir "!__RepoRootDir!eng\tools\libgit2sharp"
-        REM     tar.exe -xzf libgit2sharp.tar.gz -C "!__RepoRootDir!eng\tools\libgit2sharp" --strip-components=1
-        REM     del /f /q libgit2sharp.tar.gz
-        REM ) else (
+        set "__Lg2sArchiveUrl=!__LibGit2SharpRepoUri!/archive/refs/tags/!__ArtifactsReleaseTag!.tar.gz"
+        echo !__MsgPrefix!Downloading release archive of libgit2sharp for tag !__ArtifactsReleaseTag!
+        call :download_retry "!__Lg2sArchiveUrl!" "libgit2sharp.tar.gz"
+        if !ERRORLEVEL! EQU 0 (
+            echo !__MsgPrefix!Extracting libgit2sharp archive
+            if not exist "!__RepoRootDir!eng\tools\libgit2sharp" mkdir "!__RepoRootDir!eng\tools\libgit2sharp"
+            tar.exe -xzf libgit2sharp.tar.gz -C "!__RepoRootDir!eng\tools\libgit2sharp" --strip-components=1
+            del /f /q libgit2sharp.tar.gz
+        ) else (
             echo !__MsgPrefix!Download failed, falling back to git clone
             call :git_clone_retry ^
                 "!__LibGit2SharpRepoUri!.git" ^
                 "eng\tools\libgit2sharp" ^
                 "--depth 1 -c core.autocrlf=false"
-        REM )
+        )
     )
 )
 

@@ -905,7 +905,7 @@ _DefaultNetStandard="netstandard2.1"
 _NetStandardId=".NETStandard"
 _NetStandardTFM=".NETStandard,Version=v2.1"
 _Framework="$_DefaultNetCoreApp"
-__ArtifactsReleaseTag="v0.9.26135.0"
+__ArtifactsReleaseTag="v0.9.26139.0"
 __GithubDjvuNetReleaseUri="https://github.com/DjvuNet/artifacts/releases/download/${__ArtifactsReleaseTag}/"
 __ArtifactsTestDataUri="https://github.com/DjvuNet/artifacts/archive/refs/tags/${__ArtifactsReleaseTag}.tar.gz"
 __ArtifactsDirName="artifacts-${__ArtifactsReleaseTag#v}"
@@ -1096,18 +1096,18 @@ __DjvuNetDjvuLibreProj="DjvuNet.DjvuLibre/DjvuNet.DjvuLibre.csproj"
 if [[ -n "$_BuildTools" ]]; then
     if [ ! -f "${__ProjectRoot}/${__LibGit2SharpProj}" ]; then
         echo "BUILD: Setting up libgit2sharp"
-        # __Lg2sArchiveUrl="${__LibGit2SharpRepoUri}/archive/refs/tags/${__ArtifactsReleaseTag}.tar.gz"
-        # echo "BUILD: Downloading release archive of libgit2sharp for tag ${__ArtifactsReleaseTag}"
-        # download_retry "$__Lg2sArchiveUrl" "libgit2sharp.tar.gz"
-        # if [ $? -eq 0 ]; then
-        #     echo "BUILD: Extracting libgit2sharp archive"
-        #     mkdir -p "${__ProjectRoot}/eng/tools/libgit2sharp"
-        #     tar -xzf libgit2sharp.tar.gz -C "${__ProjectRoot}/eng/tools/libgit2sharp" --strip-components=1
-        #     rm libgit2sharp.tar.gz
-        # else
+        __Lg2sArchiveUrl="${__LibGit2SharpRepoUri}/archive/refs/tags/${__ArtifactsReleaseTag}.tar.gz"
+        echo "BUILD: Downloading release archive of libgit2sharp for tag ${__ArtifactsReleaseTag}"
+        download_retry "$__Lg2sArchiveUrl" "libgit2sharp.tar.gz"
+        if [ $? -eq 0 ]; then
+            echo "BUILD: Extracting libgit2sharp archive"
+            mkdir -p "${__ProjectRoot}/eng/tools/libgit2sharp"
+            tar -xzf libgit2sharp.tar.gz -C "${__ProjectRoot}/eng/tools/libgit2sharp" --strip-components=1
+            rm libgit2sharp.tar.gz
+        else
             echo "BUILD: Download failed, falling back to git clone"
             git_clone_retry "${__LibGit2SharpRepoUri}.git" "eng/tools/libgit2sharp" "--depth 1 -c core.autocrlf=false"
-        # fi
+        fi
     fi
 fi
 
