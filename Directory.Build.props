@@ -102,6 +102,7 @@
     <OutputPath>$(OutDir)</OutputPath>
     <OutDir Condition="'$(IsTool)' == 'true'">$([MSBuild]::EnsureTrailingSlash('$(MSBuildThisFileDirectory)'))build/bin/tools/$(TargetOS).$(TargetPlatform).$(Configuration)/binaries/$(TargetFramework)/</OutDir>
     <OutputPath Condition="'$(IsTool)' == 'true'">$(OutDir)</OutputPath>
+    <PublishDir Condition="'$(IsTool)' != 'true'">$(OutDir)$(RuntimeIdentifier)/publish/</PublishDir>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.vcxproj'">

@@ -117,6 +117,8 @@ if /i "%~1"=="-BuildTests"          (set "_BuildTests=1"&shift&goto :parse)
 if /i "%~1"=="-bt"                  (set "_BuildTests=1"&shift&goto :parse)
 if /i "%~1"=="-RunTests"            (set "_RunTests=1"&shift&goto :parse)
 if /i "%~1"=="-rt"                  (set "_RunTests=1"&shift&goto :parse)
+if /i "%~1"=="-TestAll"             (set "_TestAll=1"&shift&goto :parse)
+if /i "%~1"=="-ta"                  (set "_TestAll=1"&shift&goto :parse)
 if /i "%~1"=="-Test"                (set "_Test=1"&shift&goto :parse)
 if /i "%~1"=="-FastFail"            (set "_FastFail=1"&shift&goto :parse)
 if /i "%~1"=="-ff"                  (set "_FastFail=1"&shift&goto :parse)
@@ -220,6 +222,22 @@ goto usage
 :end_check_os
 
 :end_check_params
+
+if defined _TestAll (
+    if defined _Test (
+        echo %__MsgPrefix%WARNING: Both -Test and -TestAll were provided.
+        echo %__MsgPrefix%WARNING: -TestAll takes precedence. Forcing unified test execution.
+        set "_Test="
+    )
+    if defined _SkipNative (
+        echo %__MsgPrefix%WARNING: Both -TestAll and -SkipNative were provided.
+        echo %__MsgPrefix%WARNING: -SkipNative has no effect with -TestAll for now.
+    )
+    set "_BuildDjvuNet=1"
+    set "_BuildTests=1"
+    set "_RunTests=1"
+    set "_SkipNative="
+)
 
 if defined _Test (
     set "_BuildDjvuNet=1"
@@ -610,7 +628,7 @@ if /i "%_Framework%" == "%_DefaultNetCoreApp%" goto :dotnet_restore
 goto :end_dotnet_restore
 :dotnet_restore
 
-set "__BuildCommandArgs=-p:Configuration=!_MSB_Configuration! -p:Platform=!__ManagedPlatform! -p:TargetFramework=!__Framework! -p:RuntimeIdentifier=!__RuntimeIdentifier! -p:PublishDir=!__PublishDir! -v:!_Verbosity! -m:!_Processors! -nologo -nr:false"
+set "__BuildCommandArgs=-p:Configuration=!_MSB_Configuration! -p:Platform=!__ManagedPlatform! -p:TargetFramework=!__Framework! -p:RuntimeIdentifier=!__RuntimeIdentifier! -v:!_Verbosity! -m:!_Processors! -nologo -nr:false"
 set "__RestoreCmdArgs=!__BuildCommandArgs!"
 
 call :restore_dotnet_proj !__SystemAttrProj! System.Attributes.csproj
@@ -719,9 +737,9 @@ if defined _BuildTools (
                         echo ^& '!__RepoRootDir!eng\scripts\PackageTools.ps1' -RepoRoot '!__RepoRootDir!'
                         echo exit $LASTEXITCODE
                     ) > "!__TmpPackageScript!"
-                    
+
                     call :run_custom_command "!__PSCmd! -NoProfile -ExecutionPolicy Bypass -File !__TmpPackageScript!" "PackageTools.ps1"
-                    
+
                     if exist "!__TmpPackageScript!" del "!__TmpPackageScript!"
                 )
             )
@@ -796,7 +814,10 @@ set "__TestOutputDir=!__PublishDir!"
 set "__DjvuNetTestsProj=DjvuNet.Tests/DjvuNet.Tests.csproj"
 set "__DjvuNetWaveletTestsProj=DjvuNet.Wavelet.Tests/DjvuNet.Wavelet.Tests.csproj"
 set "__DjvuNetTestExeProj=DjvuNetTest/DjvuNetTest.csproj"
+set "__DjvuNetBenchmarksProj=DjvuNet.Benchmarks/DjvuNet.Benchmarks.csproj"
 set "__DjvuNetDjvuLibreTestsProj=DjvuNet.DjvuLibre.Tests/DjvuNet.DjvuLibre.Tests.csproj"
+set "__DjvuNetDjvuLibreCompatTestsProj=DjvuNet.DjvuLibre.Compatibility.Tests/DjvuNet.DjvuLibre.Compatibility.Tests.csproj"
+set "__DjvuNetAllTestsProj=DjvuNet.All.Tests/DjvuNet.All.Tests.csproj"
 
 if not defined _Test (
     if not defined _BuildTests (
@@ -808,30 +829,46 @@ if not defined _Test (
 
 REM Restore test projects
 
+if defined _TestAll (
+    call :restore_dotnet_proj !__DjvuNetAllTestsProj! DjvuNet.All.Tests.csproj
+    goto :skip_djvunet_tests_restore
+)
+
 call :restore_dotnet_proj !__DjvuNetTestsProj! DjvuNet.Tests.csproj
 call :restore_dotnet_proj !__DjvuNetWaveletTestsProj! DjvuNet.Wavelet.Tests.csproj
 call :restore_dotnet_proj !__DjvuNetTestExeProj! DjvuNetTest.csproj
+call :restore_dotnet_proj !__DjvuNetBenchmarksProj! DjvuNet.Benchmarks.csproj
 
 if defined _SkipNative (
     if "!_NativeFailed!"=="1" set "__FailedRestores=!__FailedRestores! DjvuNet.DjvuLibre.Tests.csproj"
+    if "!_NativeFailed!"=="1" set "__FailedRestores=!__FailedRestores! DjvuNet.DjvuLibre.Compatibility.Tests.csproj"
     goto :skip_djvunet_tests_restore
 )
 
 call :restore_dotnet_proj !__DjvuNetDjvuLibreTestsProj! DjvuNet.DjvuLibre.Tests.csproj
+call :restore_dotnet_proj !__DjvuNetDjvuLibreCompatTestsProj! DjvuNet.DjvuLibre.Compatibility.Tests.csproj
 
 :skip_djvunet_tests_restore
 
 REM Build and publish tests
 
+if defined _TestAll (
+    call :build_dotnet_proj !__DjvuNetAllTestsProj! DjvuNet.All.Tests.csproj
+    goto skip_djvulibre_tests_proj
+)
+
 call :build_dotnet_proj !__DjvuNetTestsProj! DjvuNet.Tests.csproj
 call :build_dotnet_proj !__DjvuNetWaveletTestsProj! DjvuNet.Wavelet.Tests.csproj
 call :build_dotnet_proj !__DjvuNetTestExeProj! DjvuNetTest.csproj
+call :build_dotnet_proj !__DjvuNetBenchmarksProj! DjvuNet.Benchmarks.csproj
 
 if defined _SkipNative (
     if "!_NativeFailed!"=="1" set "__FailedBuilds=!__FailedBuilds! DjvuNet.DjvuLibre.Tests.csproj"
+    if "!_NativeFailed!"=="1" set "__FailedBuilds=!__FailedBuilds! DjvuNet.DjvuLibre.Compatibility.Tests.csproj"
     goto skip_djvulibre_tests_proj
 )
 call :build_dotnet_proj !__DjvuNetDjvuLibreTestsProj! DjvuNet.DjvuLibre.Tests.csproj
+call :build_dotnet_proj !__DjvuNetDjvuLibreCompatTestsProj! DjvuNet.DjvuLibre.Compatibility.Tests.csproj
 :skip_djvulibre_tests_proj
 
 if defined _RunTests goto run_tests
@@ -857,18 +894,11 @@ call :get_time __TestPhaseStartTime
 
 set "_DjvuNet_Tests=%__TestOutputDir%DjvuNet.Tests.exe"
 set "_DjvuNet_DjvuLibre_Tests=%__TestOutputDir%DjvuNet.DjvuLibre.Tests.exe"
+set "_DjvuNet_DjvuLibreCompat_Tests=%__TestOutputDir%DjvuNet.DjvuLibre.Compatibility.Tests.exe"
 set "_DjvuNet_Wavelet_Tests=%__TestOutputDir%DjvuNet.Wavelet.Tests.exe"
+set "_DjvuNet_All_Tests=%__TestOutputDir%DjvuNet.All.Tests.exe"
 set "__TestResOutputDir=TestResults/!__Framework!/"
-set "__DotNetCommandx86=%ProgramFiles(x86)%\dotnet\dotnet"
 set "__DotNetCommandx64=!__DotNetCmd!"
-
-if /i "%__TestFramework%" == "%_DefaultNetFX%" (
-    if [%__ManagedPlatform%] == [x86] set _xUnit_console=!UserProfile!\.nuget\packages\xunit.runner.console\2.4.1\tools\!__TestFramework!\xunit.console.x86.exe
-    if [%__ManagedPlatform%] == [AnyCPU] set _xUnit_console="%UserProfile%\.nuget\packages\xunit.runner.console\2.4.1\tools\%__TestFramework%\xunit.console.exe"
-    if [%__ManagedPlatform%] == [x64] set _xUnit_console=!UserProfile!\.nuget\packages\xunit.runner.console\2.4.1\tools\!__TestFramework!\xunit.console.exe
-    set "_Test_Options=-trait- "Category=skip-net472""
-    set "__TestOutputFormat=html"
-)
 
 if /i "%__TestFramework%" == "%_DefaultNetCoreApp%" (
     set DOTNET_ROLL_FORWARD=Major
@@ -896,16 +926,24 @@ set "__XunitConfig=xunit.runner.json"
 REM Run tests
 
 :xUnit_tests
+if defined _TestAll (
+    call :run_dotnet_test "!_DjvuNet_All_Tests!" "DjvuNet.All.Tests"
+    goto :skip_granular_tests_run
+)
+
 call :run_dotnet_test "!_DjvuNet_Tests!" "DjvuNet.Tests"
 
 if defined _SkipNative goto :no_djvulibre_tests
 if defined __SkipNativeTests goto :no_djvulibre_tests
 
 call :run_dotnet_test "!_DjvuNet_DjvuLibre_Tests!" "DjvuNet.DjvuLibre.Tests"
+call :run_dotnet_test "!_DjvuNet_DjvuLibreCompat_Tests!" "DjvuNet.DjvuLibre.Compatibility.Tests"
 
 :no_djvulibre_tests
 
 call :run_dotnet_test "!_DjvuNet_Wavelet_Tests!" "DjvuNet.Wavelet.Tests"
+
+:skip_granular_tests_run
 
 call :get_time __TestPhaseEndTime
 call :calc_duration !__TestPhaseStartTime! !__TestPhaseEndTime! __TestPhaseDuration
@@ -1006,7 +1044,7 @@ set "bdur=         !__BuildDuration!"
 set "bdur=!bdur:~-9!"
 echo %__MsgPrefix%!bp!!bdur!
 if defined __TestPhaseDuration (
-    set "tp=Test Phase:                                      "
+    set "tp=Test Phase (with overhead):                      "
     set "tp=!tp:~0,41!"
     set "tdur=         !__TestPhaseDuration!"
     set "tdur=!tdur:~-9!"
@@ -1338,4 +1376,5 @@ ping 127.0.0.1 -n !delay! > nul
 set /a "delay=!delay! * 2"
 set /a "attempt=!attempt! + 1"
 goto git_clone_loop
+
 

@@ -929,6 +929,8 @@ while [[ $# -gt 0 ]]; do
         _BuildTests=1; shift 1 ;;
         -RunTests|-rt)
         _RunTests=1; shift 1 ;;
+        -TestAll|-ta)
+        _TestAll=1; shift 1 ;;
         -Test)
         _Test=1; shift 1 ;;
         -FastFail|-ff)
@@ -1007,6 +1009,22 @@ else
 fi
 
 export TargetFramework="$_Framework"
+
+if [ -n "$_TestAll" ]; then
+    if [ -n "$_Test" ]; then
+        echo "BUILD: WARNING: Both -Test and -TestAll were provided."
+        echo "BUILD: WARNING: -TestAll takes precedence. Forcing unified test execution."
+        _Test=""
+    fi
+    if [ -n "$_SkipNative" ]; then
+        echo "BUILD: WARNING: Both -TestAll and -SkipNative were provided."
+        echo "BUILD: WARNING: -SkipNative has no effect with -TestAll for now."
+    fi
+    _BuildDjvuNet=1
+    _BuildTests=1
+    _RunTests=1
+    _SkipNative=""
+fi
 
 if [[ -n "$_Test" ]]; then _BuildDjvuNet=1; _BuildTests=1; _RunTests=1; fi
 
@@ -1118,7 +1136,9 @@ __LogsDir="${__RootBuildDir}${_OS}.${_MSB_Platform}.${_MSB_Configuration}/logs/$
 echo "BUILD: __OutputDir [${__OutputDir}]"
 echo "BUILD: __PublishDir [${__PublishDir}]"
 
-__BuildCommandArgs=("-p:Configuration=${_MSB_Configuration}" "-p:Platform=${__ManagedPlatform}" "-p:TargetFramework=${_Framework}" "-p:RuntimeIdentifier=${__RuntimeIdentifier}" "-p:PublishDir=${__PublishDir}" "-v:${_Verbosity}" "-m:${_Processors}" "-nologo" "-nr:false")
+__BuildStartTime=$(date +%s)
+
+__BuildCommandArgs=("-p:Configuration=${_MSB_Configuration}" "-p:Platform=${__ManagedPlatform}" "-p:TargetFramework=${_Framework}" "-p:RuntimeIdentifier=${__RuntimeIdentifier}" "-v:${_Verbosity}" "-m:${_Processors}" "-nologo" "-nr:false")
 __RestoreCmdArgs=("${__BuildCommandArgs[@]}")
 
 mkdir -p "$__LogsDir"
@@ -1210,12 +1230,37 @@ run_dotnet_test() {
     else
         echo "BUILD: Running tests from $__DjvuTargetTestName assembly"
         echo "BUILD: calling: \"$__DotnetCmd\" \"$__DjvuTargetTestExe\" $_Test_Options -${__TestOutputFormat} \"${__TestResOutputDir}${__DjvuTargetTestName}.${__TestOutputFormat}\""
+
+        local __TestAsmStart=$(date +%s)
         if ! "$__DotnetCmd" "$__DjvuTargetTestExe" $_Test_Options -${__TestOutputFormat} "${__TestResOutputDir}${__DjvuTargetTestName}.${__TestOutputFormat}"; then
+            local __TestErr=1
             __FailedTests+=("$__DjvuTargetTestName")
             if [[ -n "$_FastFail" ]]; then exit 1; fi
         else
+            local __TestErr=0
             __SuccessfulTests+=("$__DjvuTargetTestName")
         fi
+        local __TestAsmEnd=$(date +%s)
+
+        local __ExtractedDuration=""
+        if [[ "$__TestOutputFormat" == "xml" ]]; then
+            local xmlPath="${__TestResOutputDir}${__DjvuTargetTestName}.${__TestOutputFormat}"
+            if [ -f "$xmlPath" ]; then
+                __ExtractedDuration=$(grep -Eo '<assembly[^>]* time="[^"]*"' "$xmlPath" | head -n 1 | grep -Eo ' time="[^"]*"' | cut -d '"' -f 2)
+                if [ -n "$__ExtractedDuration" ]; then
+                    __ExtractedDuration="${__ExtractedDuration}s"
+                fi
+            fi
+        fi
+
+        if [ -n "$__ExtractedDuration" ]; then
+            local __TestAsmDuration="$__ExtractedDuration"
+        else
+            local __TestAsmDuration="$((__TestAsmEnd - __TestAsmStart)).000s"
+        fi
+
+        echo "BUILD: Test assembly ${__DjvuTargetTestName} completed in ${__TestAsmDuration}"
+        __TestTimings+=("${__DjvuTargetTestName}|${__TestAsmDuration}")
     fi
 }
 
@@ -1439,12 +1484,12 @@ fi
 if [ -n "$_BuildDjvuNet" ]; then
     # Build core projects
     restore_dotnet_proj "$__SystemAttrProj" "System.Attributes.csproj"
-    
+
     if [[ -n "$_BuildTools" ]]; then
         restore_dotnet_proj "$__LibGit2SharpProj" "LibGit2Sharp.csproj"
         restore_dotnet_proj "$__DjvuNetGitTasksProj" "DjvuNet.Build.Tasks.csproj"
     fi
-    
+
     restore_dotnet_proj "$__DjvuNetProj" "DjvuNet.csproj"
     if [ -z "$_SkipNative" ]; then
         restore_dotnet_proj "$__DjvuNetDjvuLibreProj" "DjvuNet.DjvuLibre.csproj"
@@ -1453,11 +1498,11 @@ if [ -n "$_BuildDjvuNet" ]; then
     fi
 
     build_dotnet_proj "$__SystemAttrProj" "System.Attributes.csproj"
-    
+
     if [[ -n "$_BuildTools" ]]; then
         build_dotnet_proj "$__LibGit2SharpProj" "LibGit2Sharp.csproj"
         build_dotnet_proj "$__DjvuNetGitTasksProj" "DjvuNet.Build.Tasks.csproj"
-        
+
         # Only package tools if DjvuNet.Build.Tasks.csproj succeeded both Build and Publish phases
         local __TasksBuildFailed=0
         for failed in "${__FailedBuilds[@]}"; do
@@ -1472,7 +1517,7 @@ if [ -n "$_BuildDjvuNet" ]; then
             run_custom_command "PackageTools.ps1" "pwsh" "-NoProfile" "-ExecutionPolicy" "Bypass" "-File" "${__ProjectRoot}/eng/scripts/PackageTools.ps1" "-RepoRoot" "${__ProjectRoot}"
         fi
     fi
-    
+
     build_dotnet_proj "$__DjvuNetProj" "DjvuNet.csproj"
     if [ -z "$_SkipNative" ]; then
         build_dotnet_proj "$__DjvuNetDjvuLibreProj" "DjvuNet.DjvuLibre.csproj"
@@ -1499,28 +1544,49 @@ if [ -n "$_BuildTests" ]; then
     __DjvuNetTestsProj="DjvuNet.Tests/DjvuNet.Tests.csproj"
     __DjvuNetWaveletTestsProj="DjvuNet.Wavelet.Tests/DjvuNet.Wavelet.Tests.csproj"
     __DjvuNetTestExeProj="DjvuNetTest/DjvuNetTest.csproj"
+    __DjvuNetBenchmarksProj="DjvuNet.Benchmarks/DjvuNet.Benchmarks.csproj"
     __DjvuNetDjvuLibreTestsProj="DjvuNet.DjvuLibre.Tests/DjvuNet.DjvuLibre.Tests.csproj"
+    __DjvuNetDjvuLibreCompatTestsProj="DjvuNet.DjvuLibre.Compatibility.Tests/DjvuNet.DjvuLibre.Compatibility.Tests.csproj"
+    __DjvuNetAllTestsProj="DjvuNet.All.Tests/DjvuNet.All.Tests.csproj"
 
-    restore_dotnet_proj "$__DjvuNetTestsProj" "DjvuNet.Tests.csproj"
-    restore_dotnet_proj "$__DjvuNetWaveletTestsProj" "DjvuNet.Wavelet.Tests.csproj"
-    restore_dotnet_proj "$__DjvuNetTestExeProj" "DjvuNetTest.csproj"
-    if [ -z "$_SkipNative" ]; then
-        restore_dotnet_proj "$__DjvuNetDjvuLibreTestsProj" "DjvuNet.DjvuLibre.Tests.csproj"
-    elif [ "$_NativeFailed" == "1" ]; then
-        __FailedRestores+=("DjvuNet.DjvuLibre.Tests.csproj")
+    if [ -n "$_TestAll" ]; then
+        restore_dotnet_proj "$__DjvuNetAllTestsProj" "DjvuNet.All.Tests.csproj"
+    else
+        restore_dotnet_proj "$__DjvuNetTestsProj" "DjvuNet.Tests.csproj"
+        restore_dotnet_proj "$__DjvuNetWaveletTestsProj" "DjvuNet.Wavelet.Tests.csproj"
+        restore_dotnet_proj "$__DjvuNetTestExeProj" "DjvuNetTest.csproj"
+        restore_dotnet_proj "$__DjvuNetBenchmarksProj" "DjvuNet.Benchmarks.csproj"
+        if [ -z "$_SkipNative" ]; then
+            restore_dotnet_proj "$__DjvuNetDjvuLibreTestsProj" "DjvuNet.DjvuLibre.Tests.csproj"
+            restore_dotnet_proj "$__DjvuNetDjvuLibreCompatTestsProj" "DjvuNet.DjvuLibre.Compatibility.Tests.csproj"
+        elif [ "$_NativeFailed" == "1" ]; then
+            __FailedRestores+=("DjvuNet.DjvuLibre.Tests.csproj")
+            __FailedRestores+=("DjvuNet.DjvuLibre.Compatibility.Tests.csproj")
+        fi
     fi
 
-    build_dotnet_proj "$__DjvuNetTestsProj" "DjvuNet.Tests.csproj"
-    build_dotnet_proj "$__DjvuNetWaveletTestsProj" "DjvuNet.Wavelet.Tests.csproj"
-    build_dotnet_proj "$__DjvuNetTestExeProj" "DjvuNetTest.csproj"
-    if [ -z "$_SkipNative" ]; then
-        build_dotnet_proj "$__DjvuNetDjvuLibreTestsProj" "DjvuNet.DjvuLibre.Tests.csproj"
-    elif [ "$_NativeFailed" == "1" ]; then
-        __FailedBuilds+=("DjvuNet.DjvuLibre.Tests.csproj")
+    if [ -n "$_TestAll" ]; then
+        build_dotnet_proj "$__DjvuNetAllTestsProj" "DjvuNet.All.Tests.csproj"
+    else
+        build_dotnet_proj "$__DjvuNetTestsProj" "DjvuNet.Tests.csproj"
+        build_dotnet_proj "$__DjvuNetWaveletTestsProj" "DjvuNet.Wavelet.Tests.csproj"
+        build_dotnet_proj "$__DjvuNetTestExeProj" "DjvuNetTest.csproj"
+        build_dotnet_proj "$__DjvuNetBenchmarksProj" "DjvuNet.Benchmarks.csproj"
+        if [ -z "$_SkipNative" ]; then
+            build_dotnet_proj "$__DjvuNetDjvuLibreTestsProj" "DjvuNet.DjvuLibre.Tests.csproj"
+            build_dotnet_proj "$__DjvuNetDjvuLibreCompatTestsProj" "DjvuNet.DjvuLibre.Compatibility.Tests.csproj"
+        elif [ "$_NativeFailed" == "1" ]; then
+            __FailedBuilds+=("DjvuNet.DjvuLibre.Tests.csproj")
+            __FailedBuilds+=("DjvuNet.DjvuLibre.Compatibility.Tests.csproj")
+        fi
     fi
 fi
 
 print_build_summary() {
+    if [ -z "$__BuildEndTime" ]; then
+        __BuildEndTime=$(date +%s)
+        __BuildDuration="$((__BuildEndTime - __BuildStartTime)).000s"
+    fi
     echo ""
     echo "BUILD: ======================================================================"
     echo "BUILD:                            BUILD SUMMARY"
@@ -1578,6 +1644,31 @@ print_full_summary() {
         for p in "${__FailedTests[@]}"; do echo "BUILD:   - $p"; done
     fi
     echo ""
+    echo "BUILD: ======================================================================"
+    echo "BUILD:                            TIMING SUMMARY"
+    echo "BUILD: ======================================================================"
+
+    printf "BUILD: %-41s %9s\n" "Build Phase:" "$__BuildDuration"
+
+    if [ -n "$__TestPhaseDuration" ]; then
+        printf "BUILD: %-41s %9s\n" "Test Phase (with overhead):" "$__TestPhaseDuration"
+    fi
+
+    if [ ${#__TestTimings[@]} -ne 0 ]; then
+        echo "BUILD: Individual Tests:"
+        for t in "${__TestTimings[@]}"; do
+            local tname=$(echo "$t" | cut -d '|' -f 1)
+            local tdur=$(echo "$t" | cut -d '|' -f 2)
+            printf "BUILD:   - %-37s %9s\n" "$tname" "$tdur"
+        done
+    fi
+
+    local __TotalEndTime=$(date +%s)
+    local __TotalDuration="$((__TotalEndTime - __BuildStartTime)).000s"
+    echo "BUILD: ----------------------------------------------------------------------"
+    printf "BUILD: %-41s %9s\n" "Total Duration:" "$__TotalDuration"
+    echo "BUILD: ======================================================================"
+    echo ""
 }
 
 if [ -n "$_RunTests" ]; then
@@ -1588,11 +1679,15 @@ if [ -n "$_RunTests" ]; then
     echo "BUILD: ======================================================================"
     echo ""
 
+    __TestPhaseStartTime=$(date +%s)
+
     # Run tests
     __TestOutputDir="$__PublishDir"
     _DjvuNet_Tests="${__TestOutputDir}DjvuNet.Tests.dll"
     _DjvuNet_DjvuLibre_Tests="${__TestOutputDir}DjvuNet.DjvuLibre.Tests.dll"
+    _DjvuNet_DjvuLibreCompat_Tests="${__TestOutputDir}DjvuNet.DjvuLibre.Compatibility.Tests.dll"
     _DjvuNet_Wavelet_Tests="${__TestOutputDir}DjvuNet.Wavelet.Tests.dll"
+    _DjvuNet_All_Tests="${__TestOutputDir}DjvuNet.All.Tests.dll"
 
     __TestResOutputDir="TestResults/${_Framework}/"
     mkdir -p "$__TestResOutputDir"
@@ -1616,23 +1711,33 @@ if [ -n "$_RunTests" ]; then
 
     _DjvuNet_Tests_Error="false"
 
-    run_dotnet_test "$_DjvuNet_Tests" "DjvuNet.Tests"
+    if [ -n "$_TestAll" ]; then
+        run_dotnet_test "$_DjvuNet_All_Tests" "DjvuNet.All.Tests"
+    else
+        run_dotnet_test "$_DjvuNet_Tests" "DjvuNet.Tests"
 
-    if [ -z "$_SkipNative" ] && [ -z "$__SkipNativeTests" ]; then
-        run_dotnet_test "$_DjvuNet_DjvuLibre_Tests" "DjvuNet.DjvuLibre.Tests"
+        if [ -z "$_SkipNative" ] && [ -z "$__SkipNativeTests" ]; then
+            run_dotnet_test "$_DjvuNet_DjvuLibre_Tests" "DjvuNet.DjvuLibre.Tests"
+            run_dotnet_test "$_DjvuNet_DjvuLibreCompat_Tests" "DjvuNet.DjvuLibre.Compatibility.Tests"
+        fi
+
+        run_dotnet_test "$_DjvuNet_Wavelet_Tests" "DjvuNet.Wavelet.Tests"
     fi
 
-    run_dotnet_test "$_DjvuNet_Wavelet_Tests" "DjvuNet.Wavelet.Tests"
+    __TestPhaseEndTime=$(date +%s)
+    __TestPhaseDuration="$((__TestPhaseEndTime - __TestPhaseStartTime)).000s"
 fi
 
 if [ ${#__FailedRestores[@]} -ne 0 ] || [ ${#__FailedBuilds[@]} -ne 0 ] || [ ${#__FailedPublishes[@]} -ne 0 ] || [ ${#__FailedTests[@]} -ne 0 ] || [ ${#__FailedClones[@]} -ne 0 ] || [ ${#__FailedCommands[@]} -ne 0 ]; then
     echo ""
-    echo "BUILD: Error: Build Failed at $(date +"%Y-%m-%d %H:%M:%S.%2N")"
     print_full_summary
+    echo "BUILD: Error: Build Failed at $(date +"%Y-%m-%d %H:%M:%S.%2N")"
+    echo ""
     exit 1
 fi
 
 echo ""
-echo "BUILD: Success: Build and tests passed at $(date +"%Y-%m-%d %H:%M:%S.%2N")"
 print_full_summary
+echo "BUILD: Success: Build and tests passed at $(date +"%Y-%m-%d %H:%M:%S.%2N")"
+echo ""
 exit 0

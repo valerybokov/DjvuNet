@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.props))\DjvuNetBuild.props" />
+  <Import Project="$(MSBuildThisFileDirectory)..\DjvuNet.DjvuLibre\DjvuNet.DjvuLibre.props" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>DjvuNet.All.Tests</RootNamespace>
+    <AssemblyName>DjvuNet.All.Tests</AssemblyName>
+    <TestProjectType>UnitTest</TestProjectType>
+    <IsDjvuNetTestProject>True</IsDjvuNetTestProject>
+    <!-- Suppress xUnit analyzer cross-assembly member crash (https://github.com/xunit/xunit/issues/1937) -->
+    <NoWarn>xUnit1026;NU1510;AD0001</NoWarn>
+    <DefineConstants>$(DefineConstants);DJVUNET_ALL_TESTS</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\DjvuNet.Tests\**\*.cs" Exclude="..\DjvuNet.Tests\Properties\**;..\DjvuNet.Tests\obj\**;..\DjvuNet.Tests\bin\**" />
+    <Compile Include="..\DjvuNet.Wavelet.Tests\**\*.cs" Exclude="..\DjvuNet.Wavelet.Tests\Properties\**;..\DjvuNet.Wavelet.Tests\obj\**;..\DjvuNet.Wavelet.Tests\bin\**" />
+    <Compile Include="..\DjvuNet.DjvuLibre.Tests\**\*.cs" Exclude="..\DjvuNet.DjvuLibre.Tests\Properties\**;..\DjvuNet.DjvuLibre.Tests\obj\**;..\DjvuNet.DjvuLibre.Tests\bin\**" />
+    <Compile Include="..\DjvuNet.DjvuLibre.Compatibility.Tests\**\*.cs" Exclude="..\DjvuNet.DjvuLibre.Compatibility.Tests\Properties\**;..\DjvuNet.DjvuLibre.Compatibility.Tests\obj\**;..\DjvuNet.DjvuLibre.Compatibility.Tests\bin\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Moq" Version="$(MoqPackageVersion)" />
+    <PackageReference Include="System.Drawing.Common" Version="$(SystemDrawingCommonPackageVersion)" Condition="'$(TargetOS)' == 'Windows'" />
+    <Reference Include="System.Drawing.Common, Version=6.0.0.0, Culture=neutral, PublicKeyToken=9a0646c3e445b595" Condition="'$(TargetOS)' != 'Windows'">
+      <HintPath>$(RepoRootDir)deps/AnyCPU/$(Configuration)/Unix/System.Drawing.Common.dll</HintPath>
+    </Reference>
+    <PackageReference Include="xunit.v3" Version="$(XunitPackageVersion)" />
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="$(SystemRuntimeCompilerServicesUnsafePackageVersion)" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(RepoRootDir)DjvuNet\DjvuNet.csproj" />
+    <ProjectReference Include="$(RepoRootDir)DjvuNet.DjvuLibre\DjvuNet.DjvuLibre.csproj" />
+    <ProjectReference Include="$(RepoRootDir)System.Attributes\System.Attributes.csproj" />
+    <ProjectReference Condition="'$(TargetOS)' == 'Windows' And '$([MSBuild]::IsOSPlatform(Windows))' == 'true'" Include="..\DjVuLibre\win32\djvulibre\libdjvulibre\libdjvulibre.vcxproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="DjvuNet.All.Tests.xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Include="App.config" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(RepoRootDir)DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\DjvuNet.Shared.Tests\Collections\DjvuDocCollection.cs" />
+    <Compile Include="..\DjvuNet.Shared.Tests\Collections\NativeDjvuDocCollection.cs" />
+    <Compile Include="..\DjvuNet.Shared.Tests\Collections\NativeAndManagedDocCollection.cs" />
+  </ItemGroup>
+
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.targets))\DjvuNetBuild.targets" />
+  <Import Project="$(RepoRootDir)DjvuNet.DjvuLibre\DjvuNet.DjvuLibre.targets" />
+  <Import Project="..\DjvuNet.Tests\DjvuNet.Tests.targets" />
+
+</Project>
