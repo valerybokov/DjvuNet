@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.props))\DjvuNetBuild.props" />
+
+    <ItemGroup>
+      <Compile Include="Program.cs"/>
+      <Compile Include="ImageCacheBenchmark.cs"/>
+      <Compile Include="BenchmarkConfig.cs"/>
+    </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DjvuNet/DjvuNet.csproj" />
+    <ProjectReference Include="../DjvuNet.DjvuLibre/DjvuNet.DjvuLibre.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../DjvuNet.Shared.Tests/DjvuNet.Shared.Tests.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+    <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.15.8" />
+    <PackageReference Include="System.Drawing.Common" Version="$(SystemDrawingCommonPackageVersion)" Condition="'$(TargetOS)' == 'Windows'" />
+    <Reference Include="System.Drawing.Common, Version=6.0.0.0, Culture=neutral, PublicKeyToken=9a0646c3e445b595" Condition="'$(TargetOS)' != 'Windows'">
+      <HintPath>$(RepoRootDir)deps/AnyCPU/$(Configuration)/Unix/System.Drawing.Common.dll</HintPath>
+    </Reference>
+    <PackageReference Include="xunit.v3.extensibility.core" Version="$(XunitPackageVersion)" />
+    <PackageReference Include="xunit.v3.assert" Version="$(XunitPackageVersion)" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.targets))\DjvuNetBuild.targets" />
+</Project>
