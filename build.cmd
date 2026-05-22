@@ -136,10 +136,10 @@ echo Unknown command line parameter: %1
 goto :usage
 :endparse
 
-if /i [%_MSB_Platform%] == [Arm]         (set "__ManagedPlatform=AnyCPU" & if /i [%PROCESSOR_ARCHITECTURE%] == [AMD64] (set "__SkipNativeTests=1")&goto :check_params)
-if /i [%_MSB_Platform%] == [Arm64]       (set "__ManagedPlatform=AnyCPU" & if /i [%PROCESSOR_ARCHITECTURE%] == [AMD64] (set "__SkipNativeTests=1")&goto :check_params)
-if /i [%_MSB_Platform%] == [AnyCPU]      (set "_MSB_Platform=x64"&set "__ManagedPlatform=AnyCPU"&goto :check_params)
-if /i [%_MSB_Platform%] == [x64]         (set "_MSB_Platform=x64"&set "__ManagedPlatform=x64"&goto :check_params)
+if /i [!_MSB_Platform!] == [Arm]         (set "__ManagedPlatform=!_MSB_Platform!" & if /i [!PROCESSOR_ARCHITECTURE!] == [AMD64] (set "__SkipNativeTests=1")&goto :check_params)
+if /i [!_MSB_Platform!] == [Arm64]       (set "__ManagedPlatform=!_MSB_Platform!" & if /i [!PROCESSOR_ARCHITECTURE!] == [AMD64] (set "__SkipNativeTests=1")&goto :check_params)
+if /i [!_MSB_Platform!] == [AnyCPU]      (set "_MSB_Platform=x64"&set "__ManagedPlatform=AnyCPU"&goto :check_params)
+if /i [!_MSB_Platform!] == [x64]         (set "_MSB_Platform=x64"&set "__ManagedPlatform=x64"&goto :check_params)
 
 if /i [%__ManagedPlatform%] == [] set __ManagedPlatform=%_MSB_Platform%
 

@@ -16,8 +16,11 @@
     <!-- 2. Target OS Identification -->
     <TargetOS Condition="'$(TargetOS)' == ''">$(HostOS)</TargetOS>
 
-    <!-- Normalize legacy MSBuild Windows_NT to Windows -->
+    <!-- Normalize legacy MSBuild and CI inputs -->
     <TargetOS Condition="'$(TargetOS)' == 'Windows_NT'">Windows</TargetOS>
+    <TargetOS Condition="'$(TargetOS)' == 'macOS' Or '$(TargetOS)' == 'osx' Or '$(TargetOS)' == 'Mac'">OSX</TargetOS>
+    <TargetOS Condition="'$(TargetOS)' == 'linux'">Linux</TargetOS>
+    <TargetOS Condition="'$(TargetOS)' == 'freebsd'">FreeBSD</TargetOS>
 
     <!-- 3. Cross-OS Detection -->
     <IsCrossOsBuild Condition="'$(HostOS)' != '$(TargetOS)'">true</IsCrossOsBuild>
@@ -33,15 +36,27 @@
     <!-- 5. Target Platform Identification -->
     <TargetPlatform Condition="'$(Platform)' != ''">$(Platform)</TargetPlatform>
     <TargetPlatform Condition="'$(TargetPlatform)' == ''">$(HostPlatform)</TargetPlatform>
+    <!-- Force lowercase for standard matching -->
+    <TargetPlatform>$(TargetPlatform.ToLower())</TargetPlatform>
     <TargetPlatform Condition="'$(TargetPlatform)' == 'amd64'">x64</TargetPlatform>
     <TargetPlatform Condition="'$(TargetPlatform)' == 'aarch64'">arm64</TargetPlatform>
-    <TargetPlatform Condition="'$(TargetPlatform)' == 'armv7l' Or '$(TargetPlatform)' == 'armv8l' Or '$(TargetPlatform)' == 'armhf'">arm</TargetPlatform>
+    <TargetPlatform Condition="'$(TargetPlatform)' == 'armv7l' Or '$(TargetPlatform)' == 'armv8l' Or '$(TargetPlatform)' == 'armhf' Or '$(TargetPlatform)' == 'armel'">arm</TargetPlatform>
     <TargetPlatform Condition="'$(TargetPlatform)' == 'i386' Or '$(TargetPlatform)' == 'i486' Or '$(TargetPlatform)' == 'i586' Or '$(TargetPlatform)' == 'i686'">x86</TargetPlatform>
     <TargetPlatform Condition="'$(TargetPlatform)' == 'wasm32'">wasm</TargetPlatform>
+    <!-- Map strictly for tools -->
+    <TargetPlatform Condition="'$(TargetPlatform)' == 'anycpu'">AnyCPU</TargetPlatform>
 
     <!-- 6. Cross-Platform Detection -->
-    <IsCrossPlatformBuild Condition="'$(HostPlatform)' != '$(TargetPlatform)' And '$(TargetPlatform)' != 'AnyCPU' And '$(TargetPlatform)' != 'MSIL'">true</IsCrossPlatformBuild>
+    <IsCrossPlatformBuild Condition="'$(HostPlatform)' != '$(TargetPlatform)' And '$(TargetPlatform)' != 'AnyCPU'">true</IsCrossPlatformBuild>
     <IsCrossPlatformBuild Condition="'$(IsCrossPlatformBuild)' == ''">false</IsCrossPlatformBuild>
+
+    <!-- 7. Runtime Identifier Generation -->
+    <_RidOS Condition="'$(RuntimeIdentifier)' == '' And '$(TargetPlatform)' != 'AnyCPU' And '$(TargetOS)' == 'Windows'">win</_RidOS>
+    <_RidOS Condition="'$(RuntimeIdentifier)' == '' And '$(TargetPlatform)' != 'AnyCPU' And '$(TargetOS)' == 'Linux'">linux</_RidOS>
+    <_RidOS Condition="'$(RuntimeIdentifier)' == '' And '$(TargetPlatform)' != 'AnyCPU' And '$(TargetOS)' == 'OSX'">osx</_RidOS>
+    <_RidOS Condition="'$(RuntimeIdentifier)' == '' And '$(TargetPlatform)' != 'AnyCPU' And '$(TargetOS)' == 'FreeBSD'">freebsd</_RidOS>
+    <_RidOS Condition="'$(RuntimeIdentifier)' == '' And '$(TargetPlatform)' != 'AnyCPU' And '$(TargetOS)' == 'wasi'">wasi</_RidOS>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And '$(TargetPlatform)' != 'AnyCPU' And '$(_RidOS)' != ''">$(_RidOS)-$(TargetPlatform)</RuntimeIdentifier>
   </PropertyGroup>
 
   <!-- STRICT VALIDATION TRAP -->
@@ -49,7 +64,7 @@
     <Error Condition="'$(HostOS)' == 'Unknown'" Text="Host OS is not supported or could not be identified." />
     <Error Condition="'$(TargetOS)' != 'Windows' And '$(TargetOS)' != 'Linux' And '$(TargetOS)' != 'OSX' And '$(TargetOS)' != 'FreeBSD' And '$(TargetOS)' != 'wasi'" Text="Target OS '$(TargetOS)' is not supported by DjvuNet." />
     <Error Condition="'$(HostPlatform)' != 'x64' And '$(HostPlatform)' != 'x86' And '$(HostPlatform)' != 'arm' And '$(HostPlatform)' != 'arm64'" Text="Host Platform architecture '$(HostPlatform)' is not supported." />
-    <Error Condition="'$(TargetPlatform)' != 'x64' And '$(TargetPlatform)' != 'x86' And '$(TargetPlatform)' != 'arm' And '$(TargetPlatform)' != 'arm64' And '$(TargetPlatform)' != 'AnyCPU' And '$(TargetPlatform)' != 'MSIL' And '$(TargetPlatform)' != 'wasm'" Text="Target Platform architecture '$(TargetPlatform)' is not supported by DjvuNet." />
+    <Error Condition="'$(TargetPlatform)' != 'x64' And '$(TargetPlatform)' != 'x86' And '$(TargetPlatform)' != 'arm' And '$(TargetPlatform)' != 'arm64' And '$(TargetPlatform)' != 'AnyCPU' And '$(TargetPlatform)' != 'wasm'" Text="Target Platform architecture '$(TargetPlatform)' is not supported by DjvuNet." />
   </Target>
 
   <PropertyGroup>

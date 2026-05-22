@@ -578,208 +578,16 @@ check_prereqs()
     fi
 }
 
-build_native()
-{
-    skipCondition=$1
-    platformArch="$2"
-    intermediatesForBuild="$3"
-    extraCmakeArguments="$4"
-    message="$5"
-
-    if [ $skipCondition == 1 ]; then
-        echo "Skipping $message build."
-        return
-    fi
-
-    # All set to commence the build
-    echo "Commencing build of $message for $__BuildOS.$__BuildArch.$__BuildType in $intermediatesForBuild"
-
-    generator=""
-    buildFile="Makefile"
-    buildTool="make"
-    if [ $__UseNinja == 1 ]; then
-        generator="ninja"
-        buildFile="build.ninja"
-        if ! buildTool=$(command -v ninja || command -v ninja-build); then
-           echo "Unable to locate ninja!" 1>&2
-           exit 1
-        fi
-    fi
-
-    if [ "$__SkipConfigure" == "0" ]; then
-        # if msbuild is not supported, then set __SkipGenerateVersion to 1
-        if [ $__isMSBuildOnNETCoreSupported == 0 ]; then __SkipGenerateVersion=1; fi
-        # Drop version.cpp file
-        __versionSourceFile="$intermediatesForBuild/version.cpp"
-        if [ $__SkipGenerateVersion == 0 ]; then
-            pwd
-            "$__ProjectRoot/run.sh" build -Project=$__ProjectDir/build.proj -generateHeaderUnix -NativeVersionSourceFile=$__versionSourceFile $__RunArgs $__UnprocessedBuildArgs
-        else
-            # Generate the dummy version.cpp, but only if it didn't exist to make sure we don't trigger unnecessary rebuild
-            __versionSourceLine="static char sccsid[] __attribute__((used)) = \"@(#)No version information produced\";"
-            if [ -e $__versionSourceFile ]; then
-                read existingVersionSourceLine < $__versionSourceFile
-            fi
-            if [ "$__versionSourceLine" != "$existingVersionSourceLine" ]; then
-                echo $__versionSourceLine > $__versionSourceFile
-            fi
-        fi
 
 
-        pushd "$intermediatesForBuild"
-        # Regenerate the CMake solution
-        echo "Invoking \"$__ProjectRoot/src/pal/tools/gen-buildsys-clang.sh\" \"$__ProjectRoot\" $__ClangMajorVersion $__ClangMinorVersion $platformArch $__BuildType $__CodeCoverage $__IncludeTests $generator $extraCmakeArguments $__cmakeargs"
-        "$__ProjectRoot/src/pal/tools/gen-buildsys-clang.sh" "$__ProjectRoot" $__ClangMajorVersion $__ClangMinorVersion $platformArch $__BuildType $__CodeCoverage $__IncludeTests $generator "$extraCmakeArguments" "$__cmakeargs"
-        popd
-    fi
-
-    if [ ! -f "$intermediatesForBuild/$buildFile" ]; then
-        echo "Failed to generate $message build project!"
-        exit 1
-    fi
-
-    # Build
-    if [ $__ConfigureOnly == 1 ]; then
-        echo "Finish configuration & skipping $message build."
-        return
-    fi
-
-    # Check that the makefiles were created.
-    pushd "$intermediatesForBuild"
-
-    echo "Executing $buildTool install -j $__NumProc"
-
-    $buildTool install -j $__NumProc
-    if [ $? != 0 ]; then
-        echo "Failed to build $message."
-        exit 1
-    fi
-
-    popd
-}
-
-isMSBuildOnNETCoreSupported()
-{
-    __isMSBuildOnNETCoreSupported="${__msbuildonunsupportedplatform:-0}"
-
-    if [ "$__isMSBuildOnNETCoreSupported" == "1" ]; then
-        return
-    fi
-
-    if [ "$__HostArch" == "x64" ]; then
-        if [ "$__HostOS" == "linux" ]; then
-            __isMSBuildOnNETCoreSupported=1
-            # note: the RIDs below can use globbing patterns
-            UNSUPPORTED_RIDS=("debian.9-x64" "ubuntu.17.04-x64")
-            for UNSUPPORTED_RID in "${UNSUPPORTED_RIDS[@]}"
-            do
-                if [[ $__HostDistroRid == $UNSUPPORTED_RID ]]; then
-                    __isMSBuildOnNETCoreSupported=0
-                    break
-                fi
-            done
-        elif [ "$__HostOS" == "osx" ]; then
-            __isMSBuildOnNETCoreSupported=1
-        fi
-    fi
-}
 
 
-build_CoreLib_ni()
-{
-    if [ $__SkipCrossgen == 1 ]; then
-        echo "Skipping generating native image"
-        return
-    fi
 
-    if [ $__SkipCoreCLR == 0 -a -e $__BinDir/crossgen ]; then
-        echo "Generating native image for System.Private.CoreLib."
-        echo "$__BinDir/crossgen /Platform_Assemblies_Paths $__BinDir/IL $__IbcTuning /out $__BinDir/System.Private.CoreLib.dll $__BinDir/IL/System.Private.CoreLib.dll"
-        $__BinDir/crossgen /Platform_Assemblies_Paths $__BinDir/IL $__IbcTuning /out $__BinDir/System.Private.CoreLib.dll $__BinDir/IL/System.Private.CoreLib.dll
-        if [ $? -ne 0 ]; then
-            echo "Failed to generate native image for System.Private.CoreLib."
-            exit 1
-        fi
 
-        if [ "$__BuildOS" == "linux" ]; then
-            echo "Generating symbol file for System.Private.CoreLib."
-            $__BinDir/crossgen /CreatePerfMap $__BinDir $__BinDir/System.Private.CoreLib.dll
-            if [ $? -ne 0 ]; then
-                echo "Failed to generate symbol file for System.Private.CoreLib."
-                exit 1
-            fi
-        fi
-    fi
-}
 
-build_CoreLib()
-{
 
-    if [ $__isMSBuildOnNETCoreSupported == 0 ]; then
-        echo "System.Private.CoreLib.dll build unsupported."
-        return
-    fi
 
-    if [ $__SkipMSCorLib == 1 ]; then
-       echo "Skipping building System.Private.CoreLib."
-       return
-    fi
 
-    echo "Commencing build of managed components for $__BuildOS.$__BuildArch.$__BuildType"
-
-    # Invoke MSBuild
-    __ExtraBuildArgs=""
-    if [[ "$__IbcTuning" -eq "" ]]; then
-        __ExtraBuildArgs="$__ExtraBuildArgs -OptimizationDataDir=\"$__PackagesDir/optimization.$__BuildOS-$__BuildArch.IBC.CoreCLR/$__IbcOptDataVersion/data/\""
-        __ExtraBuildArgs="$__ExtraBuildArgs -EnableProfileGuidedOptimization=true"
-    fi
-    $__ProjectRoot/run.sh build -Project=$__ProjectDir/build.proj -MsBuildLog="/flp:Verbosity=normal;LogFile=$__LogsDir/System.Private.CoreLib_$__BuildOS__$__BuildArch__$__BuildType.log" -BuildTarget -__IntermediatesDir=$__IntermediatesDir -__RootBinDir=$__RootBinDir -BuildNugetPackage=false -UseSharedCompilation=false $__RunArgs $__ExtraBuildArgs $__UnprocessedBuildArgs
-
-    if [ $? -ne 0 ]; then
-        echo "Failed to build managed components."
-        exit 1
-    fi
-
-    # The cross build generates a crossgen with the target architecture.
-    if [ $__CrossBuild != 1 ]; then
-       # The architecture of host pc must be same architecture with target.
-       if [[ ( "$__HostArch" == "$__BuildArch" ) ]]; then
-           build_CoreLib_ni
-       elif [[ ( "$__HostArch" == "x64" ) && ( "$__BuildArch" == "x86" ) ]]; then
-           build_CoreLib_ni
-       elif [[ ( "$__HostArch" == "arm64" ) && ( "$__BuildArch" == "arm" ) ]]; then
-           build_CoreLib_ni
-       else
-           exit 1
-       fi
-    fi
-}
-
-generate_NugetPackages()
-{
-    # We can only generate nuget package if we also support building mscorlib as part of this build.
-    if [ $__isMSBuildOnNETCoreSupported == 0 ]; then
-        echo "Nuget package generation unsupported."
-        return
-    fi
-
-    # Since we can build mscorlib for this OS, did we build the native components as well?
-    if [ $__SkipCoreCLR == 1 ]; then
-        echo "Unable to generate nuget packages since native components were not built."
-        return
-    fi
-
-    echo "Generating nuget packages for "$__BuildOS
-    echo "DistroRid is "$__DistroRid
-    echo "ROOTFS_DIR is "$ROOTFS_DIR
-    # Build the packages
-    $__ProjectRoot/run.sh build -Project=$__SourceDir/.nuget/packages.builds -MsBuildLog="/flp:Verbosity=normal;LogFile=$__LogsDir/Nuget_$__BuildOS__$__BuildArch__$__BuildType.log" -BuildTarget -__IntermediatesDir=$__IntermediatesDir -__RootBinDir=$__RootBinDir -BuildNugetPackage=false -UseSharedCompilation=false $__RunArgs $__UnprocessedBuildArgs
-
-    if [ $? -ne 0 ]; then
-        echo "Failed to generate Nuget packages."
-        exit 1
-    fi
-}
 
 echo ; echo "BUILD: Starting Build of DjvuNet at $(date +"%Y-%m-%d %H:%M:%S.%2N")"; echo "";
 
@@ -954,6 +762,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 # check_params
+_OSLower=$(echo "$_OS" | tr '[:upper:]' '[:lower:]')
+if [[ "$_OSLower" == "macos" || "$_OSLower" == "osx" ]]; then
+    _OS="OSX"
+elif [[ "$_OSLower" == "linux" ]]; then
+    _OS="Linux"
+elif [[ "$_OSLower" == "windows" || "$_OSLower" == "windows_nt" ]]; then
+    _OS="Windows"
+elif [[ "$_OSLower" == "freebsd" ]]; then
+    _OS="FreeBSD"
+fi
+
 _MSB_ConfigurationLower=$(echo "$_MSB_Configuration" | tr '[:upper:]' '[:lower:]')
 if [[ "$_MSB_ConfigurationLower" == "debug" ]]; then
     _MSB_Configuration="Debug"
@@ -966,7 +785,7 @@ fi
 _MSB_Platform=$(echo "$_MSB_Platform" | tr '[:upper:]' '[:lower:]')
 
 if [[ "$_MSB_Platform" == "arm" || "$_MSB_Platform" == "arm64" || "$_MSB_Platform" == "armel" ]]; then
-    __ManagedPlatform="AnyCPU"
+    __ManagedPlatform="$_MSB_Platform"
     __BuildArch="$_MSB_Platform"
     if [[ "$__HostArch" != "$__BuildArch" ]]; then __CrossBuild=1; fi
     if [[ "$__HostArch" == "x64" ]]; then __SkipNativeTests=1; fi
@@ -1035,11 +854,7 @@ fi
 # init the host distro name
 initHostDistroRid
 
-# Set the remaining variables based upon the determined build configuration
-__isMSBuildOnNETCoreSupported=0
 
-# Init if MSBuild for .NET Core is supported for this platform
-isMSBuildOnNETCoreSupported
 
 # CI_SPECIFIC - On CI machines, $HOME may not be set. In such a case, create a subfolder and set the variable to set.
 # This is needed by CLI to function.
