@@ -29,34 +29,69 @@ namespace DjvuNet.Compression.Tests
             }
         }
 
+        public enum TestEncoding
+        {
+            Utf7NoBom,
+            Utf7Bom,
+            Utf8NoBom,
+            Utf8Bom,
+            UnicodeNoBom,
+            UnicodeBom,
+            UnicodeBigEndianNoBom,
+            UnicodeBigEndianBom,
+            Utf32NoBom,
+            Utf32Bom,
+            Utf32BigEndianNoBom,
+            Utf32BigEndianBom
+        }
+
+        public static Encoding GetTestEncoding(TestEncoding encType)
+        {
+            switch(encType)
+            {
+#pragma warning disable SYSLIB0001
+                case TestEncoding.Utf7NoBom: return new UTF7Encoding(false);
+                case TestEncoding.Utf7Bom: return new UTF7Encoding(true);
+#pragma warning restore SYSLIB0001
+                case TestEncoding.Utf8NoBom: return new UTF8Encoding(false);
+                case TestEncoding.Utf8Bom: return new UTF8Encoding(true);
+                case TestEncoding.UnicodeNoBom: return new UnicodeEncoding(false, false);
+                case TestEncoding.UnicodeBom: return new UnicodeEncoding(false, true);
+                case TestEncoding.UnicodeBigEndianNoBom: return new UnicodeEncoding(true, false);
+                case TestEncoding.UnicodeBigEndianBom: return new UnicodeEncoding(true, true);
+                case TestEncoding.Utf32NoBom: return new UTF32Encoding(false, false);
+                case TestEncoding.Utf32Bom: return new UTF32Encoding(false, true);
+                case TestEncoding.Utf32BigEndianNoBom: return new UTF32Encoding(true, false);
+                case TestEncoding.Utf32BigEndianBom: return new UTF32Encoding(true, true);
+                default: throw new Exception("Unknown encoding: " + encType);
+            }
+        }
+
         public static IEnumerable<object[]> StringEncodingTestData
         {
             get
             {
                 List<object[]> retVal = new List<object[]>();
 
-                Encoding[] encodings = new Encoding[]
+                TestEncoding[] encodings = new TestEncoding[]
                 {
-                    // DjVu format explicitly dictates UTF-7 for some text/metadata chunks
-#pragma warning disable SYSLIB0001
-                    new UTF7Encoding(false),
-                    new UTF7Encoding(true),
-#pragma warning restore SYSLIB0001
-                    new UTF8Encoding(false),
-                    new UTF8Encoding(true),
-                    new UnicodeEncoding(false, false),
-                    //new UnicodeEncoding(true, false),
-                    new UnicodeEncoding(false, true),
-                    //new UnicodeEncoding(true, true),
-                    new UTF32Encoding(false, false),
-                    //new UTF32Encoding(true, false),
-                    new UTF32Encoding(false, true),
-                    //new UTF32Encoding(true, true)
+                    TestEncoding.Utf7NoBom,
+                    TestEncoding.Utf7Bom,
+                    TestEncoding.Utf8NoBom,
+                    TestEncoding.Utf8Bom,
+                    TestEncoding.UnicodeNoBom,
+                    TestEncoding.UnicodeBigEndianNoBom,
+                    TestEncoding.UnicodeBom,
+                    TestEncoding.UnicodeBigEndianBom,
+                    TestEncoding.Utf32NoBom,
+                    TestEncoding.Utf32BigEndianNoBom,
+                    TestEncoding.Utf32Bom,
+                    TestEncoding.Utf32BigEndianBom
                 };
 
                 var data = StringTestData;
 
-                foreach (Encoding e in encodings)
+                foreach (TestEncoding e in encodings)
                 {
                     foreach (object[] o in data)
                     {
@@ -74,17 +109,17 @@ namespace DjvuNet.Compression.Tests
             {
                 List<object[]> retVal = new List<object[]>();
 
-                Encoding[] encodings = new Encoding[]
+                TestEncoding[] encodings = new TestEncoding[]
                 {
-                    new UnicodeEncoding(true, false),
-                    new UnicodeEncoding(true, true),
-                    new UTF32Encoding(true, false),
-                    new UTF32Encoding(true, true)
+                    TestEncoding.UnicodeBigEndianNoBom,
+                    TestEncoding.UnicodeBigEndianBom,
+                    TestEncoding.Utf32BigEndianNoBom,
+                    TestEncoding.Utf32BigEndianBom
                 };
 
                 var data = StringTestData;
 
-                foreach (Encoding e in encodings)
+                foreach (TestEncoding e in encodings)
                 {
                     foreach (object[] o in data)
                     {
@@ -217,21 +252,23 @@ namespace DjvuNet.Compression.Tests
         public void BlockSortData_Theory01(string testStr)
         {
             UTF8Encoding enc = new UTF8Encoding(false);
-            byte[] buffer = new byte[enc.GetByteCount(testStr) + 1];
-            byte[] byteStr = enc.GetBytes(testStr);
-            Buffer.BlockCopy(byteStr, 0, buffer, 0, byteStr.Length);
-            int markpos = byteStr.Length;
+            byte[] buffer;
+            int markpos;
+            PrepareTestData(enc, testStr, out buffer, out markpos);
 
-            BlockSort.BlockSortData(buffer, buffer.Length, ref markpos);
+            int originalMarkpos = markpos;
+            BlockSort.BlockSortData(buffer, originalMarkpos + 1, ref markpos);
+            Assert.True(markpos >= 0 && markpos <= originalMarkpos);
         }
 
         [Theory]
-        [MemberData(nameof(StringEncodingTestData), DisableDiscoveryEnumeration = true)]
-#if NETCOREAPP
+        [MemberData(nameof(StringEncodingTestData))]
+        #if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-#endif
-        public void BlockSortData_Theory02(Encoding enc, string testStr)
+        #endif
+        public void BlockSortData_Theory02(TestEncoding encType, string testStr)
         {
+            Encoding enc = GetTestEncoding(encType);
             // TODO Find reason for failing tests with Big Endian multibyte
             // text encodings - except for some Chinese samples
             // (probably not enough 0x00s as these may be 4 byte unicode characters)
@@ -240,7 +277,9 @@ namespace DjvuNet.Compression.Tests
             int markpos;
             PrepareTestData(enc, testStr, out buffer, out markpos);
 
-            BlockSort.BlockSortData(buffer, buffer.Length, ref markpos);
+            int originalMarkpos = markpos;
+            BlockSort.BlockSortData(buffer, originalMarkpos + 1, ref markpos);
+            Assert.True(markpos >= 0 && markpos <= originalMarkpos);
         }
 
         [DjvuTheory, Trait("Category", "BugTrack")]
@@ -248,12 +287,16 @@ namespace DjvuNet.Compression.Tests
 #if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
 #endif
-        public void BlockSortData_Theory03(Encoding enc, string testStr)
+        public void BlockSortData_Theory03(TestEncoding encType, string testStr)
         {
+            Encoding enc = GetTestEncoding(encType);
 
-            byte[] buffer;
-            int markpos;
-            PrepareTestData(enc, testStr, out buffer, out markpos);
+            // Intentionally allocate an UNPADDED buffer to prove that the algorithm
+            // crashes on deep suffix collisions without overflow padding.
+            byte[] byteStr = enc.GetBytes(testStr);
+            byte[] buffer = new byte[byteStr.Length + 1];
+            Buffer.BlockCopy(byteStr, 0, buffer, 0, byteStr.Length);
+            int markpos = byteStr.Length;
 
             Assert.Throws<IndexOutOfRangeException>(
                 () => BlockSort.BlockSortData(buffer, buffer.Length, ref markpos));
@@ -261,8 +304,9 @@ namespace DjvuNet.Compression.Tests
 
         private static void PrepareTestData(Encoding enc, string testStr, out byte[] buffer, out int markpos)
         {
-            buffer = new byte[enc.GetByteCount(testStr) + 1];
             byte[] byteStr = enc.GetBytes(testStr);
+            // Allocate string length + 1 (EOF marker) + 32 (OVERFLOW padding required by BWT QuickSort3d)
+            buffer = new byte[byteStr.Length + 1 + 32];
             Buffer.BlockCopy(byteStr, 0, buffer, 0, byteStr.Length);
             markpos = byteStr.Length;
         }

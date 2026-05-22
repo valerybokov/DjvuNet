@@ -13,8 +13,19 @@ using Xunit;
 
 namespace DjvuNet.Tests
 {
+#if DJVUNET_ALL_TESTS
+    [Collection("DjvuDocCollection")]
+#endif
     public class DjvuImageTests
     {
+#if DJVUNET_ALL_TESTS
+        private readonly DjvuDocFixture _fixture;
+
+        public DjvuImageTests(DjvuDocFixture fixture)
+        {
+            _fixture = fixture;
+        }
+#endif
 //         [Fact]
 //         public void IsVector256HardwareAccelerated_Test()
 //         {
@@ -493,7 +504,12 @@ namespace DjvuNet.Tests
         public void BuildImage_Theory(int docNumber)
         {
             int pageCount = 0;
+#if DJVUNET_ALL_TESTS
+            DjvuDocument document = _fixture.GetDocument(docNumber);
+            pageCount = document.Pages.Count;
+#else
             using (DjvuDocument document = Util.GetTestDocument(docNumber, out pageCount))
+#endif
             {
                 Util.VerifyDjvuDocument(pageCount, document);
                 IDjvuPage page = document.FirstPage;
@@ -545,7 +561,12 @@ namespace DjvuNet.Tests
         public void BuildBackgroundImage_Theory(int docNumber)
         {
             int pageCount = 0;
+#if DJVUNET_ALL_TESTS
+            DjvuDocument document = _fixture.GetDocument(docNumber);
+            pageCount = document.Pages.Count;
+#else
             using (DjvuDocument document = Util.GetTestDocument(docNumber, out pageCount))
+#endif
             {
                 Util.VerifyDjvuDocument(pageCount, document);
                 IDjvuPage page = document.FirstPage;
@@ -576,27 +597,8 @@ namespace DjvuNet.Tests
             }
         }
 
-        public static IEnumerable<object[]> ForegroundImageSourceDocs
-        {
-            get
-            {
-                List<object[]> retVal = new List<object[]>();
-
-                for (int i = 1; i <= 77; i++)
-                {
-                    /// DjvuView does not use foreground/mask images for the following docs
-                    if (i == 35 || i == 42 || i == 43 || i == 44 || i == 47 || i == 55 || i == 60 || i == 63 || i == 66 || i == 67 || i == 71)
-                    {
-                        continue;
-                    }
-                    retVal.Add(new object[] { i });
-                }
-                return retVal;
-            }
-        }
-
         [DjvuTheory(Skip = "Not implemented"), Trait("Category", "Skip")]
-        [MemberData(nameof(ForegroundImageSourceDocs))]
+        [MemberData(nameof(Util.ForegroundImageSourceDocs), MemberType = typeof(Util))]
         public void BuildForegroundImage_Theory(int docNumber)
         {
             int pageCount = 0;
@@ -635,7 +637,7 @@ namespace DjvuNet.Tests
             {
                 List<object[]> retVal = new List<object[]>();
 
-                foreach(object[] i in ForegroundImageSourceDocs)
+                foreach(object[] i in Util.ForegroundImageSourceDocs)
                 {
                     // Special casing for huge errors which should be investigated
                     switch ((int)i[0])
@@ -675,7 +677,12 @@ namespace DjvuNet.Tests
         public void BuildMaskImage_Theory(int docNumber, double tolerance)
         {
             int pageCount = 0;
+#if DJVUNET_ALL_TESTS
+            DjvuDocument document = _fixture.GetDocument(docNumber);
+            pageCount = document.Pages.Count;
+#else
             using (DjvuDocument document = Util.GetTestDocument(docNumber, out pageCount))
+#endif
             {
                 Util.VerifyDjvuDocument(pageCount, document);
                 IDjvuPage page = document.FirstPage;

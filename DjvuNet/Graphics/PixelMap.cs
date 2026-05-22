@@ -1446,15 +1446,15 @@ namespace DjvuNet.Graphics
                         {
                             if (srcpix >= maxgray)
                             {
-                                dst.SetBGR(gTableLocation[fgx.Blue], gTableLocation[fgx.Green],
-                                           gTableLocation[fgx.Red]);
+                                dst.SetBGR(gTableLocation[(byte)fgx.Blue], gTableLocation[(byte)fgx.Green],
+                                           gTableLocation[(byte)fgx.Red]);
                             }
                             else
                             {
                                 int level = multiplier[srcpix];
-                                dst.SetBGR(((dst.Blue * (0x10000 - level)) + (level * gTableLocation[fgx.Blue])) >> 16,
-                                           ((dst.Green * (0x10000 - level)) + (level * gTableLocation[fgx.Green])) >> 16,
-                                           ((dst.Red * (0x10000 - level)) + (level * gTableLocation[fgx.Red])) >> 16);
+                                dst.SetBGR((((byte)dst.Blue * (0x10000 - level)) + (level * gTableLocation[(byte)fgx.Blue])) >> 16,
+                                           (((byte)dst.Green * (0x10000 - level)) + (level * gTableLocation[(byte)fgx.Green])) >> 16,
+                                           (((byte)dst.Red * (0x10000 - level)) + (level * gTableLocation[(byte)fgx.Red])) >> 16);
                             }
                         }
                     }

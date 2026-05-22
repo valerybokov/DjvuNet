@@ -1,15 +1,22 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
+
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.props))\DjvuNetBuild.props" />
+  <Import Project="$(MSBuildThisFileDirectory)..\DjvuNet.DjvuLibre\DjvuNet.DjvuLibre.props" />
 
   <PropertyGroup>
-
+    <TargetFramework>net10.0</TargetFramework>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>DjvuNet.DjvuLibre.Tests</RootNamespace>
-    <AssemblyName>DjvuNet.DjvuLibre.Tests</AssemblyName>
+    <RootNamespace>DjvuNet.DjvuLibre.Compatibility.Tests</RootNamespace>
+    <AssemblyName>DjvuNet.DjvuLibre.Compatibility.Tests</AssemblyName>
     <TestProjectType>UnitTest</TestProjectType>
-    <RunPostBuildEvent>Always</RunPostBuildEvent>
     <IsDjvuNetTestProject>True</IsDjvuNetTestProject>
+    <NoWarn>xUnit1026;NU1510</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Uncomment constant define below to dump images during test run -->
+    <!--<DefineConstants>$(DefineConstants);DUMP_IMAGES</DefineConstants>-->
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -34,24 +41,27 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="DjvuPageInfoTests.cs" />
-    <Compile Include="DjvuDocumentInfoTests.cs" />
-    <Compile Include="NativeDjvuDocFixture.cs" />
-    <Compile Include="NativeDjvuDocFixtureTests.cs" />
+    <Compile Include="JB2BlitTests.cs" />
+    <Compile Include="InclChunkTests.cs" />
+    <Compile Include="DirmChunkTests.cs" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Content Include="DjvuNet.DjvuLibre.Tests.xunit.runner.json">
+ <ItemGroup>
+    <Content Include="DjvuNet.DjvuLibre.Compatibility.Tests.xunit.runner.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="App.config">
-    </None>
+    <None Include="App.config" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <_HasReferenceToSystemRuntime>true</_HasReferenceToSystemRuntime>
+  </PropertyGroup>
+
   <ItemGroup>
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="$(SystemRuntimeCompilerServicesUnsafePackageVersion)" />
     <PackageReference Include="Moq" Version="$(MoqPackageVersion)" />
     <PackageReference Include="System.Drawing.Common" Version="$(SystemDrawingCommonPackageVersion)" Condition="'$(TargetOS)' == 'Windows'" />
     <Reference Include="System.Drawing.Common, Version=6.0.0.0, Culture=neutral, PublicKeyToken=9a0646c3e445b595" Condition="'$(TargetOS)' != 'Windows'">
@@ -61,17 +71,18 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="$(RepoRootDir)DjvuNet\DjvuNet.csproj" />
-    <ProjectReference Include="$(RepoRootDir)DjvuNet.Tests\DjvuNet.Tests.csproj" />
-    <ProjectReference Include="$(RepoRootDir)DjvuNet.DjvuLibre.Helper.Tests\DjvuNet.DjvuLibre.Helper.Tests.csproj" />
-    <ProjectReference Include="$(RepoRootDir)DjvuNet.DjvuLibre\DjvuNet.DjvuLibre.csproj" />
     <ProjectReference Include="$(RepoRootDir)System.Attributes\System.Attributes.csproj" />
+    <ProjectReference Include="$(RepoRootDir)DjvuNet\DjvuNet.csproj" />
+    <ProjectReference Include="$(RepoRootDir)DjvuNet.DjvuLibre\DjvuNet.DjvuLibre.csproj"/>
   </ItemGroup>
 
   <ItemGroup>
     <Service Include="{82a7f48d-3b50-4b1e-b82e-3ada8210c358}" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="$(RepoRootDir)DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.csproj" />
+  </ItemGroup>
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.targets))\DjvuNetBuild.targets" />
   <Import Project="$(RepoRootDir)DjvuNet.DjvuLibre\DjvuNet.DjvuLibre.targets" />
 

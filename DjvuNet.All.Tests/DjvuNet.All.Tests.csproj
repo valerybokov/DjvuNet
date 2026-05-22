@@ -34,7 +34,6 @@
     <ProjectReference Include="$(RepoRootDir)DjvuNet\DjvuNet.csproj" />
     <ProjectReference Include="$(RepoRootDir)DjvuNet.DjvuLibre\DjvuNet.DjvuLibre.csproj" />
     <ProjectReference Include="$(RepoRootDir)System.Attributes\System.Attributes.csproj" />
-    <ProjectReference Condition="'$(TargetOS)' == 'Windows' And '$([MSBuild]::IsOSPlatform(Windows))' == 'true'" Include="..\DjVuLibre\win32\djvulibre\libdjvulibre\libdjvulibre.vcxproj" />
   </ItemGroup>
 
   <ItemGroup>

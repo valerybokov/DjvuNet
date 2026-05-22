@@ -14,7 +14,7 @@ using DjvuNet.JB2;
 using DjvuNet.Utilities;
 using DjvuNet.Wavelet;
 using Bitmap = System.Drawing.Bitmap;
-using ClrGraphics = System.Drawing.Graphics;
+using GdiGraphics = System.Drawing.Graphics;
 using GMap = DjvuNet.Graphics.IMap;
 using GBitmap = DjvuNet.Graphics.Bitmap;
 using GRect = DjvuNet.Graphics.Rectangle;
@@ -113,6 +113,12 @@ namespace DjvuNet
             _Page = page ?? throw new DjvuArgumentNullException(nameof(page));
             _Page.PropertyChanged += PagePropertyChanged;
             _Document = page.Document;
+            var doc = _Document as DjvuDocument;
+
+            if (doc != null)
+            {
+                IsTesting = doc.IsTesting;
+            }
         }
 
         private void PagePropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -127,7 +133,7 @@ namespace DjvuNet
             }
         }
 
-        public System.Drawing.Bitmap CreateBlankImage(Brush imageColor)
+        public Bitmap CreateBlankImage(Brush imageColor)
         {
             return CreateBlankImage(imageColor, _Page.Width, _Page.Height);
         }
@@ -137,12 +143,12 @@ namespace DjvuNet
         /// </summary>
         /// <param name="imageColor"></param>
         /// <returns></returns>
-        public static System.Drawing.Bitmap CreateBlankImage(Brush imageColor, int width, int height)
+        public static Bitmap CreateBlankImage(Brush imageColor, int width, int height)
         {
-            System.Drawing.Bitmap newBackground = new System.Drawing.Bitmap(width, height, PixelFormat.Format24bppRgb);
+            Bitmap newBackground = new Bitmap(width, height, PixelFormat.Format24bppRgb);
 
             // Fill the whole image with white
-            using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(newBackground))
+            using (GdiGraphics g = GdiGraphics.FromImage(newBackground))
             {
                 g.FillRegion(imageColor, new Region(new System.Drawing.Rectangle(0, 0, width, height)));
             }
@@ -158,7 +164,7 @@ namespace DjvuNet
         /// <param name="rect"></param>
         /// <param name="format"></param>
         /// <returns>Returns <see cref="System.Drawing.Bitmap"/> object which should be disposed after use by caller. </returns>
-        public static System.Drawing.Bitmap ImageFromMap(GMap map, Rectangle rect, PixelFormat format)
+        public static Bitmap ImageFromMap(GMap map, Rectangle rect, PixelFormat format)
         {
             Bitmap retVal = new Bitmap(rect.Width, rect.Height, format);
 
@@ -194,7 +200,7 @@ namespace DjvuNet
         /// <param name="newWidth"></param>
         /// <param name="newHeight"></param>
         /// <returns></returns>
-        public static System.Drawing.Bitmap ResizeImage(System.Drawing.Bitmap srcImage, int newWidth, int newHeight)
+        public static Bitmap ResizeImage(Bitmap srcImage, int newWidth, int newHeight)
         {
             if (srcImage == null)
             {
@@ -215,17 +221,15 @@ namespace DjvuNet
             }
 
             // Resize the image
-            System.Drawing.Bitmap newImage = new System.Drawing.Bitmap(newWidth, newHeight, srcImage.PixelFormat);
+            Bitmap newImage = new Bitmap(newWidth, newHeight, srcImage.PixelFormat);
 
-            using (System.Drawing.Graphics gr = System.Drawing.Graphics.FromImage(newImage))
+            using (GdiGraphics gr = GdiGraphics.FromImage(newImage))
             {
                 gr.SmoothingMode = SmoothingMode.HighQuality;
                 gr.InterpolationMode = InterpolationMode.HighQualityBicubic;
                 gr.PixelOffsetMode = PixelOffsetMode.HighQuality;
                 gr.DrawImage(srcImage, new System.Drawing.Rectangle(0, 0, newWidth, newHeight));
             }
-
-            srcImage.Dispose();
 
             return newImage;
         }
@@ -249,7 +253,7 @@ namespace DjvuNet
         {
             Bitmap result = new Bitmap(source.Width, source.Height, source.PixelFormat);
 
-            using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(result))
+            using (GdiGraphics g = GdiGraphics.FromImage(result))
             {
                 using (ImageAttributes attributes = new ImageAttributes())
                 {
@@ -267,14 +271,14 @@ namespace DjvuNet
         /// </summary>
         /// <param name="pixels"></param>
         /// <returns></returns>
-        internal static unsafe System.Drawing.Bitmap ConvertDataToImage(int[] pixels, int width, int height)
+        internal static unsafe Bitmap ConvertDataToImage(int[] pixels, int width, int height)
         {
             if (width <= 0 || height <= 0)
             {
                 return null;
             }
 
-            System.Drawing.Bitmap bmp = new System.Drawing.Bitmap(width, height, PixelFormat.Format24bppRgb);
+            Bitmap bmp = new Bitmap(width, height, PixelFormat.Format24bppRgb);
             BitmapData bits = bmp.LockBits(new System.Drawing.Rectangle(0, 0, width, height), ImageLockMode.ReadWrite, bmp.PixelFormat);
 
             // Value of 4 is the size of PixelFormat.Format32bppArgb
@@ -297,14 +301,14 @@ namespace DjvuNet
             return bmp;
         }
 
-        internal static unsafe System.Drawing.Bitmap ConvertDataToImageVectorized(int[] pixels, int width, int height)
+        internal static unsafe Bitmap ConvertDataToImageVectorized(int[] pixels, int width, int height)
         {
             if (width <= 0 || height <= 0)
             {
                 return null;
             }
 
-            System.Drawing.Bitmap bmp = new System.Drawing.Bitmap(width, height, PixelFormat.Format24bppRgb);
+            Bitmap bmp = new Bitmap(width, height, PixelFormat.Format24bppRgb);
             BitmapData bits = null;
             try
             {
@@ -403,12 +407,12 @@ namespace DjvuNet
 
         #region Image
 
-        private System.Drawing.Bitmap _Image;
+        private Bitmap _Image;
 
         /// <summary>
         /// Gets the image for the page
         /// </summary>
-        public System.Drawing.Bitmap Image
+        public Bitmap Image
         {
             get
             {
@@ -435,12 +439,12 @@ namespace DjvuNet
 
         #region ThumbnailImage
 
-        private System.Drawing.Bitmap _ThumbnailImage;
+        private Bitmap _ThumbnailImage;
 
         /// <summary>
         /// Gets or sets the thumbnail image for the page
         /// </summary>
-        public System.Drawing.Bitmap ThumbnailImage
+        public Bitmap ThumbnailImage
         {
             get { return _ThumbnailImage; }
 
@@ -455,6 +459,82 @@ namespace DjvuNet
         }
 
         #endregion ThumbnailImage
+
+        #region Test Caching
+
+        internal bool IsTesting { get; set; }
+
+        private Bitmap _BackgroundImage;
+        private Bitmap _ForegroundImage;
+        private Bitmap _MaskImage;
+
+        /// <summary>
+        /// Lazy-initialized property to cache the intermediate background image during test execution.
+        /// This is internal and conditional (IsTesting) to prevent memory bloat in production environments.
+        /// Call ClearCachedIntermediateImages() to release the unmanaged resources when the test concludes.
+        /// </summary>
+        internal Bitmap BackgroundImage
+        {
+            get
+            {
+                if (_BackgroundImage == null && IsTesting)
+                {
+                    _BackgroundImage = GetBackgroundImage(1, true);
+                }
+                return _BackgroundImage;
+            }
+            set { _BackgroundImage = value; }
+        }
+
+        /// <summary>
+        /// Lazy-initialized property to cache the intermediate foreground image during test execution.
+        /// This is internal and conditional (IsTesting) to prevent memory bloat in production environments.
+        /// Call ClearCachedIntermediateImages() to release the unmanaged resources when the test concludes.
+        /// </summary>
+        internal Bitmap ForegroundImage
+        {
+            get
+            {
+                if (_ForegroundImage == null && IsTesting)
+                {
+                    _ForegroundImage = GetForegroundImage(1, true);
+                }
+                return _ForegroundImage;
+            }
+            set { _ForegroundImage = value; }
+        }
+
+        /// <summary>
+        /// Lazy-initialized property to cache the intermediate mask image during test execution.
+        /// This is internal and conditional (IsTesting) to prevent memory bloat in production environments.
+        /// Call ClearCachedIntermediateImages() to release the unmanaged resources when the test concludes.
+        /// </summary>
+        internal Bitmap MaskImage
+        {
+            get
+            {
+                if (_MaskImage == null && IsTesting)
+                {
+                    _MaskImage = GetMaskImage(1, true);
+                }
+                return _MaskImage;
+            }
+            set { _MaskImage = value; }
+        }
+
+        public void ClearIntermediateImages()
+        {
+            _BackgroundImage?.Dispose();
+            _BackgroundImage = null;
+
+            _ForegroundImage?.Dispose();
+            _ForegroundImage = null;
+
+            _MaskImage?.Dispose();
+            _MaskImage = null;
+        }
+
+        #endregion Test Caching
 
         #region IDisposable implementation
 
@@ -484,6 +564,8 @@ namespace DjvuNet
 
             _ThumbnailImage?.Dispose();
             _ThumbnailImage = null;
+
+            ClearIntermediateImages();
 
             _Disposed = true;
         }
@@ -535,7 +617,7 @@ namespace DjvuNet
         /// <param name="newWidth"></param>
         /// <param name="newHeight"></param>
         /// <returns></returns>
-        public System.Drawing.Bitmap ResizeImage(int newWidth, int newHeight)
+        public Bitmap ResizeImage(int newWidth, int newHeight)
         {
             return DjvuImage.ResizeImage(Image, newWidth, newHeight);
         }
@@ -549,7 +631,7 @@ namespace DjvuNet
 #if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
 #endif
-        public System.Drawing.Bitmap BuildPageImage(bool rebuild = false)
+        public Bitmap BuildPageImage(bool rebuild = false)
         {
             const int subsample = 1;
 
@@ -635,113 +717,155 @@ namespace DjvuNet
 #if NETCOREAPP
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
 #endif
-        public unsafe System.Drawing.Bitmap BuildImage(int subsample = 1)
+        public unsafe Bitmap BuildImage(int subsample = 1)
         {
             Verify.SubsampleRange(subsample);
 
             lock (LoadingLock)
             {
-                System.Drawing.Bitmap background = GetBackgroundImage(subsample, true);
+                bool useCache = IsTesting && subsample == 1;
+
+                Bitmap background = useCache ? BackgroundImage : GetBackgroundImage(subsample, true);
+                if (useCache && background != null)
+                {
+                    // Clone the background safely to avoid GDI+ "generic error" from Bitmap.Clone()
+                    Bitmap safeClone = new Bitmap(background.Width, background.Height, background.PixelFormat);
+                    // Handle indexed formats vs non-indexed formats safely
+                    if ((background.PixelFormat & System.Drawing.Imaging.PixelFormat.Indexed) != 0)
+                    {
+                        var targetData = safeClone.LockBits(new System.Drawing.Rectangle(0, 0, safeClone.Width, safeClone.Height), System.Drawing.Imaging.ImageLockMode.WriteOnly, safeClone.PixelFormat);
+                        var sourceData = background.LockBits(new System.Drawing.Rectangle(0, 0, background.Width, background.Height), System.Drawing.Imaging.ImageLockMode.ReadOnly, background.PixelFormat);
+                        unsafe
+                        {
+                            int targetBytes = Math.Abs(targetData.Stride) * targetData.Height;
+                            int sourceBytes = Math.Abs(sourceData.Stride) * sourceData.Height;
+                            System.Buffer.MemoryCopy(sourceData.Scan0.ToPointer(), targetData.Scan0.ToPointer(), targetBytes, sourceBytes);
+                        }
+                        safeClone.UnlockBits(targetData);
+                        background.UnlockBits(sourceData);
+                        // Copy palette
+                        var pal = safeClone.Palette;
+                        for (int i = 0; i < background.Palette.Entries.Length; i++) pal.Entries[i] = background.Palette.Entries[i];
+                        safeClone.Palette = pal;
+                    }
+                    else
+                    {
+                        using (GdiGraphics g = GdiGraphics.FromImage(safeClone))
+                        {
+                            g.DrawImage(background, new System.Drawing.Rectangle(0, 0, safeClone.Width, safeClone.Height));
+                        }
+                    }
+                    background = safeClone;
+                }
 
                 // TODO ETW logging goes here
 
-                using (System.Drawing.Bitmap foreground = GetForegroundImage(subsample, true))
+                Bitmap foreground = useCache ? ForegroundImage : GetForegroundImage(subsample, true);
+                Bitmap mask = useCache ? MaskImage : GetMaskImage(subsample, true);
+
+                try
                 {
-                    using (System.Drawing.Bitmap mask = GetMaskImage(subsample, true))
+                    HasLoaded = true;
+
+                    BitmapData backgroundData =
+                        background.LockBits(new System.Drawing.Rectangle(0, 0, background.Width, background.Height),
+                                            ImageLockMode.ReadWrite, background.PixelFormat);
+                    int backgroundPixelSize = DjvuImage.GetPixelSize(backgroundData.PixelFormat);
+
+                    BitmapData foregroundData =
+                        foreground.LockBits(new System.Drawing.Rectangle(0, 0, foreground.Width, foreground.Height),
+                                            ImageLockMode.ReadOnly, foreground.PixelFormat);
+                    int foregroundPixelSize = DjvuImage.GetPixelSize(foregroundData.PixelFormat);
+
+                    BitmapData maskData = mask.LockBits(new System.Drawing.Rectangle(0, 0, mask.Width, mask.Height),
+                                                        ImageLockMode.ReadOnly, mask.PixelFormat);
+
+                    //int maskPixelSize = GetPixelSize(maskData);
+
+                    int bgndHeight = background.Height;
+                    int bgndWidth = background.Width;
+
+                    int fgndHeight = foreground.Height;
+                    int fgndWidth = foreground.Width;
+
+                    int maskHeight = mask.Height;
+                    int maskWidth = mask.Width;
+
+                    int maskbgnH = maskHeight / bgndHeight;
+                    int maskfgnH = maskHeight / fgndHeight;
+
+                    int maskbgnW = maskWidth / bgndWidth;
+                    int maskfgnW = maskWidth / fgndWidth;
+
+                    //Parallel.For(
+                    //    0,
+                    //    height,
+                    //    y =>
+                    //    {
+
+                    for (int y = 0, yf = 0, yb = 0; y < maskHeight && yb < bgndHeight && yf < fgndHeight; ++y)
                     {
-                        HasLoaded = true;
+                        byte* maskRow = (byte*)maskData.Scan0 + (y * maskData.Stride);
+                        DjvuNet.Graphics.Pixel* backgroundRow = (DjvuNet.Graphics.Pixel*)(backgroundData.Scan0 + (yb * backgroundData.Stride));
+                        DjvuNet.Graphics.Pixel* foregroundRow = (DjvuNet.Graphics.Pixel*)(foregroundData.Scan0 + (yf * foregroundData.Stride));
 
-                        BitmapData backgroundData =
-                            background.LockBits(new System.Drawing.Rectangle(0, 0, background.Width, background.Height),
-                                                ImageLockMode.ReadWrite, background.PixelFormat);
-                        int backgroundPixelSize = DjvuImage.GetPixelSize(backgroundData.PixelFormat);
-
-                        BitmapData foregroundData =
-                            foreground.LockBits(new System.Drawing.Rectangle(0, 0, foreground.Width, foreground.Height),
-                                                ImageLockMode.ReadOnly, foreground.PixelFormat);
-                        int foregroundPixelSize = DjvuImage.GetPixelSize(foregroundData.PixelFormat);
-
-                        BitmapData maskData = mask.LockBits(new System.Drawing.Rectangle(0, 0, mask.Width, mask.Height),
-                                                            ImageLockMode.ReadOnly, mask.PixelFormat);
-
-                        //int maskPixelSize = GetPixelSize(maskData);
-
-                        int bgndHeight = background.Height;
-                        int bgndWidth = background.Width;
-
-                        int fgndHeight = foreground.Height;
-                        int fgndWidth = foreground.Width;
-
-                        int maskHeight = mask.Height;
-                        int maskWidth = mask.Width;
-
-                        int maskbgnH = maskHeight / bgndHeight;
-                        int maskfgnH = maskHeight / fgndHeight;
-
-                        int maskbgnW = maskWidth / bgndWidth;
-                        int maskfgnW = maskWidth / fgndWidth;
-
-                        //Parallel.For(
-                        //    0,
-                        //    height,
-                        //    y =>
-                        //    {
-
-                        for (int y = 0, yf = 0, yb = 0; y < maskHeight && yb < bgndHeight && yf < fgndHeight; ++y)
+                        for (int x = 0, xf = 0, xb = 0; x < maskWidth && xb < bgndWidth && xf < fgndWidth; x++)
                         {
-                            byte* maskRow = (byte*)maskData.Scan0 + (y * maskData.Stride);
-                            DjvuNet.Graphics.Pixel* backgroundRow = (DjvuNet.Graphics.Pixel*)(backgroundData.Scan0 + (yb * backgroundData.Stride));
-                            DjvuNet.Graphics.Pixel* foregroundRow = (DjvuNet.Graphics.Pixel*)(foregroundData.Scan0 + (yf * foregroundData.Stride));
-
-                            for (int x = 0, xf = 0, xb = 0; x < maskWidth && xb < bgndWidth && xf < fgndWidth; x++)
+                            // Check if the mask byte is set
+                            if (maskRow[x] > 0)
                             {
-                                // Check if the mask byte is set
-                                if (maskRow[x] > 0)
-                                {
-                                    DjvuNet.Graphics.Pixel xF =  foregroundRow[xf];
+                                DjvuNet.Graphics.Pixel xF =  foregroundRow[xf];
 
-                                    if (_IsInverted)
-                                    {
-                                        backgroundRow[xb] = InvertColor(xF);
-                                    }
-                                    else
-                                    {
-                                        backgroundRow[xb] = xF;
-                                    }
-                                }
-                                else if (_IsInverted)
+                                if (_IsInverted)
                                 {
-                                    backgroundRow[xb] = InvertColor(backgroundRow[xb]);
+                                    backgroundRow[xb] = InvertColor(xF);
                                 }
-
-                                if ((x + 1) % maskbgnW == 0)
+                                else
                                 {
-                                    xb++;
-                                }
-
-                                if ((x + 1) % maskfgnW == 0)
-                                {
-                                    xf++;
+                                    backgroundRow[xb] = xF;
                                 }
                             }
-
-                            if ((y + 1) % maskbgnH == 0)
+                            else if (_IsInverted)
                             {
-                                yb++;
+                                backgroundRow[xb] = InvertColor(backgroundRow[xb]);
                             }
 
-                            if ((y + 1) % maskfgnH == 0)
+                            if ((x + 1) % maskbgnW == 0)
                             {
-                                yf++;
+                                xb++;
+                            }
+
+                            if ((x + 1) % maskfgnW == 0)
+                            {
+                                xf++;
                             }
                         }
-                        //});
 
-                        mask.UnlockBits(maskData);
-                        foreground.UnlockBits(foregroundData);
-                        background.UnlockBits(backgroundData);
+                        if ((y + 1) % maskbgnH == 0)
+                        {
+                            yb++;
+                        }
 
-                        return background;
+                        if ((y + 1) % maskfgnH == 0)
+                        {
+                            yf++;
+                        }
+                    }
+                    //});
+
+                    mask.UnlockBits(maskData);
+                    foreground.UnlockBits(foregroundData);
+                    background.UnlockBits(backgroundData);
+
+                    return background;
+
+                }
+                finally
+                {
+                    if (!useCache)
+                    {
+                        foreground?.Dispose();
+                        mask?.Dispose();
                     }
                 }
             }
@@ -763,10 +887,10 @@ namespace DjvuNet
                 return _Page.Thumbnail.Image.ToImage();
             }
 
-            Bitmap result = BuildImage();
+            Bitmap result = Image;
             var scaleAmount = (double)128 / result.Width;
 
-            return DjvuImage.ResizeImage(result, (int)(result.Width * scaleAmount), (int)(result.Height * scaleAmount));
+            return ResizeImage(result, (int)(result.Width * scaleAmount), (int)(result.Height * scaleAmount));
         }
 
         /// <summary>
@@ -774,7 +898,7 @@ namespace DjvuNet
         /// </summary>
         /// <param name="resizeToPage"></param>
         /// <returns></returns>
-        internal System.Drawing.Bitmap GetForegroundImage(int subsample, bool resizeImage = false)
+        internal Bitmap GetForegroundImage(int subsample, bool resizeImage = false)
         {
             Verify.SubsampleRange(subsample);
 
@@ -841,13 +965,13 @@ namespace DjvuNet
             }
         }
 
-        internal System.Drawing.Bitmap GetMaskImage(int subsample, bool resizeImage = false)
+        internal Bitmap GetMaskImage(int subsample, bool resizeImage = false)
         {
             Verify.SubsampleRange(subsample);
 
             if (_Page.ForegroundJB2Image == null)
             {
-                return new System.Drawing.Bitmap(_Page.Width / subsample, _Page.Height / subsample, PixelFormat.Format8bppIndexed);
+                return new Bitmap(_Page.Width / subsample, _Page.Height / subsample, PixelFormat.Format8bppIndexed);
             }
 
             lock (LoadingLock)
@@ -869,7 +993,7 @@ namespace DjvuNet
         /// Gets the background image for the page
         /// </summary>
         /// <returns></returns>
-        internal System.Drawing.Bitmap GetBackgroundImage(int subsample, bool resizeImage = false)
+        internal Bitmap GetBackgroundImage(int subsample, bool resizeImage = false)
         {
             Verify.SubsampleRange(subsample);
 
@@ -969,7 +1093,7 @@ namespace DjvuNet
             return backgroundMap.GetPixelMap();
         }
 
-        internal static unsafe System.Drawing.Bitmap InvertImage(System.Drawing.Bitmap sourceBitmap)
+        internal static unsafe Bitmap InvertImage(Bitmap sourceBitmap)
         {
             if (sourceBitmap == null)
             {
@@ -981,7 +1105,7 @@ namespace DjvuNet
 
             if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
             {
-                Bitmap invertedBitmap = Unsafe.As<System.Drawing.Bitmap>(sourceBitmap.Clone());
+                Bitmap invertedBitmap = Unsafe.As<Bitmap>(sourceBitmap.Clone());
                 BitmapData imageData = invertedBitmap.LockBits(new System.Drawing.Rectangle(0, 0, width, height),
                                                       ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
 
@@ -997,7 +1121,7 @@ namespace DjvuNet
                     {
                         uint* imageRow = (uint*)(imagePtrBytes + (y * stride));
                         int x = 0;
-                        
+
                         for (; x <= width - 32; x += 32)
                         {
                             var v0 = Vector256.Load(imageRow + x);
@@ -1015,14 +1139,14 @@ namespace DjvuNet
                             dst2.Store(imageRow + x + 16);
                             dst3.Store(imageRow + x + 24);
                         }
-                        
+
                         for (; x <= width - 8; x += 8)
                         {
                             var srcVec = Vector256.Load(imageRow + x);
                             var dstVec = srcVec ^ xorMask;
                             dstVec.Store(imageRow + x);
                         }
-                        
+
                         for (; x < width; x++)
                         {
                             imageRow[x] = InvertColor(imageRow[x]);
@@ -1083,10 +1207,10 @@ namespace DjvuNet
                     {
                         sourceBitmap.UnlockBits(srcData);
                         srcData = sourceBitmap.LockBits(new System.Drawing.Rectangle(0, 0, width, height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
-                        
+
                         srcPtrBytes = (byte*)srcData.Scan0;
                         srcStride = srcData.Stride;
-                        
+
 #if NETCOREAPP
                         if (Vector256.IsHardwareAccelerated)
                         {

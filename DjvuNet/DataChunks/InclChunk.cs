@@ -3,6 +3,7 @@
 // </copyright>
 
 using System;
+using System.Text;
 
 namespace DjvuNet.DataChunks
 {
@@ -77,7 +78,21 @@ namespace DjvuNet.DataChunks
         {
             long prevPos = reader.Position;
             reader.Position = DataOffset;
-            IncludeID = reader.ReadUTF8String(Length);
+
+            // Safely consume the exact payload length to maintain stream alignment
+            byte[] buffer = reader.ReadBytes((int)Length);
+
+            // Byte-walking to find actual string boundaries
+            int start = 0;
+            int end = buffer.Length - 1;
+            while (start <= end && (buffer[start] == '\n' || buffer[start] == '\r' || buffer[start] == 0)) start++;
+            while (end >= start && (buffer[end] == '\n' || buffer[end] == '\r' || buffer[end] == 0)) end--;
+
+            if (start <= end)
+                IncludeID = Encoding.UTF8.GetString(buffer, start, end - start + 1);
+            else
+                IncludeID = string.Empty;
+
             reader.Position = prevPos;
         }
 

@@ -85,6 +85,7 @@ namespace DjvuNet.DataChunks
                 if (Parent is DjvuChunk djvuChunk)
                 {
                     IReadOnlyList<InclChunk> includes = djvuChunk.IncludedItems;
+                    string targetID = null;
 
                     if (includes?.Count > 0)
                     {
@@ -93,18 +94,50 @@ namespace DjvuNet.DataChunks
                         var root = Document.RootForm as DjvmChunk;
                         DjbzChunk djbzItem = null;
 
+                        IReadOnlyList<DirmComponent> components = root?.Dirm?.Components;
+                        IReadOnlyList<IDjviChunk> includeForms = root?.Includes;
+
                         foreach (InclChunk iChunk in includeIDs)
                         {
-                            DirmComponent component = root?.Dirm.Components
-                                .Where<DirmComponent>(x => x.ID == iChunk.IncludeID).FirstOrDefault();
+                            if (components == null) break;
 
-                            var includeForm = root.Includes
-                                .FirstOrDefault<IDjviChunk>(x => x.DataOffset == (component.Offset + 12));
+                            targetID = iChunk.IncludeID;
+                            DirmComponent component = null;
 
-                            djbzItem = includeForm?.Children
-                                .FirstOrDefault(x => x.ChunkType == ChunkType.Djbz) as DjbzChunk;
+                            for (int i = 0; i < components.Count; i++)
+                            {
+                                DirmComponent c = components[i];
+                                if (c.ID == targetID || c.Name == targetID || c.Title == targetID)
+                                {
+                                    component = c;
+                                    break;
+                                }
+                            }
 
-                            if (djbzItem != null) break;
+                            if (component != null && includeForms != null)
+                            {
+                                for (int i = 0; i < includeForms.Count; i++)
+                                {
+                                    IDjviChunk includeForm = includeForms[i];
+                                    if (includeForm.DataOffset == (component.Offset + 12))
+                                    {
+                                        IReadOnlyList<IDjvuNode> children = includeForm.Children;
+                                        if (children != null)
+                                        {
+                                            for (int j = 0; j < children.Count; j++)
+                                            {
+                                                if (children[j] is DjbzChunk djbz)
+                                                {
+                                                    djbzItem = djbz;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    }
+                                }
+                                if (djbzItem != null) break;
+                            }
                         }
 
                         includedDictionary = djbzItem?.ShapeDictionary;

@@ -13,7 +13,7 @@ namespace DjvuNet.Compression.Tests
 {
     public class BzzWriterTests
     {
-        [Fact(Skip = "Bug in BzzWriter"), Trait("Category", "Skip")]
+        [Fact]
         [Trait("Category", "Bugtrack")]
         public void BzzWriterTest001()
         {
@@ -25,7 +25,7 @@ namespace DjvuNet.Compression.Tests
             {
                 byte[] buffer = encoding.GetBytes(testText);
                 writer.Write(buffer, 0, buffer.Length);
-                writer.Flush();
+                writer.Close(); // Explicitly close to flush ZPCodec and write EOF
 
                 long bytesWritten = stream.Position;
                 stream.Position = 0;
@@ -44,7 +44,7 @@ namespace DjvuNet.Compression.Tests
             }
         }
 
-        [Fact(Skip = "Bug in BzzWriter"), Trait("Category", "Skip")]
+        [Fact]
         [Trait("Category", "Bugtrack")]
         public void BzzWriterTest002()
         {
@@ -60,7 +60,7 @@ namespace DjvuNet.Compression.Tests
             }
         }
 
-        [Fact(Skip = "Bug in BzzWriter"), Trait("Category", "Skip")]
+        [Fact]
         [Trait("Category", "Bugtrack")]
         public void BzzWriterTest003()
         {

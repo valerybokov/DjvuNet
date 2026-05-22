@@ -122,8 +122,8 @@ namespace DjvuNet.DataChunks
         /// <param name="flag"></param>
         public void DecodeFlags(byte flag)
         {
-            HasName = (flag >> 7) == 1;
-            HasTitle = (flag & 0x80) == 1;
+            HasName = (flag & 0x80) == 0x80;
+            HasTitle = (flag & 0x40) == 0x40;
 
             int test = flag & 0x03;
 

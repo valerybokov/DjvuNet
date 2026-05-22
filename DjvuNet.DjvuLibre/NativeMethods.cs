@@ -1450,5 +1450,61 @@ namespace DjvuNet.DjvuLibre
 
         [DllImport(DjVuLibrePath, EntryPoint = "miniexp_print", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
         internal static extern IntPtr MiniexpPrint(IntPtr miniexp);
+
+        /* ddjvu_page_get_jb2_blit_count ---
+           Populates the count pointer with the total number of blits in the foreground JB2 image.
+           Returns TRUE (1) on success, FALSE (0) on failure. */
+
+        // DDJVUAPI int ddjvu_page_get_jb2_blit_count(ddjvu_page_t *page, int *count);
+
+        /// <summary>
+        /// Retrieves the total number of shape blits present in the JB2 foreground image of the specified page.
+        /// This is used for deep binary compatibility testing to verify the arithmetic entropy decoding.
+        /// </summary>
+        /// <param name="page">A pointer to the native ddjvu_page_t object.</param>
+        /// <param name="count">When the method returns, contains the total number of blits in the JB2 image.</param>
+        /// <returns>True if the count was successfully retrieved; otherwise, false (e.g., if the page is null or has no JB2 data).</returns>
+        [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_page_get_jb2_blit_count", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+        internal static extern bool GetDjvuPageJb2BlitCount(IntPtr page, out int count);
+
+        /* ddjvu_page_get_jb2_blit ---
+           Retrieves the blit at the specified index. Returns TRUE (1) on success, FALSE (0) on failure. */
+
+        // DDJVUAPI int ddjvu_page_get_jb2_blit(ddjvu_page_t *page, int index, unsigned int *shapeno, int *left, int *bottom);
+
+        /// <summary>
+        /// Retrieves the exact layout data (shape ID and coordinates) for a specific JB2 blit.
+        /// </summary>
+        /// <param name="page">A pointer to the native ddjvu_page_t object.</param>
+        /// <param name="index">The zero-based index of the blit to retrieve.</param>
+        /// <param name="shapeNo">When the method returns, contains the ID of the shape used by this blit.</param>
+        /// <param name="left">When the method returns, contains the X coordinate (left) of the blit.</param>
+        /// <param name="bottom">When the method returns, contains the Y coordinate (bottom) of the blit.</param>
+        /// <returns>True if the blit data was successfully retrieved; otherwise, false.</returns>
+        [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_page_get_jb2_blit", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+        internal static extern bool GetDjvuPageJb2Blit(IntPtr page, int index, out uint shapeNo, out int left, out int bottom);
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct NativeJb2Blit
+        {
+            public uint ShapeNo;
+            public int Left;
+            public int Bottom;
+        }
+
+        [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_page_get_jb2_blits", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+        internal static extern bool GetDjvuPageJb2Blits(IntPtr page, [Out] NativeJb2Blit[] blitsArray, int bufferCount);
+
+        [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_get_incl_count", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+        internal static extern int GetDjvuDocumentInclCount(IntPtr document, int pageNo);
+
+        [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_get_incl_id", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+        internal static extern IntPtr GetDjvuDocumentInclId(IntPtr document, int pageNo, int index);
+
+        [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_get_dirm_component_count", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+        internal static extern int GetDjvuDocumentDirmComponentCount(IntPtr document);
+
+        [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_get_dirm_component_id", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+        internal static extern IntPtr GetDjvuDocumentDirmComponentId(IntPtr document, int index);
     }
 }

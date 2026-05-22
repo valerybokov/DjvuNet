@@ -367,6 +367,20 @@ namespace DjvuNet
         }
 
         /// <summary>
+        /// Internal constructor used exclusively by the test suite infrastructure (e.g., DjvuDocFixture).
+        /// Setting isTesting to true enables aggressive caching of intermediate decoded image layers 
+        /// (Background, Foreground, Mask) in the DjvuImage class, providing massive performance gains 
+        /// during sequential test runs at the cost of higher temporary memory usage.
+        /// </summary>
+        /// <param name="filePath">Path to the DjVu file.</param>
+        /// <param name="isTesting">Flag to enable aggressive test-mode caching.</param>
+        internal DjvuDocument(string filePath, bool isTesting)
+        {
+            IsTesting = isTesting;
+            Load(filePath, 0);
+        }
+
+        /// <summary>
         /// TODO docs
         /// </summary>
         /// <param name="filePath"></param>
@@ -375,6 +389,8 @@ namespace DjvuNet
         {
             Load(filePath, identifier);
         }
+
+        internal bool IsTesting { get; private set; }
 
         #endregion Constructors
 

@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -377,10 +378,7 @@ namespace DjvuNet.Compression
                     bytes = sz;
                 }
 
-                for (int i = offset + (int) _Offset, j = 0; j < bytes; i++, j++)
-                {
-                    _Data[j] = buffer[i];
-                }
+                Buffer.BlockCopy(buffer, offset + copied, _Data, BlockOffset, bytes);
 
                 BlockOffset = (BlockOffset + bytes);
                 sz = (sz - bytes);
