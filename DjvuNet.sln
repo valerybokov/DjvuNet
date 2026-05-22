@@ -211,7 +211,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Templates", "Templates", "{
 		Templates\UtilRoot.Template.cs = Templates\UtilRoot.Template.cs
 	EndProjectSection
 EndProject
-Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "DjvuNet.Shared.Tests", "DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.shproj", "{B7EF5575-5932-4EA7-B250-E7DA238D60A9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DjvuNet.Shared.Tests", "DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.csproj", "{B7EF5575-5932-4EA7-B250-E7DA238D60A9}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RepoRoot", "RepoRoot", "{508EA7BC-4576-4C24-877B-7D7EE4369DA0}"
 	ProjectSection(SolutionItems) = preProject
@@ -751,6 +751,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DjvuNet.Drawing", "DjvuNet.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DjvuNet.Skia", "DjvuNet.Skia\DjvuNet.Skia.csproj", "{774F3155-63EC-4B0D-BF9F-B50F379357DB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DjvuNet.DjvuLibre.Compatibility.Tests", "DjvuNet.DjvuLibre.Compatibility.Tests\DjvuNet.DjvuLibre.Compatibility.Tests.csproj", "{B0C4B41E-D9B2-4550-B67D-675178B40693}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|AnyCPU = Debug|AnyCPU
@@ -1005,6 +1007,26 @@ Global
 		{774F3155-63EC-4B0D-BF9F-B50F379357DB}.Release|x64.Build.0 = Release|x64
 		{774F3155-63EC-4B0D-BF9F-B50F379357DB}.Release|x86.ActiveCfg = Release|x86
 		{774F3155-63EC-4B0D-BF9F-B50F379357DB}.Release|x86.Build.0 = Release|x86
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Debug|AnyCPU.ActiveCfg = Debug|Any CPU
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Debug|AnyCPU.Build.0 = Debug|Any CPU
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Debug|Arm.ActiveCfg = Debug|arm
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Debug|Arm.Build.0 = Debug|arm
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Debug|Arm64.ActiveCfg = Debug|arm64
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Debug|Arm64.Build.0 = Debug|arm64
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Debug|x64.ActiveCfg = Debug|x64
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Debug|x64.Build.0 = Debug|x64
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Debug|x86.ActiveCfg = Debug|x86
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Debug|x86.Build.0 = Debug|x86
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Release|AnyCPU.ActiveCfg = Release|Any CPU
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Release|AnyCPU.Build.0 = Release|Any CPU
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Release|Arm.ActiveCfg = Release|arm
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Release|Arm.Build.0 = Release|arm
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Release|Arm64.ActiveCfg = Release|arm64
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Release|Arm64.Build.0 = Release|arm64
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Release|x64.ActiveCfg = Release|x64
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Release|x64.Build.0 = Release|x64
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Release|x86.ActiveCfg = Release|x86
+		{B0C4B41E-D9B2-4550-B67D-675178B40693}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1017,12 +1039,5 @@ Global
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {AD0C50D2-F3E4-4ADD-ABB9-77BBABE5A6A7}
-	EndGlobalSection
-	GlobalSection(SharedMSBuildProjectFiles) = preSolution
-		DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.projitems*{29ae50f0-477d-4445-8fa1-80a7ea22fb88}*SharedItemsImports = 5
-		DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.projitems*{b7ef5575-5932-4ea7-b250-e7da238d60a9}*SharedItemsImports = 13
-		DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.projitems*{f7ddb3f7-f251-4b2e-aeec-810118877e6f}*SharedItemsImports = 5
-		DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.projitems*{fcecdff8-938c-4f1f-b47f-55c28d482d5e}*SharedItemsImports = 4
-		DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.projitems*{fd767831-2359-4dee-a0d8-eab57475a309}*SharedItemsImports = 5
 	EndGlobalSection
 EndGlobal

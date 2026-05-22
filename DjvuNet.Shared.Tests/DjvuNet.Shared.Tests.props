@@ -35,6 +35,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Serialization\Wmrm.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SynchronizedBase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TestExecution\AppVeyorTestManager.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)TestExecution\DjvuDocFixture.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TestExecution\ITestManager.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)TestExecution\TestManager.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Util.cs" />

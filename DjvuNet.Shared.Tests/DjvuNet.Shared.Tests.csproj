@@ -1,0 +1,93 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.props))\DjvuNetBuild.props" />
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>DjvuNet.Shared.Tests</RootNamespace>
+    <AssemblyName>DjvuNet.Shared.Tests</AssemblyName>
+    <IsTestProject>False</IsTestProject>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' "></PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' "></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'"></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'"></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'"></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'"></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|Arm'"></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|Arm'"></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|Arm64'"></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|Arm64'"></PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Moq" Version="$(MoqPackageVersion)" />
+    
+    <PackageReference Include="System.Drawing.Common" Version="$(SystemDrawingCommonPackageVersion)" Condition="'$(TargetOS)' == 'Windows'" />
+    <Reference Include="System.Drawing.Common, Version=6.0.0.0, Culture=neutral, PublicKeyToken=9a0646c3e445b595" Condition="'$(TargetOS)' != 'Windows'">
+      <HintPath>$(RepoRootDir)deps/AnyCPU/$(Configuration)/Unix/System.Drawing.Common.dll</HintPath>
+    </Reference>
+    
+    <PackageReference Include="xunit.v3.extensibility.core" Version="$(XunitPackageVersion)" />
+    <PackageReference Include="xunit.v3.assert" Version="$(XunitPackageVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="DjvuDocumentUtil.cs" />
+    <Compile Include="DjvuJsonDocument.cs" />
+    <Compile Include="Mocks\FileStreamWrapper.cs" />
+    <Compile Include="Mocks\IStream.cs" />
+    <Compile Include="Mocks\StreamMock.cs" />
+    <Compile Include="Serialization\Anta.cs" />
+    <Compile Include="Serialization\Antz.cs" />
+    <Compile Include="Serialization\BG44.cs" />
+    <Compile Include="Serialization\BM44.cs" />
+    <Compile Include="Serialization\BM44Form.cs" />
+    <Compile Include="Serialization\Cida.cs" />
+    <Compile Include="Serialization\Dirm.cs" />
+    <Compile Include="Serialization\Djbz.cs" />
+    <Compile Include="Serialization\DjviForm.cs" />
+    <Compile Include="Serialization\DjvmForm.cs" />
+    <Compile Include="Serialization\DjvuDoc.cs" />
+    <Compile Include="Serialization\DjvuForm.cs" />
+    <Compile Include="Serialization\ElementBase.cs" />
+    <Compile Include="Serialization\FG44.cs" />
+    <Compile Include="Serialization\FGbz.cs" />
+    <Compile Include="Serialization\Incl.cs" />
+    <Compile Include="Serialization\Info.cs" />
+    <Compile Include="Serialization\Navm.cs" />
+    <Compile Include="Serialization\NodeBase.cs" />
+    <Compile Include="Serialization\PM44.cs" />
+    <Compile Include="Serialization\PM44Form.cs" />
+    <Compile Include="Serialization\Sjbz.cs" />
+    <Compile Include="Serialization\Smmr.cs" />
+    <Compile Include="Serialization\TH44.cs" />
+    <Compile Include="Serialization\ThumForm.cs" />
+    <Compile Include="Serialization\Txta.cs" />
+    <Compile Include="Serialization\Txtz.cs" />
+    <Compile Include="Serialization\Wmrm.cs" />
+    <Compile Include="SynchronizedBase.cs" />
+    <Compile Include="TestExecution\AppVeyorTestManager.cs" />
+    <Compile Include="TestExecution\DjvuDocFixture.cs" />
+    <Compile Include="TestExecution\ITestManager.cs" />
+    <Compile Include="TestExecution\TestManager.cs" />
+    <Compile Include="Util.cs" />
+    <Compile Include="UtilJson.cs" />
+    <Compile Include="UtilRoot.cs" />
+    <Compile Include="xunit\DjvuTheoryAttribute.cs" />
+    <Compile Include="xunit\DjvuTheoryDiscoverer.cs" />
+    <Compile Include="xunit\SkipOnTargetFrameworkAttribute.cs" />
+    <Compile Include="xunit\TargetFrameworkMonikers.cs" />
+    <Compile Include="xunit\WindowsOnlyFactAttribute.cs" />
+    <Compile Include="xunit\XunitConstants.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(RepoRootDir)DjvuNet\DjvuNet.csproj" />
+    <ProjectReference Include="$(RepoRootDir)System.Attributes\System.Attributes.csproj" />
+  </ItemGroup>
+
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.targets))\DjvuNetBuild.targets" />
+
+</Project>

@@ -23,7 +23,7 @@ namespace DjvuNet.Tests
             Process proc = Process.GetCurrentProcess();
             string name = $"{proc.Id}{proc.ProcessName}";
             if (Mutex == null)
-                Mutex = new Mutex(true, name);
+                Mutex = new Mutex(false, name);
 
             AppDomain.CurrentDomain.DomainUnload += AppDomainUnload;
         }

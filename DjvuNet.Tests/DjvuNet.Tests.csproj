@@ -90,6 +90,7 @@
     <Compile Include="DjvuPageTests.cs" />
     <Compile Include="SerializationTests.cs" />
     <Compile Include="Util\GenericComparerTests.cs" />
+    <Compile Include="Util\DjvuDocFixtureTests.cs" />
     <Compile Include="Util\VerifyTests.cs" />
     <Compile Include="Text\PageTextItemTests.cs" />
     <Compile Include="Text\PageTextSearchTests.cs" />
@@ -130,7 +131,9 @@
     <Service Include="{82a7f48d-3b50-4b1e-b82e-3ada8210c358}" />
   </ItemGroup>
 
-  <Import Project="$(RepoRootDir)DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.projitems" Label="Shared" />
+  <ItemGroup>
+    <ProjectReference Include="$(RepoRootDir)DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.csproj" />
+  </ItemGroup>
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.targets))\DjvuNetBuild.targets" />
   <Import Project="$(RepoRootDir)DjvuNet.DjvuLibre\DjvuNet.DjvuLibre.targets" />
   <Import Project="DjvuNet.Tests.targets" />

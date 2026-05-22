@@ -36,6 +36,8 @@
   <ItemGroup>
     <Compile Include="DjvuPageInfoTests.cs" />
     <Compile Include="DjvuDocumentInfoTests.cs" />
+    <Compile Include="NativeDjvuDocFixture.cs" />
+    <Compile Include="NativeDjvuDocFixtureTests.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -60,10 +62,11 @@
 
   <ItemGroup>
     <ProjectReference Include="$(RepoRootDir)DjvuNet\DjvuNet.csproj" />
+    <ProjectReference Include="$(RepoRootDir)DjvuNet.Tests\DjvuNet.Tests.csproj" />
     <ProjectReference Include="$(RepoRootDir)DjvuNet.DjvuLibre.Helper.Tests\DjvuNet.DjvuLibre.Helper.Tests.csproj" />
     <ProjectReference Include="$(RepoRootDir)DjvuNet.DjvuLibre\DjvuNet.DjvuLibre.csproj" />
     <ProjectReference Include="$(RepoRootDir)System.Attributes\System.Attributes.csproj" />
-    <ProjectReference Condition="$(TargetFramework) == 'net472'" Include="..\DjVuLibre\win32\djvulibre\libdjvulibre\libdjvulibre.vcxproj" />
+    <ProjectReference Condition="'$(TargetOS)' == 'Windows' And '$([MSBuild]::IsOSPlatform(Windows))' == 'true'" Include="..\DjVuLibre\win32\djvulibre\libdjvulibre\libdjvulibre.vcxproj" />
   </ItemGroup>
 
   <ItemGroup>

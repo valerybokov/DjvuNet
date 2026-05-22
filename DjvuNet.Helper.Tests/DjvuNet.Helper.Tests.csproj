@@ -35,7 +35,9 @@
     <ProjectReference Include="..\DjvuNet\DjvuNet.csproj" />
   </ItemGroup>
 
-  <Import Project="..\DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.projitems" Label="Shared" />
+  <ItemGroup>
+    <ProjectReference Include="..\DjvuNet.Shared.Tests\DjvuNet.Shared.Tests.csproj" />
+  </ItemGroup>
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), DjvuNetBuild.targets))\DjvuNetBuild.targets" />
 
 </Project>
