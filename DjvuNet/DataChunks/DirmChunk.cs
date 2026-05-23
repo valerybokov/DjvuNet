@@ -155,7 +155,7 @@ namespace DjvuNet.DataChunks
             // Read the component flag information
             for (int x = 0; x < count; x++)
             {
-                _components[x].DecodeFlags(bzReader.ReadByte());
+                _components[x].DecodeFlags(bzReader.ReadByte(), Version);
             }
 
             // Read the component strings

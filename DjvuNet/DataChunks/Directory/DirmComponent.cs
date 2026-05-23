@@ -24,19 +24,31 @@ namespace DjvuNet.DataChunks
 
         #region Name
 
+        private string _name;
+
         /// <summary>
         /// Gets or sets the name of the component
         /// </summary>
-        public string Name { get; set; }
+        public string Name
+        {
+            get => string.IsNullOrEmpty(_name) ? ID : _name;
+            set => _name = value;
+        }
 
         #endregion Name
 
         #region Title
 
+        private string _title;
+
         /// <summary>
         /// Gets or sets the title of the component
         /// </summary>
-        public string Title { get; set; }
+        public string Title
+        {
+            get => string.IsNullOrEmpty(_title) ? ID : _title;
+            set => _title = value;
+        }
 
         #endregion Title
 
@@ -103,6 +115,15 @@ namespace DjvuNet.DataChunks
 
         #endregion IsThumbnail
 
+        #region IsSharedAnno
+
+        /// <summary>
+        /// True if the component represents a shared annotations file
+        /// </summary>
+        public bool IsSharedAnno { get; internal set; }
+
+        #endregion IsSharedAnno
+
         #endregion Public Properties
 
         #region Constructors
@@ -120,25 +141,29 @@ namespace DjvuNet.DataChunks
         /// Decode component flags.
         /// </summary>
         /// <param name="flag"></param>
-        public void DecodeFlags(byte flag)
+        /// <param name="version">The DIRM chunk version</param>
+        public void DecodeFlags(byte flag, int version)
         {
-            HasName = (flag & 0x80) == 0x80;
-            HasTitle = (flag & 0x40) == 0x40;
-
-            int test = flag & 0x03;
-
-            switch(test)
+            if (version == 0)
             {
-                case 0:
-                    IsIncluded = true;
-                    break;
-                case 1:
-                    IsPage = true;
-                    break;
-                case 2:
-                case 3:
-                    IsThumbnail = true;
-                    break;
+                HasName = (flag & 0x02) == 0x02;
+                HasTitle = (flag & 0x04) == 0x04;
+                IsPage = (flag & 0x01) == 0x01;
+                IsIncluded = !IsPage;
+                IsThumbnail = false;
+                IsSharedAnno = false;
+            }
+            else
+            {
+                HasName = (flag & 0x80) == 0x80;
+                HasTitle = (flag & 0x40) == 0x40;
+
+                int test = flag & 0x3f;
+
+                IsIncluded = (test == 0);
+                IsPage = (test == 1);
+                IsThumbnail = (test == 2);
+                IsSharedAnno = (test == 3);
             }
         }
 

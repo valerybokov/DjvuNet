@@ -11,7 +11,8 @@
     <AssemblyName>DjvuNet.DjvuLibre.Compatibility.Tests</AssemblyName>
     <TestProjectType>UnitTest</TestProjectType>
     <IsDjvuNetTestProject>True</IsDjvuNetTestProject>
-    <NoWarn>xUnit1026;NU1510</NoWarn>
+    <!-- Suppress xUnit analyzer cross-assembly member crash (https://github.com/xunit/xunit/issues/1937) -->
+    <NoWarn>xUnit1026;NU1510;AD0001</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup>

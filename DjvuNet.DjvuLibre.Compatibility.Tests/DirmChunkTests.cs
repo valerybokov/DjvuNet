@@ -47,31 +47,34 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
 
                 Assert.Equal(nativeCount, managedComponents.Count);
 
-                List<string> nativeIds = new List<string>();
+                List<string> errorMessages = new List<string>();
+
                 for (int i = 0; i < nativeCount; i++)
                 {
-                    IntPtr strPtr = NativeMethods.GetDjvuDocumentDirmComponentId(nativeDoc.Document, i);
-                    if (strPtr == IntPtr.Zero) 
-                    { 
-                        nativeIds.Add(""); 
-                        continue; 
-                    }
-                    try 
-                    { 
-                        string s = Marshal.PtrToStringUTF8(strPtr);
-                        nativeIds.Add(s ?? ""); 
-                    }
-                    finally 
-                    { 
-                        DjvuMarshal.FreeHGlobal(strPtr); 
-                    }
+                    var managedComponent = managedComponents[i];
+
+                    // Extract Native Strings
+                    string nativeId = GetNativeString(NativeMethods.GetDjvuDocumentDirmComponentId(nativeDoc.Document, i));
+                    string nativeName = GetNativeString(NativeMethods.GetDjvuDocumentDirmComponentName(nativeDoc.Document, i));
+                    string nativeTitle = GetNativeString(NativeMethods.GetDjvuDocumentDirmComponentTitle(nativeDoc.Document, i));
+
+                    // Extract Native Value Types
+                    NativeMethods.GetDjvuDocumentDirmComponentSize(nativeDoc.Document, i, out int nativeSize);
+                    NativeMethods.GetDjvuDocumentDirmComponentFlags(nativeDoc.Document, i, out bool isPage, out bool isInclude, out bool isThumbnails, out bool isSharedAnno);
+
+                    // Collect Mismatches
+                    if (nativeId != (managedComponent.ID ?? "")) errorMessages.Add($"[Component {i}] ID Mismatch: Native '{nativeId}', Managed '{managedComponent.ID ?? ""}'");
+                    if (nativeName != (managedComponent.Name ?? "")) errorMessages.Add($"[Component {i}] Name Mismatch: Native '{nativeName}', Managed '{managedComponent.Name ?? ""}'");
+                    if (nativeTitle != (managedComponent.Title ?? "")) errorMessages.Add($"[Component {i}] Title Mismatch: Native '{nativeTitle}', Managed '{managedComponent.Title ?? ""}'");
+
+                    if (nativeSize != managedComponent.Size) errorMessages.Add($"[Component {i}] Size Mismatch: Native '{nativeSize}', Managed '{managedComponent.Size}'");
+                    if (isPage != managedComponent.IsPage) errorMessages.Add($"[Component {i}] IsPage Mismatch: Native '{isPage}', Managed '{managedComponent.IsPage}'");
+                    if (isInclude != managedComponent.IsIncluded) errorMessages.Add($"[Component {i}] IsIncluded Mismatch: Native '{isInclude}', Managed '{managedComponent.IsIncluded}'");
+                    if (isThumbnails != managedComponent.IsThumbnail) errorMessages.Add($"[Component {i}] IsThumbnail Mismatch: Native '{isThumbnails}', Managed '{managedComponent.IsThumbnail}'");
+                    if (isSharedAnno != managedComponent.IsSharedAnno) errorMessages.Add($"[Component {i}] IsSharedAnno Mismatch: Native '{isSharedAnno}', Managed '{managedComponent.IsSharedAnno}'");
                 }
 
-                string nativeFull = string.Join(", ", nativeIds.Select(s => $"'{s}'"));
-                string managedFull = string.Join(", ", managedComponents.Select(x => $"'{x.ID ?? ""}'"));
-                
-                Assert.True(nativeFull == managedFull, 
-                    $"DIRM Arrays Mismatch Doc:{index}.\n  Native Array:  [{nativeFull}]\n  Managed Array: [{managedFull}]");
+                Assert.True(errorMessages.Count == 0, $"DIRM Property Mismatches Doc:{index}.\n" + string.Join("\n", errorMessages));
             }
         }
 
@@ -79,6 +82,19 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
         public void DirmChunkParsingTestIndex23()
         {
             DirmChunkParsingTheory(23);
+        }
+
+        private static string GetNativeString(IntPtr strPtr)
+        {
+            if (strPtr == IntPtr.Zero) return "";
+            try
+            {
+                return Marshal.PtrToStringUTF8(strPtr) ?? "";
+            }
+            finally
+            {
+                DjvuMarshal.FreeHGlobal(strPtr);
+            }
         }
     }
 }

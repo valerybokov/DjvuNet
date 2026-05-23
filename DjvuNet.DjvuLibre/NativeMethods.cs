@@ -1506,5 +1506,17 @@ namespace DjvuNet.DjvuLibre
 
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_get_dirm_component_id", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
         internal static extern IntPtr GetDjvuDocumentDirmComponentId(IntPtr document, int index);
+
+        [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_get_dirm_component_name", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+        internal static extern IntPtr GetDjvuDocumentDirmComponentName(IntPtr document, int index);
+
+        [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_get_dirm_component_title", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+        internal static extern IntPtr GetDjvuDocumentDirmComponentTitle(IntPtr document, int index);
+
+        [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_get_dirm_component_size", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+        internal static extern int GetDjvuDocumentDirmComponentSize(IntPtr document, int index, out int size);
+
+        [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_get_dirm_component_flags", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
+        internal static extern int GetDjvuDocumentDirmComponentFlags(IntPtr document, int index, out bool isPage, out bool isInclude, out bool isThumbnails, out bool isSharedAnno);
     }
 }
