@@ -45,6 +45,7 @@
     <Compile Include="JB2BlitTests.cs" />
     <Compile Include="InclChunkTests.cs" />
     <Compile Include="DirmChunkTests.cs" />
+    <Compile Include="PigeonTransformTests.cs" />
   </ItemGroup>
 
  <ItemGroup>

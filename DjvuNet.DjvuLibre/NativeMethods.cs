@@ -1518,5 +1518,17 @@ namespace DjvuNet.DjvuLibre
 
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_get_dirm_component_flags", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
         internal static extern int GetDjvuDocumentDirmComponentFlags(IntPtr document, int index, out bool isPage, out bool isInclude, out bool isThumbnails, out bool isSharedAnno);
+
+        [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_iw44_ycbcr_to_rgb", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern bool YCbCrToRgb(IntPtr pixels, int width, int height, int rowSize);
+
+        [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_iw44_rgb_to_y", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern bool RgbToY(IntPtr pixels, int width, int height, int rowSize, IntPtr @out, int outRowSize);
+
+        [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_iw44_rgb_to_cb", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern bool RgbToCb(IntPtr pixels, int width, int height, int rowSize, IntPtr @out, int outRowSize);
+
+        [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_iw44_rgb_to_cr", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern bool RgbToCr(IntPtr pixels, int width, int height, int rowSize, IntPtr @out, int outRowSize);
     }
 }
