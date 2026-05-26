@@ -1,4 +1,6 @@
 using System;
+using System.IO;
+using DjvuNet.Tests;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Diagnosers;
 using BenchmarkDotNet.Exporters.Json;
@@ -8,14 +10,16 @@ using BenchmarkDotNet.Toolchains.InProcess.Emit;
 
 namespace DjvuNet.Benchmarks
 {
-    public class BenchmarkConfig : ManualConfig
+    public class LongRunningConfig : ManualConfig
     {
-        public BenchmarkConfig()
+        public static readonly string BenchmarksArtifactsPath = Path.Combine(Util.RepoRoot, "TestResults", "Benchmarks", "Baselines");
+
+        public LongRunningConfig()
         {
             AddDiagnoser(MemoryDiagnoser.Default);
             AddExporter(MarkdownExporter.GitHub);
             AddExporter(JsonExporter.Full);
-            ArtifactsPath = "../docs/benchmarks/history";
+            ArtifactsPath = BenchmarksArtifactsPath;
 
             // Use In-Process toolchain to bypass the auto-generated .csproj 
             // which breaks due to our custom Directory.Build.props output paths.

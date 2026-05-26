@@ -1,4 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics.X86;
+using System.Threading;
 using DjvuNet.Graphics;
 
 namespace DjvuNet.Wavelet
@@ -6,28 +8,82 @@ namespace DjvuNet.Wavelet
     /// <summary>
     /// Interpolated wavelet Transform
     /// </summary>
-    public class InterWaveTransform
+    public partial class InterWaveTransform
     {
-        public static int[] redYLUT = new int[256];
-        public static int[] greenYLUT = new int[256];
-        public static int[] blueYLUT = new int[256];
+        internal static int[] redYLUT;
+        internal static int[] greenYLUT;
+        internal static int[] blueYLUT;
 
-        public static int[] redCbLUT = new int[256];
-        public static int[] greenCbLUT = new int[256];
-        public static int[] blueCbLUT = new int[256];
+        internal static int[] redCbLUT;
+        internal static int[] greenCbLUT;
+        internal static int[] blueCbLUT;
 
-        public static int[] redCrLUT = new int[256];
-        public static int[] greenCrLUT = new int[256];
-        public static int[] blueCrLUT = new int[256];
+        internal static int[] redCrLUT;
+        internal static int[] greenCrLUT;
+        internal static int[] blueCrLUT;
 
-        public static bool IsLutInitialized;
+        private static readonly object _lutLock = new object();
+        private static int _lutsInitialized;
 
-        public static float[][] Rgb2YccCoeff = new float[3][]
+        internal static void EnsureLutsInitialized()
         {
-            new float[] { 0.304348F, 0.608696F, 0.086956F },
-            new float[] { 0.463768F, -0.405797F, -0.057971F },
-            new float[] { -0.173913F, -0.347826F,  0.521739F }
-        };
+            if (Volatile.Read(ref _lutsInitialized) == 1) return;
+
+            lock (_lutLock)
+            {
+                if (Volatile.Read(ref _lutsInitialized) == 1) return;
+
+                int[] rY = new int[256];
+                int[] gY = new int[256];
+                int[] bY = new int[256];
+
+                int[] rCb = new int[256];
+                int[] gCb = new int[256];
+                int[] bCb = new int[256];
+
+                int[] rCr = new int[256];
+                int[] gCr = new int[256];
+                int[] bCr = new int[256];
+
+                for (int k = 0; k < 256; k++)
+                {
+                    rY[k] = k * 19946;
+                    gY[k] = k * 39891;
+                    bY[k] = k * 5698;
+
+                    rCb[k] = k * -11397;
+                    gCb[k] = k * -22795;
+                    bCb[k] = k * 34192;
+
+                    rCr[k] = k * 30393;
+                    gCr[k] = k * -26594;
+                    bCr[k] = k * -3799;
+                }
+
+                redYLUT = rY;
+                greenYLUT = gY;
+                blueYLUT = bY;
+
+                redCbLUT = rCb;
+                greenCbLUT = gCb;
+                blueCbLUT = bCb;
+
+                redCrLUT = rCr;
+                greenCrLUT = gCr;
+                blueCrLUT = bCr;
+
+                Interlocked.Exchange(ref _lutsInitialized, 1);
+            }
+        }
+
+        static InterWaveTransform()
+        {
+#if !PROD_RELEASE
+            if (Avx2.IsSupported) return;
+#endif
+
+            EnsureLutsInitialized();
+        }
 
         /// <summary>
         /// Packed integer assembly functions initialization call.
@@ -126,26 +182,22 @@ namespace DjvuNet.Wavelet
         /// <param name="outrowsize"></param>
         public static unsafe void Rgb2Y(Pixel* pPix, int width, int height, int rowsize, sbyte* @out, int outrowsize)
         {
-            int[] rmul = new int[256];
-            int[] gmul = new int[256];
-            int[] bmul = new int[256];
-            for (int k = 0; k < 256; k++)
+            EnsureLutsInitialized();
+            fixed (int* rmul = redYLUT)
+            fixed (int* gmul = greenYLUT)
+            fixed (int* bmul = blueYLUT)
             {
-                rmul[k] = (int)(k * 0x10000 * Rgb2YccCoeff[0][0]);
-                gmul[k] = (int)(k * 0x10000 * Rgb2YccCoeff[0][1]);
-                bmul[k] = (int)(k * 0x10000 * Rgb2YccCoeff[0][2]);
-            }
+                Pixel* p2 = pPix;
+                sbyte* out2 = @out;
 
-            Pixel* p2 = pPix;
-            sbyte* out2 = @out;
-
-            for (int i = 0; i < height; i++)
-            {
-                for (int j = 0; j < width; j++, p2++, out2++)
+                for (int i = 0; i < height; i++)
                 {
-                    Pixel pix = *p2;
-                    int y = rmul[unchecked((byte)pix.Red)] + gmul[unchecked((byte)pix.Green)] + bmul[unchecked((byte)pix.Blue)] + 32768;
-                    *out2 = (sbyte) ((y >> 16) - 128);
+                    for (int j = 0; j < width; j++, p2++, out2++)
+                    {
+                        Pixel pix = *p2;
+                        int y = rmul[unchecked((byte)pix.Red)] + gmul[unchecked((byte)pix.Green)] + bmul[unchecked((byte)pix.Blue)] + 32768;
+                        *out2 = (sbyte) ((y >> 16) - 128);
+                    }
                 }
             }
         }
@@ -161,25 +213,21 @@ namespace DjvuNet.Wavelet
         /// <param name="outrowsize"></param>
         public static unsafe void Rgb2Cb(Pixel* pPixBuffer, int width, int height, int rowsize, sbyte* @out, int outrowsize)
         {
-            int[] rmul = new int[256];
-            int[] gmul = new int[256];
-            int[] bmul = new int[256];
-            for (int k = 0; k < 256; k++)
+            EnsureLutsInitialized();
+            fixed (int* rmul = redCbLUT)
+            fixed (int* gmul = greenCbLUT)
+            fixed (int* bmul = blueCbLUT)
             {
-                rmul[k] = (int)(k * 0x10000 * Rgb2YccCoeff[2][0]);
-                gmul[k] = (int)(k * 0x10000 * Rgb2YccCoeff[2][1]);
-                bmul[k] = (int)(k * 0x10000 * Rgb2YccCoeff[2][2]);
-            }
+                Pixel* p2 = pPixBuffer;
+                sbyte* out2 = @out;
 
-            Pixel* p2 = pPixBuffer;
-            sbyte* out2 = @out;
-
-            for (int i = 0; i < height; i++)
-            {
-                for (int j = 0; j < width; j++, p2++, out2++)
+                for (int i = 0; i < height; i++)
                 {
-                    int c = rmul[unchecked((byte)p2->Red)] + gmul[unchecked((byte)p2->Green)] + bmul[unchecked((byte)p2->Blue)] + 32768;
-                    *out2 = (sbyte) Max(-128, Min(127, c >> 16));
+                    for (int j = 0; j < width; j++, p2++, out2++)
+                    {
+                        int c = rmul[unchecked((byte)p2->Red)] + gmul[unchecked((byte)p2->Green)] + bmul[unchecked((byte)p2->Blue)] + 32768;
+                        *out2 = (sbyte) Max(-128, Min(127, c >> 16));
+                    }
                 }
             }
         }
@@ -195,25 +243,21 @@ namespace DjvuNet.Wavelet
         /// <param name="outrowsize"></param>
         public static unsafe void Rgb2Cr(Pixel* p, int w, int h, int rowsize, sbyte* @out, int outrowsize)
         {
-            int[] rmul = new int[256];
-            int[] gmul = new int[256];
-            int[] bmul = new int[256];
-            for (int k = 0; k < 256; k++)
+            EnsureLutsInitialized();
+            fixed (int* rmul = redCrLUT)
+            fixed (int* gmul = greenCrLUT)
+            fixed (int* bmul = blueCrLUT)
             {
-                rmul[k] = (int)((k * 0x10000) * Rgb2YccCoeff[1][0]);
-                gmul[k] = (int)((k * 0x10000) * Rgb2YccCoeff[1][1]);
-                bmul[k] = (int)((k * 0x10000) * Rgb2YccCoeff[1][2]);
-            }
+                Pixel* p2 = p;
+                sbyte* out2 = @out;
 
-            Pixel* p2 = p;
-            sbyte* out2 = @out;
-
-            for (int i = 0; i < h; i++)
-            {
-                for (int j = 0; j < w; j++, p2++, out2++)
+                for (int i = 0; i < h; i++)
                 {
-                    int c = rmul[unchecked((byte)p2->Red)] + gmul[unchecked((byte)p2->Green)] + bmul[unchecked((byte)p2->Blue)] + 32768;
-                    *out2 = (sbyte) Max(-128, Min(127, c >> 16));
+                    for (int j = 0; j < w; j++, p2++, out2++)
+                    {
+                        int c = rmul[unchecked((byte)p2->Red)] + gmul[unchecked((byte)p2->Green)] + bmul[unchecked((byte)p2->Blue)] + 32768;
+                        *out2 = (sbyte) Max(-128, Min(127, c >> 16));
+                    }
                 }
             }
         }
@@ -229,11 +273,15 @@ namespace DjvuNet.Wavelet
         /// <param name="outCb"></param>
         /// <param name="outCr"></param>
         /// <param name="outrowsize"></param>
-        public static unsafe void Rgb2YCbCr(
+        [System.Obsolete("This flat-loop scalar method is deprecated due to lack of stride padding support. " +
+            "Use the unified InterWaveTransform.Rgb2YCbCr method instead, which handles arbitrary " +
+            "byte strides and includes AVX2 optimizations.", error: false)]
+        public static unsafe void Rgb2YCbCrScalar(
             Pixel* pPixBuff, int width, int height, int rowsize,
             sbyte* @outY, sbyte* @outCb, sbyte* @outCr, int outrowsize)
         {
 
+            EnsureLutsInitialized();
             fixed (int* pRedYLUT = redYLUT)
             fixed (int* pGreenYLUT = greenYLUT)
             fixed (int* pBlueYLUT = blueYLUT)
@@ -244,26 +292,6 @@ namespace DjvuNet.Wavelet
             fixed (int* pGreenCrLUT = greenCrLUT)
             fixed (int* pBlueCrLUT = blueCrLUT)
             {
-                if (!IsLutInitialized)
-                {
-                    // Create lookup tables
-                    for (int k = 0; k < 256; k++)
-                    {
-                        pRedYLUT[k] = (int)(k * 0x10000 * Rgb2YccCoeff[0][0]);
-                        pGreenYLUT[k] = (int)(k * 0x10000 * Rgb2YccCoeff[0][1]);
-                        pBlueYLUT[k] = (int)(k * 0x10000 * Rgb2YccCoeff[0][2]);
-
-                        pRedCbLUT[k] = (int)(k * 0x10000 * Rgb2YccCoeff[2][0]);
-                        pGreenCbLUT[k] = (int)(k * 0x10000 * Rgb2YccCoeff[2][1]);
-                        pBlueCbLUT[k] = (int)(k * 0x10000 * Rgb2YccCoeff[2][2]);
-
-                        pRedCrLUT[k] = (int)((k * 0x10000) * Rgb2YccCoeff[1][0]);
-                        pGreenCrLUT[k] = (int)((k * 0x10000) * Rgb2YccCoeff[1][1]);
-                        pBlueCrLUT[k] = (int)((k * 0x10000) * Rgb2YccCoeff[1][2]);
-                    }
-                    IsLutInitialized = true;
-                }
-
                 Pixel* p2 = pPixBuff;
                 sbyte* pOutY = @outY;
                 sbyte* pOutCb = @outCb;
@@ -295,7 +323,10 @@ namespace DjvuNet.Wavelet
         /// <param name="pPixBuff">Pointer to Pixel buffer</param>
         /// <param name="width">Width of image in pixels</param>
         /// <param name="height">Height of image in pixels</param>
-        public static unsafe void YCbCr2Rgb(Pixel* pPixBuff, int width, int height)
+        [System.Obsolete("This flat-loop scalar method is deprecated due to lack of stride padding support. " +
+            "Use the unified InterWaveTransform.YCbCr2Rgb method instead, which handles arbitrary " +
+            "byte strides and includes AVX2 optimizations.", error: false)]
+        public static unsafe void YCbCr2RgbScalar(Pixel* pPixBuff, int width, int height)
         {
             Pixel* q = pPixBuff;
             int dataLength = width * height;

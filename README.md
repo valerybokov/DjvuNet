@@ -43,7 +43,48 @@ to be finished but still has couple bugs which need to be fixed.
 - Test framework is systematically developed and is composed of unit and functional tests. It covers project in top down way and provides
 around 85% code coverage using 2 586 test cases with implementation target being more than 90% code coverage.
 
-- Performance tests are based on DjvuNetTest project with some additional benchmarks planned for implementation soon.
+- Performance tests are implemented using BenchmarkDotNet in the `DjvuNet.Benchmarks` project. 
+
+- AVX2 SIMD optimizations for the YCbCr-to-RGB color space conversion (Pigeon transform) achieved a ~3.3x speedup over the legacy scalar implementation for 3-byte continuous conversions. The inverse `Rgb2YCbCr` transform achieved an even greater ~5.7x speedup over the scalar baseline.
+
+- The color transform pipelines diverge from the DjVuLibre C++ implementation regarding image stride handling. The native C++ library assumes the input stride is a multiple of the 3-byte pixel size, which would lead to corruption of images with stride not being exact multiple of pixel size. DjvuNet's SIMD implementation manages byte strides using an overlapping last vector tail-shift to stay within bounds of processed input data while retaining 100% binary compatibility with the C++ outputs.
+
+```ini
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8457/25H2/2025Update/HudsonValley2)
+AMD Ryzen 5 3600 3.60GHz, 1 CPU, 12 logical and 6 physical cores
+.NET SDK 10.0.300
+  [Host] : .NET 10.0.8 (10.0.8, 10.0.826.23019), X64 RyuJIT x86-64-v3
+```
+
+**Rgb2YCbCr Benchmark Results (Contiguous):**
+| Method    | Mean     | Error    | StdDev   | Ratio | Allocated | Alloc Ratio |
+|---------- |---------:|---------:|---------:|------:|----------:|------------:|
+| Native    | 75.08 ms | 0.068 ms | 0.057 ms |  1.00 |     432 B |        1.00 |
+| Scalar    | 67.82 ms | 0.693 ms | 0.648 ms |  0.90 |     498 B |        1.15 |
+| Unified   | 11.72 ms | 0.023 ms | 0.021 ms |  0.16 |      58 B |        0.13 |
+
+**Rgb2YCbCr Benchmark Results (Padded [47]):**
+| Method    | Mean     | Error    | StdDev   | Ratio | Allocated | Alloc Ratio |
+|---------- |---------:|---------:|---------:|------:|----------:|------------:|
+| Native    | 74.82 ms | 0.425 ms | 0.397 ms |  1.00 |     425 B |        1.00 |
+| Scalar    | 67.41 ms | 0.803 ms | 0.751 ms |  0.90 |     126 B |        0.30 |
+| Unified   | 11.67 ms | 0.017 ms | 0.015 ms |  0.16 |      41 B |        0.10 |
+
+**YCbCr2Rgb Benchmark Results (Contiguous):**
+| Method     | Mean     | Error    | StdDev   | Ratio | Allocated | Alloc Ratio |
+|----------- |---------:|---------:|---------:|------:|----------:|------------:|
+| Native     | 64.18 ms | 0.309 ms | 0.258 ms |  1.00 |     230 B |        1.00 |
+| Scalar     | 36.01 ms | 0.200 ms | 0.187 ms |  0.56 |         - |        0.00 |
+| Unified    | 11.23 ms | 0.029 ms | 0.026 ms |  0.18 |     202 B |        0.88 |
+
+**YCbCr2Rgb Benchmark Results (Padded [47]):**
+| Method     | Mean     | Error    | StdDev   | Ratio | Allocated | Alloc Ratio |
+|----------- |---------:|---------:|---------:|------:|----------:|------------:|
+| Native     | 63.46 ms | 0.139 ms | 0.116 ms |  1.00 |     202 B |        1.00 |
+| Scalar     | 35.87 ms | 0.170 ms | 0.151 ms |  0.57 |     163 B |        0.81 |
+| Unified    | 10.96 ms | 0.040 ms | 0.033 ms |  0.17 |     202 B |        1.00 |
+
+*(Note: "Unified" denotes implementations combining AVX2 intrinsics with byte-stride tail handling).*
 
 
 ## DjVu Format Support Validation

@@ -6,7 +6,7 @@ using DjvuNet.Tests;
 
 namespace DjvuNet.Benchmarks
 {
-    [Config(typeof(BenchmarkConfig))]
+    [Config(typeof(LongRunningConfig))]
     public class ImageCacheBenchmark : IDisposable
     {
         private List<int> _documentIndices;
@@ -38,9 +38,18 @@ namespace DjvuNet.Benchmarks
             _managedFixture?.Dispose();
         }
 
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _managedFixture?.Dispose();
+            }
+        }
+
         public void Dispose()
         {
-            _managedFixture?.Dispose();
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         [Benchmark]

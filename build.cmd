@@ -1260,7 +1260,7 @@ echo                                    When omitted, native dependencies are pr
 echo.
 echo   -v, -Verbosity ^<level^>         Verbosity (q[uiet], m[inimal], n[ormal], d[etailed], diag[nostic]). Default: normal.
 echo.
-echo   -proc, -Processors ^<count^>     Number of build processes. Default: %%NUMBER_OF_PROCESSORS%%
+echo   -proc, -Processors ^<count^>     Number of build processes. Default: !NUMBER_OF_PROCESSORS!
 echo.
 echo   -OS ^<os^>                       Target OS (Windows, Linux, OSX). Default: Windows.
 echo.

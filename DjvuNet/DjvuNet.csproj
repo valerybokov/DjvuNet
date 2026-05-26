@@ -208,6 +208,7 @@
     <Compile Include="Wavelet\InterWavePixelMapEncoder.cs" />
     <Compile Include="Wavelet\InterWavePixelMapDecoder.cs" />
     <Compile Include="Wavelet\InterWaveTransform.cs" />
+    <Compile Include="Wavelet\InterWaveTransform.Unified.cs" />
     <Compile Include="Wavelet\MemoryUtilities.cs" />
     <Compile Include="Wavelet\YCrCbMode.cs" />
     <Compile Include="Text\PageText.cs" />

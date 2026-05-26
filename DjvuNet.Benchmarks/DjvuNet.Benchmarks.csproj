@@ -4,7 +4,10 @@
     <ItemGroup>
       <Compile Include="Program.cs"/>
       <Compile Include="ImageCacheBenchmark.cs"/>
-      <Compile Include="BenchmarkConfig.cs"/>
+      <Compile Include="YCbCr2RgbBenchmark.cs"/>
+      <Compile Include="Rgb2YCbCrBenchmark.cs"/>
+      <Compile Include="LongRunningConfig.cs"/>
+      <Compile Include="StandardConfig.cs"/>
     </ItemGroup>
 
   <ItemGroup>

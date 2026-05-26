@@ -6,7 +6,7 @@ namespace DjvuNet.Benchmarks
     {
         public static void Main(string[] args)
         {
-            BenchmarkRunner.Run<ImageCacheBenchmark>();
+            BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
         }
     }
 }

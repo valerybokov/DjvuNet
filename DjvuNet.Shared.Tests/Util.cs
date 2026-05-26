@@ -418,6 +418,35 @@ namespace DjvuNet.Tests
             }
         }
 
+        /// <summary>
+        /// Calculates the average absolute difference per channel per pixel across the whole image using raw pointers.
+        /// It is the caller's responsibility to ensure that both image buffers share the exact same stride layout.
+        /// </summary>
+        /// <param name="ptr1">Pointer to the first image buffer.</param>
+        /// <param name="ptr2">Pointer to the second image buffer.</param>
+        /// <param name="width">The width of the image in pixels.</param>
+        /// <param name="height">The height of the image in pixels.</param>
+        /// <param name="stride">The row stride (in bytes), including any padding and preserving the sign (for bottom-up images).</param>
+        /// <param name="pixelSize">The size of a single pixel in bits (e.g., 24 for 24bpp RGB, 32 for ARGB).</param>
+        /// <param name="channelSize">The size of a single color channel in bits (e.g., 8 for standard RGB channels).</param>
+        /// <returns>A ratio between 0.0 (identical) and 1.0 (completely opposite) representing the average pixel difference.</returns>
+        internal static unsafe double ImageBinaryDiff(byte* ptr1, byte* ptr2, int width, int height, int stride, int pixelSize = 24, int channelSize = 8)
+        {
+            if (channelSize % 8 != 0)
+            {
+                throw new ArgumentException("Method supports only multiple of 8 bits channel sizes");
+            }
+            return ImageBinaryDiffCore(ptr1, ptr2, (uint)width, (uint)height, stride, pixelSize, channelSize);
+        }
+
+        /// <summary>
+        /// Calculates the average absolute difference per channel per pixel across the whole image using BitmapData.
+        /// </summary>
+        /// <param name="imageData1">The first image data object.</param>
+        /// <param name="imageData2">The second image data object.</param>
+        /// <param name="pixelSize">The size of a single pixel in bits (e.g., 24 for 24bpp RGB, 32 for ARGB).</param>
+        /// <param name="channelSize">The size of a single color channel in bits (e.g., 8 for standard RGB channels).</param>
+        /// <returns>A ratio between 0.0 (identical) and 1.0 (completely opposite) representing the average pixel difference.</returns>
         internal static unsafe double ImageBinaryDiff(BitmapData imageData1, BitmapData imageData2, int pixelSize = 24, int channelSize = 8)
         {
             if (channelSize % 8 != 0)
@@ -425,11 +454,36 @@ namespace DjvuNet.Tests
                 throw new ArgumentException("Method supports only multiple of 8 bits channel sizes");
             }
 
-            uint pixelSizeInBytes = (uint) Image.GetPixelFormatSize(imageData1.PixelFormat) / 8;
+            if (imageData1.Stride != imageData2.Stride)
+            {
+                // We do not support comparing images with different strides.
+                return 1.0; 
+            }
+
             uint width = (uint)imageData1.Width;
             uint height = (uint)imageData1.Height;
-            uint widthBytes = width * pixelSizeInBytes;
+            int stride = imageData1.Stride;
 
+            return ImageBinaryDiffCore((byte*)imageData1.Scan0, (byte*)imageData2.Scan0, width, height, stride, pixelSize, channelSize);
+        }
+
+        /// <summary>
+        /// The core vectorized engine for calculating binary image differences, accounting for byte stride.
+        /// It is strictly the caller's responsibility to ensure that both scan0_1 and scan0_2 point to buffers
+        /// that were allocated with the exact same stride layout.
+        /// </summary>
+        /// <param name="scan0_1">Pointer to the start of the first image buffer.</param>
+        /// <param name="scan0_2">Pointer to the start of the second image buffer.</param>
+        /// <param name="width">The width of the image in pixels.</param>
+        /// <param name="height">The height of the image in pixels.</param>
+        /// <param name="stride">The row stride (in bytes), including any padding and preserving the sign.</param>
+        /// <param name="pixelSize">The size of a single pixel in bits (e.g., 24 for 24bpp RGB).</param>
+        /// <param name="channelSize">The size of a single color channel in bits (e.g., 8).</param>
+        /// <returns>A ratio representing the average pixel difference.</returns>
+        internal static unsafe double ImageBinaryDiffCore(byte* scan0_1, byte* scan0_2, uint width, uint height, int stride, int pixelSize, int channelSize)
+        {
+            uint pixelSizeInBytes = (uint)pixelSize / 8;
+            uint widthBytes = width * pixelSizeInBytes;
             double result = 0.0;
 
 #if NETCOREAPP
@@ -445,8 +499,8 @@ namespace DjvuNet.Tests
 
                 for (uint i = 0; i < height; i++)
                 {
-                    byte* pixelRow1 = (byte*)((long)imageData1.Scan0 + (i * imageData1.Stride));
-                    byte* pixelRow2 = (byte*)((long)imageData2.Scan0 + (i * imageData2.Stride));
+                    byte* pixelRow1 = scan0_1 + ((long)i * stride);
+                    byte* pixelRow2 = scan0_2 + ((long)i * stride);
                     uint rowPos = i * width;
 
                     for (uint wb = 0; wb < widthBytesAvx2L; wb += 32)
@@ -532,9 +586,8 @@ namespace DjvuNet.Tests
             {
                 for (uint i = 0; i < height; i++)
                 {
-                    byte* pixelRow1 = (byte*)((long)imageData1.Scan0 + (i * imageData1.Stride));
-                    byte* pixelRow2 = (byte*)((long)imageData2.Scan0 + (i * imageData2.Stride));
-                    uint rowPos = i * width;
+                    byte* pixelRow1 = scan0_1 + ((long)i * stride);
+                    byte* pixelRow2 = scan0_2 + ((long)i * stride);
 
                     for (uint wb = 0; wb < widthBytes; wb += pixelSizeInBytes)
                     {

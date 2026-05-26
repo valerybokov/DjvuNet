@@ -1530,5 +1530,8 @@ namespace DjvuNet.DjvuLibre
 
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_iw44_rgb_to_cr", CallingConvention = CallingConvention.Cdecl)]
         internal static extern bool RgbToCr(IntPtr pixels, int width, int height, int rowSize, IntPtr @out, int outRowSize);
+
+        [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_iw44_rgb_to_ycbcr", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern bool RgbToYCbCr(IntPtr pixels, int width, int height, int rowSize, IntPtr outY, IntPtr outCb, IntPtr outCr, int outRowSize);
     }
 }
