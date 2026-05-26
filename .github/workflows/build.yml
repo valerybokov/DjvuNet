@@ -71,6 +71,15 @@ jobs:
       run: |
         ./build.sh -p ${{ matrix.platform }} -c Release -f net10.0 -Test -OS ${{ runner.os }}
 
+    - name: Upload Test Results and Benchmarks
+      uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        name: test-results-${{ matrix.os }}-${{ matrix.platform }}
+        path: |
+          TestResults/**/*.xml
+        retention-days: 2
+
     - name: Upload Diagnostic Logs
       uses: actions/upload-artifact@v7
       if: failure()

@@ -4,6 +4,7 @@ using DjvuNet.DjvuLibre;
 using DjvuNet.Wavelet;
 using DjvuNet.Graphics;
 using Xunit;
+using DjvuNet.Tests;
 
 namespace DjvuNet.DjvuLibre.Compatibility.Tests
 {
@@ -78,9 +79,9 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             fixed (byte* pNt = nativeBuffer)
             {
                 int strideBytes = rowSize * sizeof(Pixel);
-                diffSc = DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pSc, pNt, width, height, strideBytes);
-                diffUn = DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pUn, pNt, width, height, strideBytes);
-                diffScUn = DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pSc, (byte*)pUn, width, height, strideBytes);
+                diffSc = Util.ImageBinaryDiff((byte*)pSc, pNt, width, height, strideBytes);
+                diffUn = Util.ImageBinaryDiff((byte*)pUn, pNt, width, height, strideBytes);
+                diffScUn = Util.ImageBinaryDiff((byte*)pSc, (byte*)pUn, width, height, strideBytes);
             }
 
             bool hasError = diffSc > 0 || diffUn > 0 || diffScUn > 0;
@@ -157,9 +158,9 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             fixed (byte* pNt = nativeBuffer)
             {
                 int strideBytes = rowSize * 3; // 3 bytes per pixel
-                diffScNt = DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pSc, pNt, width, height, strideBytes);
-                diffUnNt = DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pUn, pNt, width, height, strideBytes);
-                diffScUn = DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pSc, (byte*)pUn, width, height, strideBytes);
+                diffScNt = Util.ImageBinaryDiff((byte*)pSc, pNt, width, height, strideBytes);
+                diffUnNt = Util.ImageBinaryDiff((byte*)pUn, pNt, width, height, strideBytes);
+                diffScUn = Util.ImageBinaryDiff((byte*)pSc, (byte*)pUn, width, height, strideBytes);
             }
 
             bool scalarVsNativeFailed = diffScNt > 0.0;
@@ -250,9 +251,9 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             fixed (byte* pNtCb = nativeOutCb)
             fixed (byte* pNtCr = nativeOutCr)
             {
-                double diffY = DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pY, pNtY, width, height, width, 8, 8);
-                double diffCb = DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pCb, pNtCb, width, height, width, 8, 8);
-                double diffCr = DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pCr, pNtCr, width, height, width, 8, 8);
+                double diffY = Util.ImageBinaryDiff((byte*)pY, pNtY, width, height, width, 8, 8);
+                double diffCb = Util.ImageBinaryDiff((byte*)pCb, pNtCb, width, height, width, 8, 8);
+                double diffCr = Util.ImageBinaryDiff((byte*)pCr, pNtCr, width, height, width, 8, 8);
 
                 Assert.Equal(0.0, diffY);
                 Assert.Equal(0.0, diffCb);
@@ -348,9 +349,9 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             fixed (byte* pNtCb = nativeOutCb)
             fixed (byte* pNtCr = nativeOutCr)
             {
-                double diffY = DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pY, pNtY, width, height, outRowSize, 8, 8);
-                double diffCb = DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pCb, pNtCb, width, height, outRowSize, 8, 8);
-                double diffCr = DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pCr, pNtCr, width, height, outRowSize, 8, 8);
+                double diffY = Util.ImageBinaryDiff((byte*)pY, pNtY, width, height, outRowSize, 8, 8);
+                double diffCb = Util.ImageBinaryDiff((byte*)pCb, pNtCb, width, height, outRowSize, 8, 8);
+                double diffCr = Util.ImageBinaryDiff((byte*)pCr, pNtCr, width, height, outRowSize, 8, 8);
 
                 Assert.Equal(0.0, diffY);
                 Assert.Equal(0.0, diffCb);
@@ -455,14 +456,14 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             fixed (byte* pNtCr = nativeOutCr)
             {
                 // Native vs Unified
-                Assert.Equal(0.0, DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pUnY, pNtY, width, height, width, 8, 8));
-                Assert.Equal(0.0, DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pUnCb, pNtCb, width, height, width, 8, 8));
-                Assert.Equal(0.0, DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pUnCr, pNtCr, width, height, width, 8, 8));
+                Assert.Equal(0.0, Util.ImageBinaryDiff((byte*)pUnY, pNtY, width, height, width, 8, 8));
+                Assert.Equal(0.0, Util.ImageBinaryDiff((byte*)pUnCb, pNtCb, width, height, width, 8, 8));
+                Assert.Equal(0.0, Util.ImageBinaryDiff((byte*)pUnCr, pNtCr, width, height, width, 8, 8));
 
                 // Scalar vs Unified
-                Assert.Equal(0.0, DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pScY, (byte*)pUnY, width, height, width, 8, 8));
-                Assert.Equal(0.0, DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pScCb, (byte*)pUnCb, width, height, width, 8, 8));
-                Assert.Equal(0.0, DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pScCr, (byte*)pUnCr, width, height, width, 8, 8));
+                Assert.Equal(0.0, Util.ImageBinaryDiff((byte*)pScY, (byte*)pUnY, width, height, width, 8, 8));
+                Assert.Equal(0.0, Util.ImageBinaryDiff((byte*)pScCb, (byte*)pUnCb, width, height, width, 8, 8));
+                Assert.Equal(0.0, Util.ImageBinaryDiff((byte*)pScCr, (byte*)pUnCr, width, height, width, 8, 8));
             }
         }
 
@@ -568,94 +569,18 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             fixed (byte* pNtCr = nativeOutCr)
             {
                 // Native vs Unified (Must match exactly)
-                Assert.Equal(0.0, DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pUnY, pNtY, width, height, outRowSize, 8, 8));
-                Assert.Equal(0.0, DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pUnCb, pNtCb, width, height, outRowSize, 8, 8));
-                Assert.Equal(0.0, DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pUnCr, pNtCr, width, height, outRowSize, 8, 8));
+                Assert.Equal(0.0, Util.ImageBinaryDiff((byte*)pUnY, pNtY, width, height, outRowSize, 8, 8));
+                Assert.Equal(0.0, Util.ImageBinaryDiff((byte*)pUnCb, pNtCb, width, height, outRowSize, 8, 8));
+                Assert.Equal(0.0, Util.ImageBinaryDiff((byte*)pUnCr, pNtCr, width, height, outRowSize, 8, 8));
 
                 // Scalar vs Unified (Must fail because Scalar ignores stride)
-                double diffScY = DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pScY, (byte*)pUnY, width, height, outRowSize, 8, 8);
-                double diffScCb = DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pScCb, (byte*)pUnCb, width, height, outRowSize, 8, 8);
-                double diffScCr = DjvuNet.Tests.Util.ImageBinaryDiff((byte*)pScCr, (byte*)pUnCr, width, height, outRowSize, 8, 8);
+                double diffScY = Util.ImageBinaryDiff((byte*)pScY, (byte*)pUnY, width, height, outRowSize, 8, 8);
+                double diffScCb = Util.ImageBinaryDiff((byte*)pScCb, (byte*)pUnCb, width, height, outRowSize, 8, 8);
+                double diffScCr = Util.ImageBinaryDiff((byte*)pScCr, (byte*)pUnCr, width, height, outRowSize, 8, 8);
 
                 bool scalarFailed = diffScY > 0.0 || diffScCb > 0.0 || diffScCr > 0.0;
                 Assert.True(scalarFailed, "Expected the legacy scalar method to fail parity on padded buffers.");
             }
-        }
-
-        [Fact]
-        public void GenerateNativeTestData()
-        {
-            byte[][] colors = new byte[][] {
-                new byte[] { 0, 0, 0 }, new byte[] { 255, 255, 255 }, new byte[] { 255, 0, 0 },
-                new byte[] { 0, 255, 0 }, new byte[] { 0, 0, 255 }, new byte[] { 255, 255, 0 },
-                new byte[] { 0, 255, 255 }, new byte[] { 255, 0, 255 }, new byte[] { 128, 128, 128 },
-                new byte[] { 64, 64, 64 }, new byte[] { 192, 192, 192 }, new byte[] { 128, 0, 0 },
-                new byte[] { 0, 128, 0 }, new byte[] { 0, 0, 128 }, new byte[] { 255, 128, 0 },
-                new byte[] { 255, 0, 128 }, new byte[] { 128, 255, 0 }, new byte[] { 0, 255, 128 },
-                new byte[] { 64, 128, 192 }, new byte[] { 192, 128, 64 }
-            };
-            string[] names = new string[] {
-                "Black", "White", "Pure Red", "Pure Green", "Pure Blue", "Yellow", "Cyan", "Magenta",
-                "Mid Gray", "Dark Gray", "Light Gray", "Half Red", "Half Green", "Half Blue", "Orange",
-                "Pink/Rose", "Yellow-Green", "Sea Green", "Steel Blue", "Tan/Brown"
-            };
-
-            Console.WriteLine("\n--- GENERATED NATIVE C++ INLINE DATA ---");
-            for (int i = 0; i < colors.Length; i++)
-            {
-                var c = colors[i];
-
-                IntPtr rgbPtr = System.Runtime.InteropServices.Marshal.AllocHGlobal(3);
-                IntPtr yPtr = System.Runtime.InteropServices.Marshal.AllocHGlobal(1);
-                IntPtr cbPtr = System.Runtime.InteropServices.Marshal.AllocHGlobal(1);
-                IntPtr crPtr = System.Runtime.InteropServices.Marshal.AllocHGlobal(1);
-                IntPtr roundTripRgbPtr = System.Runtime.InteropServices.Marshal.AllocHGlobal(3);
-
-                try
-                {
-                    // Write BGR memory (DjVuLibre Pixel format)
-                    System.Runtime.InteropServices.Marshal.WriteByte(rgbPtr, 0, c[2]); // Blue
-                    System.Runtime.InteropServices.Marshal.WriteByte(rgbPtr, 1, c[1]); // Green
-                    System.Runtime.InteropServices.Marshal.WriteByte(rgbPtr, 2, c[0]); // Red
-
-                    NativeMethods.RgbToY(rgbPtr, 1, 1, 1, yPtr, 1);
-                    NativeMethods.RgbToCb(rgbPtr, 1, 1, 1, cbPtr, 1);
-                    NativeMethods.RgbToCr(rgbPtr, 1, 1, 1, crPtr, 1);
-
-                    byte yOut = System.Runtime.InteropServices.Marshal.ReadByte(yPtr, 0);
-                    byte cbOut = System.Runtime.InteropServices.Marshal.ReadByte(cbPtr, 0);
-                    byte crOut = System.Runtime.InteropServices.Marshal.ReadByte(crPtr, 0);
-
-                    // Re-pack into BGR for reverse transform
-                    System.Runtime.InteropServices.Marshal.WriteByte(roundTripRgbPtr, 0, yOut);  // Y goes into Blue slot
-                    System.Runtime.InteropServices.Marshal.WriteByte(roundTripRgbPtr, 1, cbOut); // Cb goes into Green slot
-                    System.Runtime.InteropServices.Marshal.WriteByte(roundTripRgbPtr, 2, crOut); // Cr goes into Red slot
-
-                    NativeMethods.YCbCrToRgb(roundTripRgbPtr, 1, 1, 1);
-
-                    byte rtB = System.Runtime.InteropServices.Marshal.ReadByte(roundTripRgbPtr, 0);
-                    byte rtG = System.Runtime.InteropServices.Marshal.ReadByte(roundTripRgbPtr, 1);
-                    byte rtR = System.Runtime.InteropServices.Marshal.ReadByte(roundTripRgbPtr, 2);
-
-                    sbyte sy = unchecked((sbyte)yOut);
-                    sbyte scb = unchecked((sbyte)cbOut);
-                    sbyte scr = unchecked((sbyte)crOut);
-                    sbyte sr = unchecked((sbyte)rtR);
-                    sbyte sg = unchecked((sbyte)rtG);
-                    sbyte sb = unchecked((sbyte)rtB);
-
-                    Console.WriteLine($"[InlineData({sy,4}, {scb,4}, {scr,4}, {sr,4}, {sg,4}, {sb,4})] // {names[i]} (Original: {c[0]}, {c[1]}, {c[2]})");
-                }
-                finally
-                {
-                    System.Runtime.InteropServices.Marshal.FreeHGlobal(rgbPtr);
-                    System.Runtime.InteropServices.Marshal.FreeHGlobal(yPtr);
-                    System.Runtime.InteropServices.Marshal.FreeHGlobal(cbPtr);
-                    System.Runtime.InteropServices.Marshal.FreeHGlobal(crPtr);
-                    System.Runtime.InteropServices.Marshal.FreeHGlobal(roundTripRgbPtr);
-                }
-            }
-            Console.WriteLine("----------------------------------------\n");
         }
     }
 }

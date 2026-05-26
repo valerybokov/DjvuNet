@@ -2,6 +2,8 @@ using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics.X86;
+using System.Runtime.Intrinsics;
 using Xunit;
 
 namespace DjvuNet.Tests.UtilTests
@@ -18,7 +20,7 @@ namespace DjvuNet.Tests.UtilTests
             int width = 130;
             int height = 3;
             int pixelSize = 24; // 24 bpp (3 bytes/pixel)
-            int stride = 392; 
+            int stride = 392;
             int totalBytes = height * stride;
 
             byte[] buffer1 = new byte[totalBytes];
@@ -34,7 +36,7 @@ namespace DjvuNet.Tests.UtilTests
 
             // Introduce 1 intentional difference in the visible area of Row 1
             // Row 1 offset = 1 * stride = 392.
-            int diffIndex1 = 392 + 50; 
+            int diffIndex1 = 392 + 50;
             buffer2[diffIndex1] = (byte)((buffer1[diffIndex1] + 10) % 256);
 
             // Introduce 1 intentional difference in the visible area of Row 2
@@ -43,7 +45,7 @@ namespace DjvuNet.Tests.UtilTests
 
             // Introduce a difference in the PADDING area of Row 0.
             // Visible bytes end at index 389. Indices 390 and 391 are padding.
-            buffer2[390] = 255; 
+            buffer2[390] = 255;
 
             // Calculate expected difference
             // ImageBinaryDiff calculates the average absolute difference per channel per pixel across the whole image.
@@ -60,7 +62,7 @@ namespace DjvuNet.Tests.UtilTests
                 // The method should ignore the difference in the padding byte (index 390)
                 double actualDiff = Util.ImageBinaryDiff(ptr1, ptr2, width, height, stride, pixelSize);
 
-                // AVX2 uses floats internally for some calculations before casting to double, 
+                // AVX2 uses floats internally for some calculations before casting to double,
                 // so we assert with a small precision tolerance.
                 Assert.Equal(expectedDiff, actualDiff, 5);
             }
@@ -71,14 +73,14 @@ namespace DjvuNet.Tests.UtilTests
         {
             int width = 130;
             int height = 3;
-            
+
             // Create two identical bitmaps
             using (Bitmap bmp1 = new Bitmap(width, height, PixelFormat.Format24bppRgb))
             using (Bitmap bmp2 = new Bitmap(width, height, PixelFormat.Format24bppRgb))
             {
-                // Bitmaps automatically pad strides to 4-byte boundaries. 
+                // Bitmaps automatically pad strides to 4-byte boundaries.
                 // 130 * 3 = 390 bytes. Padded to nearest multiple of 4 = 392 bytes.
-                
+
                 // Introduce differences
                 bmp1.SetPixel(10, 1, Color.FromArgb(100, 100, 100));
                 bmp2.SetPixel(10, 1, Color.FromArgb(110, 100, 100)); // R diff = 10
@@ -102,6 +104,257 @@ namespace DjvuNet.Tests.UtilTests
                     bmp1.UnlockBits(data1);
                     bmp2.UnlockBits(data2);
                 }
+            }
+        }
+
+        [Fact]
+        public unsafe void ImageBinaryDiffCore_ReproduceAvx2PointerDesynchronization()
+        {
+            // A width that triggers widthBytesAvx2L = 128, oneVectorRounds = 0, widthBytesAvx2SRem = 2
+            int width = 130;
+            int height = 3; // Ensure multiple rows are processed
+
+            // Add synthetic padding to simulate GDI+ alignment or similar strides
+            int stride = width + 2;
+            int totalBytes = stride * height;
+
+            byte[] img1 = new byte[totalBytes];
+            byte[] img2 = new byte[totalBytes];
+
+            // Initialize arrays to be completely identical
+            for (int i = 0; i < totalBytes; i++)
+            {
+                img1[i] = 100;
+                img2[i] = 100;
+            }
+
+            // Poison ONLY the tail bytes (indexes 128 and 129) of the SECOND row.
+            // Row 2 starts at index `stride * 1`.
+            int row2TailIndex1 = (stride * 1) + 128;
+            int row2TailIndex2 = (stride * 1) + 129;
+
+            img1[row2TailIndex1] = 200; img1[row2TailIndex2] = 200;
+            img2[row2TailIndex1] = 50;  img2[row2TailIndex2] = 50;  // Different!
+
+            fixed (byte* ptr1 = img1)
+            fixed (byte* ptr2 = img2)
+            {
+                // channelSize = 1, pixelSize = 8 (1 byte per pixel)
+                double diff = Util.ImageBinaryDiffCore(ptr1, ptr2, (uint)width, (uint)height, stride, 8, 8);
+
+                Console.WriteLine($"\nTested AVX2 Diff: {diff}");
+                for (int y = 0; y < height; y++)
+                {
+                    int rowStart = y * stride;
+                    int chunkStart = rowStart + width - 16;
+                    if (chunkStart < rowStart) chunkStart = rowStart;
+
+                    Console.WriteLine($"\n--- Hex Dump Row {y}: Last 16 bytes + Padding ---");
+
+                    Console.Write("Img1: ");
+                    for (int i = chunkStart; i < rowStart + stride; i++)
+                    {
+                        if (i == rowStart + width) Console.Write("| Padding: ");
+                        Console.Write($"{img1[i]:X2} ");
+                    }
+                    Console.WriteLine();
+
+                    Console.Write("Img2: ");
+                    for (int i = chunkStart; i < rowStart + stride; i++)
+                    {
+                        if (i == rowStart + width) Console.Write("| Padding: ");
+                        Console.Write($"{img2[i]:X2} ");
+                    }
+                    Console.WriteLine();
+                }
+
+                // If the bug exists, diff will be 0.0 because it skipped the tail bytes on every row.
+                // We assert it should NOT be 0, proving the bug exists and forced a failure.
+                Assert.True(diff > 0.0, "AVX2 pointer desynchronization caused tail bytes to be skipped during binary diff comparison providing false positive similarity.");
+            }
+        }
+
+        // WARNING: This is an EXACT COPY of the Vector128 block from DjvuNet.Shared.Tests/Util.cs.
+        // It is copied here to allow explicit testing of the Vector128 fallback logic on AVX2-capable machines
+        // without introducing function call overhead into the production hot path.
+        // ANY CHANGES TO THE VECTOR128 LOGIC IN Util.cs MUST BE MIRRORED HERE.
+        internal static unsafe double TestOnly_ImageBinaryDiffVector128(byte* scan0_1, byte* scan0_2, uint widthBytes, uint height, int stride)
+        {
+            int vectorBound = (int)widthBytes - 16;
+            int tailShift = (int)((16 - (widthBytes % 16)) % 16);
+
+            Vector128<ulong> imageAccum64L = Vector128<ulong>.Zero;
+            Vector128<ulong> imageAccum64H = Vector128<ulong>.Zero;
+
+            Vector128<sbyte> seq128 = Vector128.Create((sbyte)0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+            Vector128<sbyte> threshold = Vector128.Create((sbyte)(tailShift - 1));
+            Vector128<byte> tailMask = Vector128.GreaterThan(seq128, threshold).AsByte();
+
+            for (uint i = 0; i < height; i++)
+            {
+                byte* p1 = scan0_1 + ((long)i * stride);
+                byte* p2 = scan0_2 + ((long)i * stride);
+                int x = 0;
+
+                while (x <= vectorBound)
+                {
+                    int batchLimit = Math.Min(x + (255 * 16), vectorBound + 16);
+                    if (batchLimit > vectorBound) batchLimit = vectorBound + 1;
+
+                    Vector128<ushort> batchAccum16L = Vector128<ushort>.Zero;
+                    Vector128<ushort> batchAccum16H = Vector128<ushort>.Zero;
+
+                    while (x < batchLimit)
+                    {
+                        Vector128<byte> r1 = Vector128.Load(p1);
+                        Vector128<byte> r2 = Vector128.Load(p2);
+
+                        Vector128<byte> diff = Vector128.Subtract(Vector128.Max(r1, r2), Vector128.Min(r1, r2));
+
+                        batchAccum16L = Vector128.Add(batchAccum16L, Vector128.WidenLower(diff));
+                        batchAccum16H = Vector128.Add(batchAccum16H, Vector128.WidenUpper(diff));
+
+                        p1 += 16;
+                        p2 += 16;
+                        x += 16;
+                    }
+
+                    Vector128<uint> batch32L = Vector128.Add(Vector128.WidenLower(batchAccum16L), Vector128.WidenUpper(batchAccum16L));
+                    Vector128<uint> batch32H = Vector128.Add(Vector128.WidenLower(batchAccum16H), Vector128.WidenUpper(batchAccum16H));
+
+                    imageAccum64L = Vector128.Add(imageAccum64L, Vector128.Add(Vector128.WidenLower(batch32L), Vector128.WidenUpper(batch32L)));
+                    imageAccum64H = Vector128.Add(imageAccum64H, Vector128.Add(Vector128.WidenLower(batch32H), Vector128.WidenUpper(batch32H)));
+                }
+
+                if (x < widthBytes)
+                {
+                    Vector128<byte> r1 = Vector128.Load(p1 - tailShift);
+                    Vector128<byte> r2 = Vector128.Load(p2 - tailShift);
+
+                    r1 = Vector128.BitwiseAnd(r1, tailMask);
+                    r2 = Vector128.BitwiseAnd(r2, tailMask);
+
+                    Vector128<byte> diff = Vector128.Subtract(Vector128.Max(r1, r2), Vector128.Min(r1, r2));
+
+                    Vector128<ushort> sum16L = Vector128.WidenLower(diff);
+                    Vector128<ushort> sum16H = Vector128.WidenUpper(diff);
+
+                    Vector128<uint> sum32L = Vector128.Add(Vector128.WidenLower(sum16L), Vector128.WidenUpper(sum16L));
+                    Vector128<uint> sum32H = Vector128.Add(Vector128.WidenLower(sum16H), Vector128.WidenUpper(sum16H));
+
+                    imageAccum64L = Vector128.Add(imageAccum64L, Vector128.Add(Vector128.WidenLower(sum32L), Vector128.WidenUpper(sum32L)));
+                    imageAccum64H = Vector128.Add(imageAccum64H, Vector128.Add(Vector128.WidenLower(sum32H), Vector128.WidenUpper(sum32H)));
+                }
+            }
+
+            Vector128<ulong> finalSum64 = Vector128.Add(imageAccum64L, imageAccum64H);
+            return Vector128.Sum(finalSum64);
+        }
+
+        [Theory]
+        [InlineData(16)] // Exact vector boundary (Vector128)
+        [InlineData(17)] // 1 byte remainder (SIMD processes 0-15, overlapping shift would re-process byte 1)
+        [InlineData(31)] // Just under 2 vectors
+        [InlineData(32)] // Exactly 2 vectors (AVX2 exact boundary)
+        [InlineData(33)] // AVX2 + 1 byte remainder (AVX2 processes 0-31, overlapping shift would re-process byte 1)
+        public unsafe void ImageBinaryDiff_DetectsTailShiftDoubleCounting(int width)
+        {
+            int height = 1;
+            int stride = width + 5;
+            int totalBytes = stride * height;
+
+            byte[] img1 = new byte[totalBytes];
+            byte[] img2 = new byte[totalBytes];
+
+            for (int i = 0; i < totalBytes; i++)
+            {
+                img1[i] = 100;
+                img2[i] = 100;
+            }
+
+            // Inject the difference strictly WITHIN the region that would be overlapped
+            // if a tail shift occurred without masking.
+            int vectorSize = (width >= 32 && Avx2.IsSupported) ? 32 : 16;
+            int tailShift = (vectorSize - (width % vectorSize)) % vectorSize;
+
+            // If tailShift is 0, just test the last byte. Otherwise test the byte right before the new bytes.
+            int overlapIndex = tailShift == 0 ? width - 1 : width - tailShift - 1;
+
+            img1[overlapIndex] = 150;
+            img2[overlapIndex] = 100;
+
+            double expectedRawDiff = 50.0;
+
+            fixed (byte* ptr1 = img1)
+            fixed (byte* ptr2 = img2)
+            {
+                double maxChannelValue = 255.0;
+                double expectedFinalDiff = expectedRawDiff / (width * height * maxChannelValue);
+
+                double actualDiff = Util.ImageBinaryDiffCore(ptr1, ptr2, (uint)width, (uint)height, stride, 8, 8);
+
+                Assert.Equal(expectedFinalDiff, actualDiff);
+            }
+        }
+
+        [Fact]
+        public unsafe void ImageBinaryDiffScalar_ReproducePaddingOverreadBug()
+        {
+            // Test specifically targets the 1-byte planar format bug (channelSize = 1, pixelSize = 8)
+            int width = 10;
+            int height = 3;
+            int stride = width; // Contiguous visible data
+            int totalPixels = height * stride;
+
+            // Allocate extra space to hold "padding" bytes at the very end
+            int allocationSize = totalPixels + 2;
+
+            byte[] img1 = new byte[allocationSize];
+            byte[] img2 = new byte[allocationSize];
+
+            // Initialize visible pixels to be completely identical
+            for (int i = 0; i < totalPixels; i++)
+            {
+                img1[i] = 100;
+                img2[i] = 100;
+            }
+
+            // Poison the memory AFTER the visible pixels (simulating uninitialized padding)
+            img1[totalPixels] = 255;
+            img1[totalPixels + 1] = 128;
+
+            img2[totalPixels] = 128;
+            img2[totalPixels + 1] = 255; // Different!
+
+            fixed (byte* p1 = img1)
+            fixed (byte* p2 = img2)
+            {
+                // widthBytes = 10, pixelSizeInBytes = 1
+                double diff = Util.ImageBinaryDiffScalar(p1, p2, (uint)width, (uint)height, stride);
+
+                Console.WriteLine($"\nTested Scalar 8-bpp Diff: {diff}");
+                Console.WriteLine($"\n--- Hex Dump: Last 16 bytes + Poisoned Padding ---");
+
+                Console.Write("Img1: ");
+                for (int i = totalPixels - 16; i < allocationSize; i++)
+                {
+                    if (i == totalPixels) Console.Write("| Padding: ");
+                    Console.Write($"{img1[i]:X2} ");
+                }
+                Console.WriteLine();
+
+                Console.Write("Img2: ");
+                for (int i = totalPixels - 16; i < allocationSize; i++)
+                {
+                    if (i == totalPixels) Console.Write("| Padding: ");
+                    Console.Write($"{img2[i]:X2} ");
+                }
+                Console.WriteLine();
+
+                // If the bug exists (hardcoded 3-byte read), it will read the poisoned memory
+                // when processing the final pixel, resulting in a difference > 0.
+                Assert.True(diff == 0.0, $"Expected zero difference between identical buffers, but got {diff}. "
+                    + " This indicates the scalar fallback logic overread into the padding bytes.");
             }
         }
     }

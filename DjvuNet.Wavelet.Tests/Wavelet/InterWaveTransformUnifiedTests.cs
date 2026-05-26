@@ -3,6 +3,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Formats.Tar;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics.X86;
 using Xunit;
 using DjvuNet.Errors;
 using DjvuNet.Graphics;
@@ -50,7 +51,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void YCbCr2Rgb_MatchesScalar_RealData_Continuous()
         {
-            if (!System.Runtime.Intrinsics.X86.Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) return;
 
             string imagePath = GetArtifactPath(TestImageContinuous);
             Assert.True(File.Exists(imagePath), $"Test artifact not found at: {imagePath}");
@@ -74,7 +75,7 @@ namespace DjvuNet.Wavelet.Tests
 #pragma warning disable CS0618
                 InterWaveTransform.YCbCr2RgbScalar((Pixel*)ptrScalar, width, height);
 #pragma warning restore CS0618
-                
+
                 InterWaveTransform.YCbCr2Rgb((Pixel*)ptrUnified, width, height, stride);
 
                 double diff = Util.ImageBinaryDiff(ptrScalar, ptrUnified, width, height, stride, 24, 8);
@@ -85,7 +86,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void YCbCr2Rgb_MatchesScalar_RealData_Padded()
         {
-            if (!System.Runtime.Intrinsics.X86.Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) return;
 
             string imagePath = GetArtifactPath(TestImagePadded);
             Assert.True(File.Exists(imagePath), $"Test artifact not found at: {imagePath}");
@@ -106,17 +107,17 @@ namespace DjvuNet.Wavelet.Tests
             fixed (byte* ptrScalar = bufferScalar)
             fixed (byte* ptrUnified = bufferUnified)
             {
-                // Note: The deprecated Scalar method DOES NOT support stride. It will mathematically fail 
+                // Note: The deprecated Scalar method DOES NOT support stride. It will mathematically fail
                 // parity against the Unified method which correctly handles the padded bytes.
                 // We wrap the scalar call using width instead of stride, which corrupts the output linearly.
 #pragma warning disable CS0618
                 InterWaveTransform.YCbCr2RgbScalar((Pixel*)ptrScalar, width, height);
 #pragma warning restore CS0618
-                
+
                 InterWaveTransform.YCbCr2Rgb((Pixel*)ptrUnified, width, height, stride);
 
                 double diff = Util.ImageBinaryDiff(ptrScalar, ptrUnified, width, height, stride, 24, 8);
-                
+
                 // Assert that the scalar method FAILS to match the stride-safe method
                 Assert.True(diff > 0.0, "Expected Scalar method to fail parity on padded image due to lack of stride support.");
             }
@@ -125,20 +126,20 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void YCbCr2Rgb_MatchesScalar_SmallSequential()
         {
-            if (!System.Runtime.Intrinsics.X86.Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) return;
 
-            int width = 50; 
+            int width = 50;
             int height = 3;
             int stride = (width * 3 + 3) & ~3; // 152 bytes
             int totalBytes = stride * height;
-            
+
             byte[] bufferScalar = new byte[totalBytes];
             byte[] bufferUnified = new byte[totalBytes];
 
             // Fill with sequential bytes to easily track permutations
             for (int i = 0; i < totalBytes; i++)
             {
-                bufferScalar[i] = (byte)(i); 
+                bufferScalar[i] = (byte)(i);
                 bufferUnified[i] = bufferScalar[i];
             }
 
@@ -148,7 +149,7 @@ namespace DjvuNet.Wavelet.Tests
 #pragma warning disable CS0618
                 InterWaveTransform.YCbCr2RgbScalar((Pixel*)ptrScalar, width, height);
 #pragma warning restore CS0618
-                
+
                 InterWaveTransform.YCbCr2Rgb((Pixel*)ptrUnified, width, height, stride);
 
                 // Since we padded the buffer and height > 1, the scalar method (which ignores stride) will corrupt the second row.
@@ -160,7 +161,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Rgb2YCbCr_InputValidation_NullPointers_ThrowsDjvuArgumentNullException()
         {
-            if (!System.Runtime.Intrinsics.X86.Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) return;
 
             IntPtr pIn = IntPtr.Zero, pY = IntPtr.Zero, pCb = IntPtr.Zero, pCr = IntPtr.Zero;
             try
@@ -197,7 +198,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void YCbCr2Rgb_InputValidation_NullPointers_ThrowsDjvuArgumentNullException()
         {
-            if (!System.Runtime.Intrinsics.X86.Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) return;
 
             var ex = Assert.Throws<DjvuArgumentNullException>(() => InterWaveTransform.YCbCr2Rgb(null, 10, 10, 30));
             Assert.Equal("pPixBuff", ex.ParamName);
@@ -207,7 +208,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Rgb2YCbCr_InputValidation_InvalidDimensions_ThrowsDjvuArgumentOutOfRangeException()
         {
-            if (!System.Runtime.Intrinsics.X86.Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) return;
 
             IntPtr pIn = IntPtr.Zero, pY = IntPtr.Zero, pCb = IntPtr.Zero, pCr = IntPtr.Zero;
             try
@@ -240,7 +241,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void YCbCr2Rgb_InputValidation_InvalidDimensions_ThrowsDjvuArgumentOutOfRangeException()
         {
-            if (!System.Runtime.Intrinsics.X86.Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) return;
 
             IntPtr pIn = IntPtr.Zero;
             try
@@ -267,7 +268,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Rgb2YCbCr_InputValidation_InvalidStride_ThrowsDjvuArgumentOutOfRangeException()
         {
-            if (!System.Runtime.Intrinsics.X86.Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) return;
 
             IntPtr pIn = IntPtr.Zero, pY = IntPtr.Zero, pCb = IntPtr.Zero, pCr = IntPtr.Zero;
             try
@@ -300,7 +301,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void YCbCr2Rgb_InputValidation_InvalidStride_ThrowsDjvuArgumentOutOfRangeException()
         {
-            if (!System.Runtime.Intrinsics.X86.Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) return;
 
             IntPtr pIn = IntPtr.Zero;
             try
@@ -320,7 +321,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Rgb2YCbCr_InputValidation_OverlappingInputOutput_ThrowsDjvuInvalidOperationException()
         {
-            if (!System.Runtime.Intrinsics.X86.Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) return;
 
             IntPtr pShared = IntPtr.Zero, pSafe1 = IntPtr.Zero, pSafe2 = IntPtr.Zero;
             try
@@ -329,14 +330,14 @@ namespace DjvuNet.Wavelet.Tests
                 pSafe1 = Marshal.AllocHGlobal(100);
                 pSafe2 = Marshal.AllocHGlobal(100);
 
-                var ex1 = Assert.Throws<DjvuInvalidOperationException>(() => 
+                var ex1 = Assert.Throws<DjvuInvalidOperationException>(() =>
                     InterWaveTransform.Rgb2YCbCr((Pixel*)pShared, 10, 10, 30, (sbyte*)pShared, (sbyte*)pSafe1, (sbyte*)pSafe2, 10));
                 Assert.Contains("Source and destination buffers must be distinct", ex1.Message);
 
-                var ex2 = Assert.Throws<DjvuInvalidOperationException>(() => 
+                var ex2 = Assert.Throws<DjvuInvalidOperationException>(() =>
                     InterWaveTransform.Rgb2YCbCr((Pixel*)pShared, 10, 10, 30, (sbyte*)pSafe1, (sbyte*)pShared, (sbyte*)pSafe2, 10));
-                
-                var ex3 = Assert.Throws<DjvuInvalidOperationException>(() => 
+
+                var ex3 = Assert.Throws<DjvuInvalidOperationException>(() =>
                     InterWaveTransform.Rgb2YCbCr((Pixel*)pShared, 10, 10, 30, (sbyte*)pSafe1, (sbyte*)pSafe2, (sbyte*)pShared, 10));
             }
             finally
@@ -350,7 +351,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Rgb2YCbCr_InputValidation_OverlappingOutputBuffers_ThrowsDjvuInvalidOperationException()
         {
-            if (!System.Runtime.Intrinsics.X86.Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) return;
 
             IntPtr pIn = IntPtr.Zero, pSharedOut = IntPtr.Zero, pSafeOut = IntPtr.Zero;
             try
@@ -359,14 +360,14 @@ namespace DjvuNet.Wavelet.Tests
                 pSharedOut = Marshal.AllocHGlobal(200);
                 pSafeOut = Marshal.AllocHGlobal(100);
 
-                var ex1 = Assert.Throws<DjvuInvalidOperationException>(() => 
+                var ex1 = Assert.Throws<DjvuInvalidOperationException>(() =>
                     InterWaveTransform.Rgb2YCbCr((Pixel*)pIn, 10, 10, 30, (sbyte*)pSharedOut, (sbyte*)pSharedOut, (sbyte*)pSafeOut, 10));
                 Assert.Contains("Destination planar buffers (Y, Cb, Cr) must be distinct and not overlap.", ex1.Message);
 
-                var ex2 = Assert.Throws<DjvuInvalidOperationException>(() => 
+                var ex2 = Assert.Throws<DjvuInvalidOperationException>(() =>
                     InterWaveTransform.Rgb2YCbCr((Pixel*)pIn, 10, 10, 30, (sbyte*)pSharedOut, (sbyte*)pSafeOut, (sbyte*)pSharedOut, 10));
 
-                var ex3 = Assert.Throws<DjvuInvalidOperationException>(() => 
+                var ex3 = Assert.Throws<DjvuInvalidOperationException>(() =>
                     InterWaveTransform.Rgb2YCbCr((Pixel*)pIn, 10, 10, 30, (sbyte*)pSafeOut, (sbyte*)pSharedOut, (sbyte*)pSharedOut, 10));
             }
             finally

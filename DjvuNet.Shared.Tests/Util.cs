@@ -45,7 +45,7 @@ namespace DjvuNet.Tests
                             Path.GetFileNameWithoutExtension(filePath) + ".json");
 
                         string json = File.ReadAllText(filePath, new UTF8Encoding(false));
-                        
+
                         DjvuDoc doc = JsonSerializer.Deserialize<DjvuDoc>(json, options);
 
                         Tuple<int, int, DocumentType, string> docData;
@@ -457,7 +457,7 @@ namespace DjvuNet.Tests
             if (imageData1.Stride != imageData2.Stride)
             {
                 // We do not support comparing images with different strides.
-                return 1.0; 
+                return 1.0;
             }
 
             uint width = (uint)imageData1.Width;
@@ -468,104 +468,114 @@ namespace DjvuNet.Tests
         }
 
         /// <summary>
-        /// The core vectorized engine for calculating binary image differences, accounting for byte stride.
-        /// It is strictly the caller's responsibility to ensure that both scan0_1 and scan0_2 point to buffers
-        /// that were allocated with the exact same stride layout.
+        /// Calculates the aggregate average absolute difference per pixel across an entire image using SIMD hardware acceleration.
         /// </summary>
-        /// <param name="scan0_1">Pointer to the start of the first image buffer.</param>
-        /// <param name="scan0_2">Pointer to the start of the second image buffer.</param>
+        /// <param name="scan0_1">Pointer to the start of the first image buffer in memory.</param>
+        /// <param name="scan0_2">Pointer to the start of the second image buffer in memory.</param>
         /// <param name="width">The width of the image in pixels.</param>
         /// <param name="height">The height of the image in pixels.</param>
-        /// <param name="stride">The row stride (in bytes), including any padding and preserving the sign.</param>
-        /// <param name="pixelSize">The size of a single pixel in bits (e.g., 24 for 24bpp RGB).</param>
-        /// <param name="channelSize">The size of a single color channel in bits (e.g., 8).</param>
-        /// <returns>A ratio representing the average pixel difference.</returns>
+        /// <param name="stride">The row stride in bytes, including any memory alignment padding.</param>
+        /// <param name="pixelSize">The total size of a single pixel in bits (e.g., 24 for RGB).</param>
+        /// <param name="channelSize">The size of a single color channel in bits (e.g., 8 for standard channels).</param>
+        /// <returns>A <see cref="double"/> representing the average pixel difference across the image channels.</returns>
+        /// <remarks>
+        /// <para>
+        /// It is strictly the caller's responsibility to ensure that both pointers reference buffers allocated with the
+        /// exact same stride layout. The method natively calculates the visible byte width and uses linear byte processing
+        /// to ensure memory stride padding is never read.
+        /// </para>
+        /// <para>
+        /// When an image row's visible width is not perfectly aligned to a hardware vector boundary (32 bytes for AVX2,
+        /// 16 bytes for Vector128), this method implements a tail-shift strategy to process the remainder bytes. The
+        /// pointer for the final vector load is shifted backwards by a calculated offset, guaranteeing the load ends
+        /// exactly on the last valid byte of the row without over-reading into the uninitialized padding.
+        /// </para>
+        /// <para>
+        /// To prevent overlapping bytes (which were already processed in the previous SIMD iteration) from being double-counted
+        /// in the accumulation, a dynamic bitmask is generated via a sequence comparison. This mask zeroes out the overlapping
+        /// bytes using a bitwise AND operation, zerping them before the Sum of Absolute Differences (SAD) calculation occurs.
+        /// </para>
+        /// <para>
+        /// The Vector128 fallback path optimizes pipeline throughput by accumulating differences into smaller lanes for up
+        /// to 255 inner-loop iterations before flushing to larger row accumulators. This prevents accumulation overflow on
+        /// large images while avoiding the latency of horizontal widening instructions in the hot path.
+        /// </para>
+        /// </remarks>
         internal static unsafe double ImageBinaryDiffCore(byte* scan0_1, byte* scan0_2, uint width, uint height, int stride, int pixelSize, int channelSize)
         {
             uint pixelSizeInBytes = (uint)pixelSize / 8;
             uint widthBytes = width * pixelSizeInBytes;
             double result = 0.0;
 
-#if NETCOREAPP
-            if (Avx2.IsSupported)
+        #if NETCOREAPP
+            if (Avx2.IsSupported && widthBytes >= 32)
             {
-                uint widthBytesAvx2LRem = widthBytes % 128;
-                uint widthBytesAvx2L = widthBytes - widthBytesAvx2LRem;
-                uint widthBytesAvx2SRem = widthBytesAvx2LRem % 32;
-                uint oneVectorRounds = widthBytesAvx2LRem / 32;
+                int vectorBound = (int)widthBytes - 32;
+                int tailShift = (int)((32 - (widthBytes % 32)) % 32);
 
                 Vector256<double> mask = Vector256.Create((double)0x0010000000000000);
                 Vector256<ulong> resultVecU = Vector256<ulong>.Zero;
 
+                Vector256<sbyte> seq256 = Vector256.Create(
+                    (sbyte)0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                    16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31);
+                Vector256<sbyte> threshold = Vector256.Create((sbyte)(tailShift - 1));
+                Vector256<byte> tailMask = Avx2.CompareGreaterThan(seq256, threshold).AsByte();
+
                 for (uint i = 0; i < height; i++)
                 {
-                    byte* pixelRow1 = scan0_1 + ((long)i * stride);
-                    byte* pixelRow2 = scan0_2 + ((long)i * stride);
-                    uint rowPos = i * width;
+                    byte* p1 = scan0_1 + ((long)i * stride);
+                    byte* p2 = scan0_2 + ((long)i * stride);
+                    int x = 0;
 
-                    for (uint wb = 0; wb < widthBytesAvx2L; wb += 32)
+                    while (x <= vectorBound - 96)
                     {
-                        Vector256<byte> r11 = Avx2.LoadDquVector256(pixelRow1 + wb);
-                        Vector256<byte> r21 = Avx2.LoadDquVector256(pixelRow2 + wb);
-
-                        Vector256<byte> r12 = Avx2.LoadDquVector256(pixelRow1 + (wb += 32));
-                        Vector256<byte> r22 = Avx2.LoadDquVector256(pixelRow2 + wb);
-
+                        Vector256<byte> r11 = Avx2.LoadDquVector256(p1);
+                        Vector256<byte> r21 = Avx2.LoadDquVector256(p2);
+                        Vector256<byte> r12 = Avx2.LoadDquVector256(p1 + 32);
+                        Vector256<byte> r22 = Avx2.LoadDquVector256(p2 + 32);
                         Vector256<ushort> diff1 = Avx2.SumAbsoluteDifferences(r11, r21);
-
-                        Vector256<byte> r13 = Avx2.LoadDquVector256(pixelRow1 + (wb += 32));
-                        Vector256<byte> r23 = Avx2.LoadDquVector256(pixelRow2 + wb);
-
                         Vector256<ushort> diff2 = Avx2.SumAbsoluteDifferences(r12, r22);
 
-                        Vector256<byte> r14 = Avx2.LoadDquVector256(pixelRow1 + (wb += 32));
-                        Vector256<byte> r24 = Avx2.LoadDquVector256(pixelRow2 + wb);
-
+                        Vector256<byte> r13 = Avx2.LoadDquVector256(p1 + 64);
+                        Vector256<byte> r23 = Avx2.LoadDquVector256(p2 + 64);
+                        Vector256<byte> r14 = Avx2.LoadDquVector256(p1 + 96);
+                        Vector256<byte> r24 = Avx2.LoadDquVector256(p2 + 96);
                         Vector256<ushort> diff3 = Avx2.SumAbsoluteDifferences(r13, r23);
                         Vector256<ushort> diff4 = Avx2.SumAbsoluteDifferences(r14, r24);
 
                         Vector256<ulong> diff12 = Avx2.Add(diff1.AsUInt64(), diff2.AsUInt64());
                         Vector256<ulong> diff34 = Avx2.Add(diff3.AsUInt64(), diff4.AsUInt64());
+                        resultVecU = Avx2.Add(resultVecU, Avx2.Add(diff12, diff34));
 
-                        diff12 = Avx2.Add(diff12, diff34);
-                        resultVecU = Avx2.Add(resultVecU, diff12);
+                        p1 += 128;
+                        p2 += 128;
+                        x += 128;
                     }
 
-                    if (oneVectorRounds > 0)
+                    while (x <= vectorBound)
                     {
-                        uint rounds = oneVectorRounds;
-                        pixelRow1 += widthBytesAvx2L;
-                        pixelRow2 += widthBytesAvx2L;
+                        Vector256<byte> r1 = Avx2.LoadDquVector256(p1);
+                        Vector256<byte> r2 = Avx2.LoadDquVector256(p2);
+                        Vector256<ushort> diff = Avx2.SumAbsoluteDifferences(r1, r2);
 
-                        while (rounds > 0)
-                        {
-                            Vector256<byte> r11 = Avx2.LoadDquVector256(pixelRow1);
-                            Vector256<byte> r21 = Avx2.LoadDquVector256(pixelRow2);
-                            Vector256<ushort> diff1 = Avx2.SumAbsoluteDifferences(r11, r21);
+                        resultVecU = Avx2.Add(resultVecU, diff.AsUInt64());
 
-                            resultVecU = Avx2.Add(resultVecU, diff1.AsUInt64());
-
-                            pixelRow1 += 32;
-                            pixelRow2 += 32;
-                            rounds--;
-                        }
+                        p1 += 32;
+                        p2 += 32;
+                        x += 32;
                     }
 
-                    if (widthBytesAvx2SRem > 0)
+                    if (x < widthBytes)
                     {
-                        uint pixelReminder = widthBytesAvx2SRem % 3;
-                        uint pixelsBytesRemaining = widthBytesAvx2SRem - pixelReminder;
+                        Vector256<byte> r1 = Avx2.LoadDquVector256(p1 - tailShift);
+                        Vector256<byte> r2 = Avx2.LoadDquVector256(p2 - tailShift);
 
-                        for (uint p = 0; p < pixelsBytesRemaining; p += 3, pixelRow1 += 3, pixelRow2 += 3)
-                        {
-                            result += GetPixelDiff(pixelRow1, pixelRow2);
-                        }
+                        r1 = Avx2.And(r1, tailMask);
+                        r2 = Avx2.And(r2, tailMask);
 
-                        while (pixelReminder > 0)
-                        {
-                            result += (MathF.Abs((float)*(pixelRow1++) - (float)*(pixelRow2++)));
-                            pixelReminder--;
-                        }
+                        Vector256<ushort> diff = Avx2.SumAbsoluteDifferences(r1, r2);
+                        resultVecU = Avx2.Add(resultVecU, diff.AsUInt64());
                     }
                 }
 
@@ -579,27 +589,130 @@ namespace DjvuNet.Tests
                 Vector128<double> resultVec = Avx2.AddScalar(lowVec, hiVec);
 
                 result += resultVec.GetElement(0);
-            } // end of: if (Avx2.IsSupported) {}
-            // else if (Sse2.IsSupported) {}
-            else
-#endif
+            }
+            else if (Vector128.IsHardwareAccelerated && widthBytes >= 16)
             {
+                int vectorBound = (int)widthBytes - 16;
+                int tailShift = (int)((16 - (widthBytes % 16)) % 16);
+
+                Vector128<ulong> imageAccum64L = Vector128<ulong>.Zero;
+                Vector128<ulong> imageAccum64H = Vector128<ulong>.Zero;
+
+                Vector128<sbyte> seq128 = Vector128.Create((sbyte)0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+                Vector128<sbyte> threshold = Vector128.Create((sbyte)(tailShift - 1));
+                Vector128<byte> tailMask = Vector128.GreaterThan(seq128, threshold).AsByte();
+
                 for (uint i = 0; i < height; i++)
                 {
-                    byte* pixelRow1 = scan0_1 + ((long)i * stride);
-                    byte* pixelRow2 = scan0_2 + ((long)i * stride);
+                    byte* p1 = scan0_1 + ((long)i * stride);
+                    byte* p2 = scan0_2 + ((long)i * stride);
+                    int x = 0;
 
-                    for (uint wb = 0; wb < widthBytes; wb += pixelSizeInBytes)
+                    while (x <= vectorBound)
                     {
-                        result += GetPixelDiff(pixelRow1 + wb, pixelRow2 + wb);
+                        int batchLimit = Math.Min(x + (255 * 16), vectorBound + 16);
+                        if (batchLimit > vectorBound) batchLimit = vectorBound + 1; // Ensure we only run up to vectorBound
+
+                        Vector128<ushort> batchAccum16L = Vector128<ushort>.Zero;
+                        Vector128<ushort> batchAccum16H = Vector128<ushort>.Zero;
+
+                        while (x < batchLimit)
+                        {
+                            Vector128<byte> r1 = Vector128.Load(p1);
+                            Vector128<byte> r2 = Vector128.Load(p2);
+
+                            Vector128<byte> diff = Vector128.Subtract(Vector128.Max(r1, r2), Vector128.Min(r1, r2));
+
+                            batchAccum16L = Vector128.Add(batchAccum16L, Vector128.WidenLower(diff));
+                            batchAccum16H = Vector128.Add(batchAccum16H, Vector128.WidenUpper(diff));
+
+                            p1 += 16;
+                            p2 += 16;
+                            x += 16;
+                        }
+
+                        Vector128<uint> batch32L = Vector128.Add(Vector128.WidenLower(batchAccum16L), Vector128.WidenUpper(batchAccum16L));
+                        Vector128<uint> batch32H = Vector128.Add(Vector128.WidenLower(batchAccum16H), Vector128.WidenUpper(batchAccum16H));
+
+                        imageAccum64L = Vector128.Add(imageAccum64L, Vector128.Add(Vector128.WidenLower(batch32L), Vector128.WidenUpper(batch32L)));
+                        imageAccum64H = Vector128.Add(imageAccum64H, Vector128.Add(Vector128.WidenLower(batch32H), Vector128.WidenUpper(batch32H)));
+                    }
+
+                    if (x < widthBytes)
+                    {
+                        Vector128<byte> r1 = Vector128.Load(p1 - tailShift);
+                        Vector128<byte> r2 = Vector128.Load(p2 - tailShift);
+
+                        r1 = Vector128.BitwiseAnd(r1, tailMask);
+                        r2 = Vector128.BitwiseAnd(r2, tailMask);
+
+                        Vector128<byte> diff = Vector128.Subtract(Vector128.Max(r1, r2), Vector128.Min(r1, r2));
+
+                        Vector128<ushort> sum16L = Vector128.WidenLower(diff);
+                        Vector128<ushort> sum16H = Vector128.WidenUpper(diff);
+
+                        Vector128<uint> sum32L = Vector128.Add(Vector128.WidenLower(sum16L), Vector128.WidenUpper(sum16L));
+                        Vector128<uint> sum32H = Vector128.Add(Vector128.WidenLower(sum16H), Vector128.WidenUpper(sum16H));
+
+                        imageAccum64L = Vector128.Add(imageAccum64L, Vector128.Add(Vector128.WidenLower(sum32L), Vector128.WidenUpper(sum32L)));
+                        imageAccum64H = Vector128.Add(imageAccum64H, Vector128.Add(Vector128.WidenLower(sum32H), Vector128.WidenUpper(sum32H)));
                     }
                 }
+
+                Vector128<ulong> finalSum64 = Vector128.Add(imageAccum64L, imageAccum64H);
+                result += Vector128.Sum(finalSum64);
+            }
+            else
+        #endif
+            {
+                result += ImageBinaryDiffScalar(scan0_1, scan0_2, widthBytes, height, stride);
             }
 
             double maxChannelValue = (1 << channelSize) - 1;
             return result / (width * height * ((double)pixelSize / channelSize) * maxChannelValue);
         }
 
+        /// <summary>
+        /// A highly optimized, branchless scalar fallback for calculating aggregate absolute image differences.
+        /// </summary>
+        /// <param name="scan0_1">Pointer to the start of the first image buffer in memory.</param>
+        /// <param name="scan0_2">Pointer to the start of the second image buffer in memory.</param>
+        /// <param name="widthBytes">The exact number of visible bytes per row, excluding any stride padding.</param>
+        /// <param name="height">The height of the image in pixels.</param>
+        /// <param name="stride">The row stride in bytes, including any memory alignment padding.</param>
+        /// <returns>A <see cref="double"/> representing the raw sum of all absolute byte differences across the entire image.</returns>
+        /// <remarks>
+        /// <para>
+        /// This method operates strictly on the calculated visible bytes rather than the full row stride to guarantee
+        /// that memory row-padding bytes are never processed. It iterates over the continuous byte streams linearly,
+        /// natively supporting various pixel formats without format-specific conditional branching.
+        /// </para>
+        /// <para>
+        /// Floating-point conversions are deferred until the very end of the calculation. The inner loop uses an integer
+        /// accumulator to track byte differences, avoiding the multi-cycle latency of floating-point addition in the
+        /// tight iteration path.
+        /// </para>
+        /// </remarks>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static unsafe double ImageBinaryDiffScalar(byte* scan0_1, byte* scan0_2, uint widthBytes, uint height, int stride)
+        {
+            ulong result = 0;
+            for (uint i = 0; i < height; i++)
+            {
+                byte* p1 = scan0_1 + ((long)i * stride);
+                byte* p2 = scan0_2 + ((long)i * stride);
+
+                for (uint wb = 0; wb < widthBytes; wb++)
+                {
+                    uint v1 = *p1;
+                    uint v2 = *p2;
+                    result += (v1 > v2) ? (v1 - v2) : (v2 - v1);
+                    p1++;
+                    p2++;
+                }
+            }
+            return (double)result;
+        }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe double GetPixelDiff(byte* pixel1, byte* pixel2)
         {

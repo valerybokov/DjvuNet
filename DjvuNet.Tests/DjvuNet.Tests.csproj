@@ -93,6 +93,7 @@
     <Compile Include="Util\GenericComparerTests.cs" />
     <Compile Include="Util\DjvuDocFixtureTests.cs" />
     <Compile Include="Util\VerifyTests.cs" />
+    <Compile Include="Util\ImageBinaryDiffTests.cs" />
     <Compile Include="Text\PageTextItemTests.cs" />
     <Compile Include="Text\PageTextSearchTests.cs" />
     <Compile Include="Text\PageTextTests.cs" />
