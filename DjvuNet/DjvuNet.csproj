@@ -140,6 +140,7 @@
     <Compile Include="Errors\DjvuInvalidOperationException.cs" />
     <Compile Include="Errors\DjvuNotSupportedException.cs" />
     <Compile Include="Extentions\ExtentionMethods.cs" />
+    <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="Graphics\Bitmap.cs" />
     <Compile Include="Graphics\IBitmap.cs" />
     <Compile Include="Graphics\IImageCodecProperty.cs" />

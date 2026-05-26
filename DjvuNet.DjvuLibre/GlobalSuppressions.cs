@@ -6,3 +6,4 @@
 using System.Diagnostics.CodeAnalysis;
 
 [assembly: SuppressMessage("Design", "CA1060:Move pinvokes to native methods class", Justification = "<Pending>", Scope = "type", Target = "~T:DjvuNet.DjvuLibre.DjvuMarshal")]
+[assembly: SuppressMessage("Design", "CA1065:Do not raise exceptions in unexpected locations", Justification = "Pending SkiaSharp migration completion", Scope = "namespaceanddescendants", Target = "~N:DjvuNet.DjvuLibre")]
