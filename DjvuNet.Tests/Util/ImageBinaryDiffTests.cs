@@ -91,18 +91,21 @@ namespace DjvuNet.Tests.UtilTests
                 double expectedDiff = (10.0 + 20.0) / (width * height * 3 * 255.0);
 
                 Rectangle rect = new Rectangle(0, 0, width, height);
-                BitmapData data1 = bmp1.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
-                BitmapData data2 = bmp2.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+                BitmapData data1 = null;
+                BitmapData data2 = null;
 
                 try
                 {
+                    data1 = bmp1.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+                    data2 = bmp2.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+
                     double actualDiff = Util.ImageBinaryDiff(data1, data2);
                     Assert.Equal(expectedDiff, actualDiff, 5);
                 }
                 finally
                 {
-                    bmp1.UnlockBits(data1);
-                    bmp2.UnlockBits(data2);
+                    if (data1 != null) bmp1.UnlockBits(data1);
+                    if (data2 != null) bmp2.UnlockBits(data2);
                 }
             }
         }

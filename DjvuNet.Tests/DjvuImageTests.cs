@@ -294,13 +294,20 @@ namespace DjvuNet.Tests
                     Assert.IsType<Bitmap>(image);
                     Rectangle rect = new Rectangle(0, 0, image.Width, image.Height);
 
-                    BitmapData data = image.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
-                    BitmapData testData = testImage.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+                    BitmapData data = null;
+                    BitmapData testData = null;
+                    try
+                    {
+                        data = image.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+                        testData = testImage.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
 
-                    bool result = Util.CompareImages(data, testData);
-
-                    image.UnlockBits(data);
-                    testImage.UnlockBits(testData);
+                        bool result = Util.CompareImages(data, testData);
+                    }
+                    finally
+                    {
+                        if (data != null) image.UnlockBits(data);
+                        if (testData != null) testImage.UnlockBits(testData);
+                    }
 
                     //image.Save(Path.Combine(Util.RepoRoot, "artifacts", "data", "dumps", "test003CBuildImagen.png"));
 
@@ -525,7 +532,7 @@ namespace DjvuNet.Tests
                     double threshold = 0.0585;
                     if (docNumber == 75) threshold = 0.15;
 
-                    bool result = Util.CompareImagesForBinarySimilarity(testImage, image, threshold, true, $"Testing Djvu image: \t\ttest{docNumber:00#}C.png, ");
+                    bool result = Util.CompareImagesForBinarySimilarity(testImage, image, threshold, true, $"Testing Djvu BuildImage(): \t\ttest{docNumber:00#}C.png, ");
 
 #if DUMP_IMAGES
                     DumpImage(docNumber, image, "Img");
@@ -585,7 +592,7 @@ namespace DjvuNet.Tests
                         Assert.Fail($"Unexpected image size differences.\nWidth image: {image.Width} | testImage: {testImage.Width}, Height: image: {image.Height} | testImage {testImage.Height}");
                     }
 
-                    bool result = Util.CompareImagesForBinarySimilarity(testImage, image, 0.0585, true, $"Testing Djvu image: \t\ttest{docNumber:00#}C.png, ");
+                    bool result = Util.CompareImagesForBinarySimilarity(testImage, image, 0.0585, true, $"Testing Djvu GetBackgroundImage(): \ttest{docNumber:00#}C.png, ");
 
 #if DUMP_IMAGES
                     DumpImage(docNumber, image, "Bgnd");
@@ -620,7 +627,7 @@ namespace DjvuNet.Tests
                         Assert.Fail($"Unexpected image size differences. Width image: {image.Width} | testImage: {testImage.Width}, Height: image: {image.Height} | testImage {testImage.Height}");
                     }
 
-                    bool result = Util.CompareImagesForBinarySimilarity(testImage, image, 0.025, true, $"Testing Djvu foreground: \ttest{docNumber:00#}C.png, ");
+                    bool result = Util.CompareImagesForBinarySimilarity(testImage, image, 0.025, true, $"Testing Djvu GetForegroundImage(): \ttest{docNumber:00#}C.png, ");
 
 #if DUMP_IMAGES
                     DumpImage(docNumber, image, "Fgnd");
@@ -697,7 +704,7 @@ namespace DjvuNet.Tests
 
                     using Bitmap invertedImage = DjvuImage.InvertImage(image);
 
-                    bool result = Util.CompareImagesForBinarySimilarity(testImage, invertedImage, tolerance, true, $"Testing Djvu  mask: \t\ttest{docNumber:00#}C.png, ");
+                    bool result = Util.CompareImagesForBinarySimilarity(testImage, invertedImage, tolerance, true, $"Testing Djvu GetMaskImage(): \t\ttest{docNumber:00#}C.png, ");
 
 #if DUMP_IMAGES
                     DumpIage(docNumber, image, "Mask");
@@ -897,13 +904,20 @@ namespace DjvuNet.Tests
                     Assert.IsType<Bitmap>(image);
                     Rectangle rect = new Rectangle(0, 0, image.Width, image.Height);
 
-                    BitmapData data = image.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
-                    BitmapData testData = testImage.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+                    BitmapData data = null;
+                    BitmapData testData = null;
+                    try
+                    {
+                        data = image.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+                        testData = testImage.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
 
-                    bool result = Util.CompareImages(data, testData);
-
-                    image.UnlockBits(data);
-                    testImage.UnlockBits(testData);
+                        bool result = Util.CompareImages(data, testData);
+                    }
+                    finally
+                    {
+                        if (data != null) image.UnlockBits(data);
+                        if (testData != null) testImage.UnlockBits(testData);
+                    }
                     //image.Save(Path.Combine(Util.RepoRoot, "artifacts", "data", "dumps", "test003CImage003n.png"));
 
                     //Assert.True(result);

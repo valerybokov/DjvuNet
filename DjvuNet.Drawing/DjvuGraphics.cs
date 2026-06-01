@@ -376,32 +376,35 @@ namespace DjvuNet.Drawing
 
             lock (image.LoadingLock)
             {
+                int width = image.Page.Width;
+                int height = image.Page.Height;
+
                 Bitmap result = null;
 
-                JB2Image jb2image = null;
-                IInterWavePixelMap iwPixelMap = image.Page.ForegroundIWPixelMap;
+                if (width > 0 && height > 0)
+                {
+                    Graphics.PixelMap pm = new Graphics.PixelMap();
+                    pm.Init(height, width, Graphics.Pixel.WhitePixel);
 
-                if (iwPixelMap != null)
-                {
-                    result = image.Page.ForegroundIWPixelMap.GetPixelMap().ToImage();
-                }
-                else if ((jb2image = image.Page.ForegroundJB2Image) != null)
-                {
-                    if (image.Page.ForegroundPalette == null)
+                    if (image.Page.Stencil(pm, new Graphics.GRect(0, 0, width, height), subsample, 0.0D))
                     {
-                        result = jb2image.GetBitmap(1, GBitmap.BorderSize).ToImage();
-                    }
-                    else
-                    {
-                        result = jb2image.GetPixelMap(image.Page.ForegroundPalette, 1, 16).ToImage();
+                        result = pm.ToImage();
                     }
                 }
-                else if (iwPixelMap == null && jb2image == null)
+
+                if (result == null)
                 {
-                    result = CreateBlankImage(Brushes.Black, image.Page.Width / subsample, image.Page.Height / subsample);
+                    result = CreateBlankImage(Brushes.Black, width, height);
                 }
 
-                return resizeImage ? ResizeImage(result, image.Page.Width / subsample, image.Page.Height / subsample) : result;
+                if (resizeImage)
+                {
+                    int newWidth = width / subsample;
+                    int newHeight = height / subsample;
+                    return ResizeImage(result, newWidth, newHeight);
+                }
+
+                return result;
             }
         }
 

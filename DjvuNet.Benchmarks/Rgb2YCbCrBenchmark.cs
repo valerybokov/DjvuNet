@@ -23,7 +23,7 @@ namespace DjvuNet.Benchmarks
         private sbyte[] _outY;
         private sbyte[] _outCb;
         private sbyte[] _outCr;
-        
+
         // Native Pointers
         private IntPtr _nativeRgbPtr;
         private IntPtr _nativeYPtr;
@@ -58,24 +58,24 @@ namespace DjvuNet.Benchmarks
                 _outCb = new sbyte[totalPixels];
                 _outCr = new sbyte[totalPixels];
 
-                BitmapData data = bmp.LockBits(new Rectangle(0, 0, _width, _height), 
+                BitmapData data = bmp.LockBits(new Rectangle(0, 0, _width, _height),
                                                ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
-                
+
                 unsafe
                 {
                     new ReadOnlySpan<sbyte>(data.Scan0.ToPointer(), totalBytes)
                         .CopyTo(new Span<sbyte>(_managedBuffer));
                 }
-                    
+
                 bmp.UnlockBits(data);
-                
+
                 // Allocate unmanaged memory for the native benchmark
                 _nativeRgbPtr = DjvuMarshal.AllocHGlobal((uint)totalBytes);
                 _nativeYPtr = DjvuMarshal.AllocHGlobal((uint)totalPixels);
                 _nativeCbPtr = DjvuMarshal.AllocHGlobal((uint)totalPixels);
                 _nativeCrPtr = DjvuMarshal.AllocHGlobal((uint)totalPixels);
-                
-                unsafe 
+
+                unsafe
                 {
                     fixed (sbyte* ptr = _managedBuffer)
                     {
@@ -97,7 +97,6 @@ namespace DjvuNet.Benchmarks
         [Benchmark]
         public unsafe void Scalar()
         {
-#pragma warning disable CS0618 // Type or member is obsolete
             fixed (sbyte* ptr = _managedBuffer)
             fixed (sbyte* pY = _outY)
             fixed (sbyte* pCb = _outCb)
@@ -106,11 +105,10 @@ namespace DjvuNet.Benchmarks
                 // Multiply width by 3 to simulate legacy parameter usage
                 InterWaveTransform.Rgb2YCbCrScalar((Pixel*)ptr, _width, _height, _width * 3, pY, pCb, pCr, _width);
             }
-#pragma warning restore CS0618
         }
 
         [Benchmark]
-        public unsafe void Vector256()
+        public unsafe void Unified()
         {
             fixed (sbyte* ptr = _managedBuffer)
             fixed (sbyte* pY = _outY)
@@ -118,6 +116,30 @@ namespace DjvuNet.Benchmarks
             fixed (sbyte* pCr = _outCr)
             {
                 InterWaveTransform.Rgb2YCbCr((Pixel*)ptr, _width, _height, _width * 3, pY, pCb, pCr, _width);
+            }
+        }
+
+        [Benchmark]
+        public unsafe void Vector128()
+        {
+            fixed (sbyte* ptr = _managedBuffer)
+            fixed (sbyte* pY = _outY)
+            fixed (sbyte* pCb = _outCb)
+            fixed (sbyte* pCr = _outCr)
+            {
+                InterWaveSimd.Rgb2YCbCrVector128((Pixel*)ptr, _width, _height, _width * 3, pY, pCb, pCr, _width);
+            }
+        }
+
+        [Benchmark]
+        public unsafe void HybridVector()
+        {
+            fixed (sbyte* ptr = _managedBuffer)
+            fixed (sbyte* pY = _outY)
+            fixed (sbyte* pCb = _outCb)
+            fixed (sbyte* pCr = _outCr)
+            {
+                InterWaveSimd.Rgb2YCbCrHybridVector((Pixel*)ptr, _width, _height, _width * 3, pY, pCb, pCr, _width);
             }
         }
 

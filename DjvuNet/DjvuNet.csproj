@@ -189,7 +189,11 @@
     <Compile Include="Parser\IDjvuRootElement.cs" />
     <Compile Include="Parser\IffParserException.cs" />
     <Compile Include="Util\DjvuMath.cs" />
+    <Compile Include="Wavelet\IInterWaveBlock.cs" />
+    <Compile Include="Wavelet\IInterWaveCodec.cs" />
     <Compile Include="Wavelet\IInterWaveImage.cs" />
+    <Compile Include="Wavelet\IInterWaveMap.cs" />
+    <Compile Include="Wavelet\IInterWavePixelMap.cs" />
     <Compile Include="Wavelet\ImageDataHeader.cs" />
     <Compile Include="Wavelet\ImageType.cs" />
     <Compile Include="Wavelet\InterWaveBitmap.cs" />
@@ -210,6 +214,8 @@
     <Compile Include="Wavelet\InterWavePixelMapDecoder.cs" />
     <Compile Include="Wavelet\InterWaveTransform.cs" />
     <Compile Include="Wavelet\InterWaveTransform.Unified.cs" />
+    <Compile Include="Wavelet\InterWaveTransform.Vector128.cs" />
+    <Compile Include="Wavelet\InterWaveTransform.Vector256.cs" />
     <Compile Include="Wavelet\MemoryUtilities.cs" />
     <Compile Include="Wavelet\YCrCbMode.cs" />
     <Compile Include="Text\PageText.cs" />
@@ -217,10 +223,6 @@
     <Compile Include="Text\PageTextSearch.cs" />
     <Compile Include="Util\GenericComparer.cs" />
     <Compile Include="Util\Verify.cs" />
-    <Compile Include="Wavelet\IInterWaveBlock.cs" />
-    <Compile Include="Wavelet\IInterWaveCodec.cs" />
-    <Compile Include="Wavelet\IInterWaveMap.cs" />
-    <Compile Include="Wavelet\IInterWavePixelMap.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -86,7 +86,7 @@ namespace DjvuNet.Benchmarks
         [IterationSetup]
         public void IterationSetup()
         {
-            unsafe 
+            unsafe
             {
                 for (int i = 0; i < InvocationCount; i++)
                 {
@@ -136,6 +136,19 @@ namespace DjvuNet.Benchmarks
                 fixed (sbyte* ptr = _managedBuffers[i])
                 {
                     InterWaveTransform.YCbCr2Rgb((Pixel*)ptr, _width, _height, stride);
+                }
+            }
+        }
+
+        [Benchmark(OperationsPerInvoke = InvocationCount)]
+        public unsafe void Vector128()
+        {
+            int stride = (_width * 3 + 3) & ~3;
+            for (int i = 0; i < InvocationCount; i++)
+            {
+                fixed (sbyte* ptr = _managedBuffers[i])
+                {
+                    InterWaveSimd.YCbCr2RgbVector128((Pixel*)ptr, _width, _height, stride);
                 }
             }
         }

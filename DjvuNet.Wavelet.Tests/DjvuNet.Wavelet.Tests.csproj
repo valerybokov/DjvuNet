@@ -69,6 +69,9 @@
     <Compile Include="Wavelet\InterWavePixelMapEncoderTests.cs" />
     <Compile Include="Wavelet\InterWaveTransformTests.cs" />
     <Compile Include="Wavelet\InterWaveTransformUnifiedTests.cs" />
+    <Compile Include="Wavelet\Rgb2YCbCrHybridVectorTests.cs" />
+    <Compile Include="Wavelet\Rgb2YCbCrVectorizedTests.cs" />
+    <Compile Include="Wavelet\YCbCr2RgbVectorizedTests.cs" />
     <Compile Include="Wavelet\InterWaveBlockTests.cs" />
     <Compile Include="Wavelet\InterWaveBucketTests.cs" />
     <Compile Include="Wavelet\InterWaveCodecTests.cs" />

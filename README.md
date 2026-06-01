@@ -86,6 +86,54 @@ AMD Ryzen 5 3600 3.60GHz, 1 CPU, 12 logical and 6 physical cores
 
 *(Note: "Unified" denotes implementations combining AVX2 intrinsics with byte-stride tail handling).*
 
+### SIMD and Parallelization Scaling Analysis (Rgb2YCbCr)
+
+We have vectorized and parallelized the `Rgb2YCbCr` color space conversion pipeline, and vectorized the `YCbCr2Rgb` pipeline. The implementation routes execution across `Vector256` (AVX2) and `Vector128` (SSSE3/AdvSimd) intrinsics based on CPU topology and memory bandwidth constraints.
+
+#### Baseline Performance Ratios (Rgb2YCbCr)
+Benchmarking the `Rgb2YCbCr` transform across image sizes from 1,024 pixels to 20 Megapixels shows the throughput of the hardware-accelerated pipelines. In single-threaded execution, the AVX2 pipeline outperforms the C# Scalar and native DjVuLibre implementations:
+- **C# Scalar vs Native C++:** The C# scalar loop outperforms the native C++ implementation by **~12–15%**.
+- **Vector256 (AVX2) vs Native C++:** The AVX2 single-threaded pipeline is **~6.9x** faster than Native C++.
+- **Vector256 (AVX2) vs C# Scalar:** The AVX2 single-threaded pipeline is **~6.1x** faster than C# Scalar.
+
+#### Unified Single-Thread Baseline Matrix (Rgb2YCbCr Time per Image)
+
+The following matrix tracks single-threaded execution time across the four `Rgb2YCbCr` implementations to establish performance ratios before parallelization overhead. All times are normalized to microseconds (µs) to represent the absolute "Time per Image".
+
+| Image Size | Native C++ |  C# Scalar |  Vector128 | Vector256 (AVX2) |
+|-----------:|-----------:|-----------:|-----------:|-----------------:|
+|      1,024 |     4.3 µs |     3.3 µs |     1.8 µs |           0.5 µs |
+|      4,096 |    15.8 µs |    13.3 µs |     7.1 µs |           2.1 µs |
+|      9,216 |    35.1 µs |    29.5 µs |    16.0 µs |           4.8 µs |
+|     16,384 |    61.6 µs |    51.6 µs |    28.2 µs |           8.3 µs |
+|     36,864 |   136.8 µs |   116.5 µs |    64.0 µs |          18.8 µs |
+|     65,536 |   242.3 µs |   205.5 µs |   113.3 µs |          33.5 µs |
+|    262,144 |   958.5 µs |   831.8 µs |   453.0 µs |         135.4 µs |
+|  1,048,576 |  3833.8 µs |  3344.0 µs |  1820.3 µs |         564.1 µs |
+|  2,096,704 |  7655.0 µs |  6707.2 µs |  3623.3 µs |        1141.8 µs |
+|  4,194,304 | 15328.0 µs | 13459.0 µs |  7268.3 µs |        2325.1 µs |
+| 20,081,328 | 73125.0 µs | 65004.0 µs | 34860.0 µs |       10588.0 µs |
+
+#### Parallel SIMD Scaling Matrix (Rgb2YCbCr Time per Image)
+
+Building on the single-threaded baseline, the router dynamically scales the `MaxDegreeOfParallelism` for the `Rgb2YCbCr` transform. It calculates break-even thresholds to avoid parallelization overhead on small images and caps maximum threads on large images to prevent memory bus saturation (e.g., AVX2 saturates a dual-channel memory bus at 4 to 6 threads).
+
+| Image Size |   V128 (1T) |  V128 (2T) |  V128 (4T) |  V128 (6T) | V128 (12T) |   V256 (1T) |  V256 (2T) |  V256 (4T) |  V256 (6T) | V256 (12T) |
+|-----------:|------------:|-----------:|-----------:|-----------:|-----------:|------------:|-----------:|-----------:|-----------:|-----------:|
+|      1,024 |   *1.81 µs* |    2.59 µs |    4.12 µs |    4.80 µs |    6.16 µs |   *0.55 µs* |    1.82 µs |    2.85 µs |    3.49 µs |    4.60 µs |
+|      4,096 |   *7.15 µs* |    5.83 µs |    7.16 µs |    7.90 µs |    9.29 µs |   *2.13 µs* |    3.55 µs |    4.94 µs |    5.57 µs |    6.87 µs |
+|      9,216 |   16.00 µs  | *10.60 µs* | *10.60 µs* |   11.00 µs |   13.10 µs |   *4.88 µs* |    5.06 µs |    6.85 µs |    7.68 µs |    9.14 µs |
+|     16,384 |   28.50 µs  |   19.00 µs | *13.50 µs* |   13.80 µs |   16.60 µs |    8.59 µs  |  *7.05 µs* |    8.67 µs |    9.45 µs |   11.90 µs |
+|     36,864 |   63.50 µs  |   38.10 µs |   24.80 µs | *23.40 µs* |   25.20 µs |   18.90 µs  |   14.20 µs | *12.00 µs* |   13.10 µs |   16.20 µs |
+|     65,536 |  113.20 µs  |   61.70 µs |   37.00 µs | *33.00 µs* |   35.60 µs |   34.30 µs  |   23.10 µs | *16.80 µs* |   18.80 µs |   22.60 µs |
+|    262,144 |  455.00 µs  |  237.60 µs |  127.70 µs | *92.60 µs* |   98.30 µs |  139.70 µs  |   76.50 µs | *53.00 µs* |   54.30 µs |   59.90 µs |
+|  1,048,576 | 1813.00 µs  |  935.10 µs |  491.60 µs |  345.80 µs |*323.40 µs* |  567.40 µs  |  300.40 µs |*203.80 µs* |  209.40 µs |  223.50 µs |
+|  2,096,704 | 3645.00 µs  | 1860.00 µs |  964.40 µs |  673.10 µs |*601.00 µs* | 1118.00 µs  |  592.80 µs |  429.00 µs |*426.70 µs* |  450.40 µs |
+|  4,194,304 | 7262.00 µs  | 3752.00 µs | 1919.00 µs | 1316.00 µs |*1183.00 µs*| 2249.00 µs  | 1319.00 µs |  985.20 µs |*968.40 µs* | 1027.00 µs |
+| 20,081,328 |34860.00 µs  |17694.00 µs | 9124.00 µs | 6387.00 µs |*6151.00 µs*|10588.00 µs  | 6128.00 µs |*5888.00 µs*| 6081.00 µs | 6158.00 µs |
+
+*(Note: Data reflects normalized "Time/Op (Real)" processing bounds per image payload. Asterisks (*) denote the dynamically selected optimal routing path).*
+
 
 ## DjVu Format Support Validation
 

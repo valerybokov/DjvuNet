@@ -51,7 +51,10 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void YCbCr2Rgb_MatchesScalar_RealData_Continuous()
         {
-            if (!Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) 
+            {
+                Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+            }
 
             string imagePath = GetArtifactPath(TestImageContinuous);
             Assert.True(File.Exists(imagePath), $"Test artifact not found at: {imagePath}");
@@ -86,7 +89,10 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void YCbCr2Rgb_MatchesScalar_RealData_Padded()
         {
-            if (!Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) 
+            {
+                Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+            }
 
             string imagePath = GetArtifactPath(TestImagePadded);
             Assert.True(File.Exists(imagePath), $"Test artifact not found at: {imagePath}");
@@ -126,7 +132,10 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void YCbCr2Rgb_MatchesScalar_SmallSequential()
         {
-            if (!Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) 
+            {
+                Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+            }
 
             int width = 50;
             int height = 3;
@@ -161,7 +170,10 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Rgb2YCbCr_InputValidation_NullPointers_ThrowsDjvuArgumentNullException()
         {
-            if (!Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) 
+            {
+                Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+            }
 
             IntPtr pIn = IntPtr.Zero, pY = IntPtr.Zero, pCb = IntPtr.Zero, pCr = IntPtr.Zero;
             try
@@ -198,7 +210,10 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void YCbCr2Rgb_InputValidation_NullPointers_ThrowsDjvuArgumentNullException()
         {
-            if (!Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) 
+            {
+                Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+            }
 
             var ex = Assert.Throws<DjvuArgumentNullException>(() => InterWaveTransform.YCbCr2Rgb(null, 10, 10, 30));
             Assert.Equal("pPixBuff", ex.ParamName);
@@ -208,7 +223,10 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Rgb2YCbCr_InputValidation_InvalidDimensions_ThrowsDjvuArgumentOutOfRangeException()
         {
-            if (!Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) 
+            {
+                Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+            }
 
             IntPtr pIn = IntPtr.Zero, pY = IntPtr.Zero, pCb = IntPtr.Zero, pCr = IntPtr.Zero;
             try
@@ -241,7 +259,10 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void YCbCr2Rgb_InputValidation_InvalidDimensions_ThrowsDjvuArgumentOutOfRangeException()
         {
-            if (!Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) 
+            {
+                Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+            }
 
             IntPtr pIn = IntPtr.Zero;
             try
@@ -268,7 +289,10 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Rgb2YCbCr_InputValidation_InvalidStride_ThrowsDjvuArgumentOutOfRangeException()
         {
-            if (!Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) 
+            {
+                Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+            }
 
             IntPtr pIn = IntPtr.Zero, pY = IntPtr.Zero, pCb = IntPtr.Zero, pCr = IntPtr.Zero;
             try
@@ -301,7 +325,10 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void YCbCr2Rgb_InputValidation_InvalidStride_ThrowsDjvuArgumentOutOfRangeException()
         {
-            if (!Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) 
+            {
+                Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+            }
 
             IntPtr pIn = IntPtr.Zero;
             try
@@ -321,7 +348,10 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Rgb2YCbCr_InputValidation_OverlappingInputOutput_ThrowsDjvuInvalidOperationException()
         {
-            if (!Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) 
+            {
+                Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+            }
 
             IntPtr pShared = IntPtr.Zero, pSafe1 = IntPtr.Zero, pSafe2 = IntPtr.Zero;
             try
@@ -351,7 +381,10 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Rgb2YCbCr_InputValidation_OverlappingOutputBuffers_ThrowsDjvuInvalidOperationException()
         {
-            if (!Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) 
+            {
+                Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+            }
 
             IntPtr pIn = IntPtr.Zero, pSharedOut = IntPtr.Zero, pSafeOut = IntPtr.Zero;
             try

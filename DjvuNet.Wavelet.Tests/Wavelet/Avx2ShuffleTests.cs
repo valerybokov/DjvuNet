@@ -11,7 +11,10 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Verify_LibJpegTurbo_AosToSoa_Deinterleave()
         {
-            if (!Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) 
+            {
+                Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+            }
 
             byte[] input = new byte[96];
             for (int i = 0; i < 96; i++) input[i] = (byte)i;
@@ -79,7 +82,10 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Verify_LibJpegTurbo_SoaToAos_Reinterleave()
         {
-            if (!Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) 
+            {
+                Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+            }
 
             short[] tb_even_arr = new short[16];
             short[] tg_even_arr = new short[16];
@@ -171,7 +177,10 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Verify_Djvu_SignedMath_Chunk2()
         {
-            if (!Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) 
+            {
+                Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+            }
 
             sbyte input = -10;
             byte[] arr = new byte[32];
@@ -198,7 +207,10 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Verify_Djvu_ForwardMath_Chunk2()
         {
-            if (!Avx2.IsSupported) return;
+            if (!Avx2.IsSupported) 
+            {
+                Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+            }
 
             // Extreme colors to test overflow and saturation
             byte r = 255;

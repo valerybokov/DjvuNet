@@ -35,7 +35,7 @@ namespace DjvuNet.Benchmarks
         }
 
         [Benchmark(Baseline = true)]
-        public unsafe void YCbCr2Rgb_Scalar()
+        public unsafe void YCbCr2RgbScalar()
         {
 #pragma warning disable CS0618
             fixed (sbyte* ptr = _managedBuffer)
@@ -46,9 +46,8 @@ namespace DjvuNet.Benchmarks
         }
 
         [Benchmark]
-        public unsafe void Rgb2YCbCr_Scalar()
+        public unsafe void Rgb2YCbCrScalar()
         {
-#pragma warning disable CS0618
             fixed (sbyte* ptr = _managedBuffer)
             fixed (sbyte* outY = _managedOutY)
             fixed (sbyte* outCb = _managedOutCb)
@@ -56,7 +55,6 @@ namespace DjvuNet.Benchmarks
             {
                 InterWaveTransform.Rgb2YCbCrScalar((Pixel*)ptr, DefaultWidth, DefaultHeight, DefaultWidth * 3, outY, outCb, outCr, DefaultWidth);
             }
-#pragma warning restore CS0618
         }
     }
 }

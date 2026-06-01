@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics.X86;
 using System.Threading;
 using DjvuNet.Graphics;
@@ -273,14 +274,10 @@ namespace DjvuNet.Wavelet
         /// <param name="outCb"></param>
         /// <param name="outCr"></param>
         /// <param name="outrowsize"></param>
-        [System.Obsolete("This flat-loop scalar method is deprecated due to lack of stride padding support. " +
-            "Use the unified InterWaveTransform.Rgb2YCbCr method instead, which handles arbitrary " +
-            "byte strides and includes AVX2 optimizations.", error: false)]
         public static unsafe void Rgb2YCbCrScalar(
             Pixel* pPixBuff, int width, int height, int rowsize,
             sbyte* @outY, sbyte* @outCb, sbyte* @outCr, int outrowsize)
         {
-
             EnsureLutsInitialized();
             fixed (int* pRedYLUT = redYLUT)
             fixed (int* pGreenYLUT = greenYLUT)
@@ -292,27 +289,36 @@ namespace DjvuNet.Wavelet
             fixed (int* pGreenCrLUT = greenCrLUT)
             fixed (int* pBlueCrLUT = blueCrLUT)
             {
-                Pixel* p2 = pPixBuff;
-                sbyte* pOutY = @outY;
-                sbyte* pOutCb = @outCb;
-                sbyte* pOutCr = @outCr;
+                Pixel* pIn = pPixBuff;
+                sbyte* pY = @outY;
+                sbyte* pCb = @outCb;
+                sbyte* pCr = @outCr;
 
-                int dataLength = width * height;
+                int inPadBytes = rowsize - (width * sizeof(Pixel));
+                int outPadBytes = outrowsize - width;
 
-                for (int i = 0; i < dataLength; i++, p2++, pOutCr++, pOutCb++, pOutY++)
+                for (int y = 0; y < height; y++)
                 {
-                    byte red = unchecked((byte)p2->Red);
-                    byte green = unchecked((byte)p2->Green);
-                    byte blue = unchecked((byte)p2->Blue);
+                    for (int x = 0; x < width; x++, pIn++, pCr++, pCb++, pY++)
+                    {
+                        byte red = unchecked((byte)pIn->Red);
+                        byte green = unchecked((byte)pIn->Green);
+                        byte blue = unchecked((byte)pIn->Blue);
 
-                    int y = pRedYLUT[red] + pGreenYLUT[green] + pBlueYLUT[blue] + 32768;
-                    *pOutY = (sbyte)((y >> 16) - 128);
+                        int y_val = pRedYLUT[red] + pGreenYLUT[green] + pBlueYLUT[blue] + 32768;
+                        *pY = (sbyte)((y_val >> 16) - 128);
 
-                    int cb = pRedCbLUT[red] + pGreenCbLUT[green] + pBlueCbLUT[blue] + 32768;
-                    *pOutCb = (sbyte)Max(-128, Min(127, cb >> 16));
+                        int cb = pRedCbLUT[red] + pGreenCbLUT[green] + pBlueCbLUT[blue] + 32768;
+                        *pCb = (sbyte)Math.Max(-128, Math.Min(127, cb >> 16));
 
-                    int cr = pRedCrLUT[red] + pGreenCrLUT[green] + pBlueCrLUT[blue] + 32768;
-                    *pOutCr = (sbyte)Max(-128, Min(127, cr >> 16));
+                        int cr = pRedCrLUT[red] + pGreenCrLUT[green] + pBlueCrLUT[blue] + 32768;
+                        *pCr = (sbyte)Math.Max(-128, Math.Min(127, cr >> 16));
+                    }
+                    
+                    pIn = (Pixel*)((byte*)pIn + inPadBytes);
+                    pY += outPadBytes;
+                    pCb += outPadBytes;
+                    pCr += outPadBytes;
                 }
             }
         }
