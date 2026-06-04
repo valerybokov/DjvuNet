@@ -492,7 +492,7 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             int inRowSize = width * 3;
             int totalInBytes = totalPixels * 3;
 
-            byte[] rgbBuffer = new byte[totalInBytes];
+            byte[] rgbBuffer = GC.AllocateUninitializedArray<byte>(totalInBytes);
             int idx = 0;
             for (int r = 0; r < 256; r++)
             {
@@ -507,13 +507,13 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
                 }
             }
 
-            sbyte[] hybridY = new sbyte[totalPixels];
-            sbyte[] hybridCb = new sbyte[totalPixels];
-            sbyte[] hybridCr = new sbyte[totalPixels];
+            sbyte[] hybridY = GC.AllocateUninitializedArray<sbyte>(totalPixels);
+            sbyte[] hybridCb = GC.AllocateUninitializedArray<sbyte>(totalPixels);
+            sbyte[] hybridCr = GC.AllocateUninitializedArray<sbyte>(totalPixels);
 
-            byte[] nativeY = new byte[totalPixels];
-            byte[] nativeCb = new byte[totalPixels];
-            byte[] nativeCr = new byte[totalPixels];
+            byte[] nativeY = GC.AllocateUninitializedArray<byte>(totalPixels);
+            byte[] nativeCb = GC.AllocateUninitializedArray<byte>(totalPixels);
+            byte[] nativeCr = GC.AllocateUninitializedArray<byte>(totalPixels);
 
             IntPtr nativeRgbPtr = IntPtr.Zero;
             IntPtr nativeYPtr = IntPtr.Zero;
@@ -598,7 +598,7 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             int inRowSize = width * 3;
             int totalInBytes = totalPixels * 3;
 
-            byte[] rgbBuffer = new byte[totalInBytes];
+            byte[] rgbBuffer = GC.AllocateUninitializedArray<byte>(totalInBytes);
             int idx = 0;
             for (int r = 0; r < 256; r++)
             {
@@ -613,13 +613,13 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
                 }
             }
 
-            sbyte[] vecY = new sbyte[totalPixels];
-            sbyte[] vecCb = new sbyte[totalPixels];
-            sbyte[] vecCr = new sbyte[totalPixels];
+            sbyte[] vecY = GC.AllocateUninitializedArray<sbyte>(totalPixels);
+            sbyte[] vecCb = GC.AllocateUninitializedArray<sbyte>(totalPixels);
+            sbyte[] vecCr = GC.AllocateUninitializedArray<sbyte>(totalPixels);
 
-            byte[] nativeY = new byte[totalPixels];
-            byte[] nativeCb = new byte[totalPixels];
-            byte[] nativeCr = new byte[totalPixels];
+            byte[] nativeY = GC.AllocateUninitializedArray<byte>(totalPixels);
+            byte[] nativeCb = GC.AllocateUninitializedArray<byte>(totalPixels);
+            byte[] nativeCr = GC.AllocateUninitializedArray<byte>(totalPixels);
 
             IntPtr nativeRgbPtr = IntPtr.Zero;
             IntPtr nativeYPtr = IntPtr.Zero;
@@ -704,7 +704,7 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             int inRowSize = width * 3;
             int totalInBytes = totalPixels * 3;
 
-            byte[] rgbBuffer = new byte[totalInBytes];
+            byte[] rgbBuffer = GC.AllocateUninitializedArray<byte>(totalInBytes);
             int idx = 0;
             for (int r = 0; r < 256; r++)
             {
@@ -719,13 +719,13 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
                 }
             }
 
-            sbyte[] vecY = new sbyte[totalPixels];
-            sbyte[] vecCb = new sbyte[totalPixels];
-            sbyte[] vecCr = new sbyte[totalPixels];
+            sbyte[] vecY = GC.AllocateUninitializedArray<sbyte>(totalPixels);
+            sbyte[] vecCb = GC.AllocateUninitializedArray<sbyte>(totalPixels);
+            sbyte[] vecCr = GC.AllocateUninitializedArray<sbyte>(totalPixels);
 
-            byte[] nativeY = new byte[totalPixels];
-            byte[] nativeCb = new byte[totalPixels];
-            byte[] nativeCr = new byte[totalPixels];
+            byte[] nativeY = GC.AllocateUninitializedArray<byte>(totalPixels);
+            byte[] nativeCb = GC.AllocateUninitializedArray<byte>(totalPixels);
+            byte[] nativeCr = GC.AllocateUninitializedArray<byte>(totalPixels);
 
             IntPtr nativeRgbPtr = IntPtr.Zero;
             IntPtr nativeYPtr = IntPtr.Zero;

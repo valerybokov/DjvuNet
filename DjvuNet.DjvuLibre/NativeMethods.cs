@@ -1519,19 +1519,89 @@ namespace DjvuNet.DjvuLibre
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_document_get_dirm_component_flags", CallingConvention = CallingConvention.Cdecl, PreserveSig = true)]
         internal static extern int GetDjvuDocumentDirmComponentFlags(IntPtr document, int index, out bool isPage, out bool isInclude, out bool isThumbnails, out bool isSharedAnno);
 
+        /// <summary>
+        /// Converts YCbCr data to RGB.
+        /// </summary>
+        /// <param name="pixels">Pointer to the unmanaged memory buffer containing the pixel data.</param>
+        /// <param name="width">The width of the image in pixels.</param>
+        /// <param name="height">The height of the image in pixels.</param>
+        /// <param name="rowSizeInPixels">
+        /// The exact stride of the input buffer in units of pixels (where one pixel is 3 bytes).
+        /// Providing a byte stride instead of a pixel stride will result in memory access violations
+        /// in the native implementation.
+        /// </param>
+        /// <returns>True if the transformation was successful, otherwise false.</returns>
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_iw44_ycbcr_to_rgb", CallingConvention = CallingConvention.Cdecl)]
-        internal static extern bool YCbCrToRgb(IntPtr pixels, int width, int height, int rowSize);
+        internal static extern bool YCbCrToRgb(IntPtr pixels, int width, int height, int rowSizeInPixels);
 
+        /// <summary>
+        /// Converts RGB data to Y planar data.
+        /// </summary>
+        /// <param name="pixels">Pointer to the input interleaved RGB data.</param>
+        /// <param name="width">Width of the image in pixels.</param>
+        /// <param name="height">Height of the image in pixels.</param>
+        /// <param name="rowSizeInPixels">
+        /// The exact stride of the input RGB buffer in units of pixels (where one pixel is 3 bytes).
+        /// Providing a byte stride instead of a pixel stride will result in memory access violations
+        /// in the native implementation.
+        /// </param>
+        /// <param name="out">Pointer to the output Y planar data.</param>
+        /// <param name="outRowSizeInBytes">The stride of the output planar buffer in bytes.</param>
+        /// <returns>True if the transformation was successful, otherwise false.</returns>
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_iw44_rgb_to_y", CallingConvention = CallingConvention.Cdecl)]
-        internal static extern bool RgbToY(IntPtr pixels, int width, int height, int rowSize, IntPtr @out, int outRowSize);
+        internal static extern bool RgbToY(IntPtr pixels, int width, int height, int rowSizeInPixels, IntPtr @out, int outRowSizeInBytes);
 
+        /// <summary>
+        /// Converts RGB data to Cb planar data.
+        /// </summary>
+        /// <param name="pixels">Pointer to the input interleaved RGB data.</param>
+        /// <param name="width">Width of the image in pixels.</param>
+        /// <param name="height">Height of the image in pixels.</param>
+        /// <param name="rowSizeInPixels">
+        /// The exact stride of the input RGB buffer in units of pixels (where one pixel is 3 bytes).
+        /// Providing a byte stride instead of a pixel stride will result in memory access violations
+        /// in the native implementation.
+        /// </param>
+        /// <param name="out">Pointer to the output Cb planar data.</param>
+        /// <param name="outRowSizeInBytes">The stride of the output planar buffer in bytes.</param>
+        /// <returns>True if the transformation was successful, otherwise false.</returns>
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_iw44_rgb_to_cb", CallingConvention = CallingConvention.Cdecl)]
-        internal static extern bool RgbToCb(IntPtr pixels, int width, int height, int rowSize, IntPtr @out, int outRowSize);
+        internal static extern bool RgbToCb(IntPtr pixels, int width, int height, int rowSizeInPixels, IntPtr @out, int outRowSizeInBytes);
 
+        /// <summary>
+        /// Converts RGB data to Cr planar data.
+        /// </summary>
+        /// <param name="pixels">Pointer to the input interleaved RGB data.</param>
+        /// <param name="width">Width of the image in pixels.</param>
+        /// <param name="height">Height of the image in pixels.</param>
+        /// <param name="rowSizeInPixels">
+        /// The exact stride of the input RGB buffer in units of pixels (where one pixel is 3 bytes).
+        /// Providing a byte stride instead of a pixel stride will result in memory access violations
+        /// in the native implementation.
+        /// </param>
+        /// <param name="out">Pointer to the output Cr planar data.</param>
+        /// <param name="outRowSizeInBytes">The stride of the output planar buffer in bytes.</param>
+        /// <returns>True if the transformation was successful, otherwise false.</returns>
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_iw44_rgb_to_cr", CallingConvention = CallingConvention.Cdecl)]
-        internal static extern bool RgbToCr(IntPtr pixels, int width, int height, int rowSize, IntPtr @out, int outRowSize);
+        internal static extern bool RgbToCr(IntPtr pixels, int width, int height, int rowSizeInPixels, IntPtr @out, int outRowSizeInBytes);
 
+        /// <summary>
+        /// Converts RGB data to Y, Cb, and Cr planar data.
+        /// </summary>
+        /// <param name="pixels">Pointer to the input interleaved RGB data.</param>
+        /// <param name="width">Width of the image in pixels.</param>
+        /// <param name="height">Height of the image in pixels.</param>
+        /// <param name="rowSizeInPixels">
+        /// The exact stride of the input RGB buffer in units of pixels (where one pixel is 3 bytes).
+        /// Providing a byte stride instead of a pixel stride will result in memory access violations
+        /// in the native implementation.
+        /// </param>
+        /// <param name="outY">Pointer to the output Y planar data.</param>
+        /// <param name="outCb">Pointer to the output Cb planar data.</param>
+        /// <param name="outCr">Pointer to the output Cr planar data.</param>
+        /// <param name="outRowSizeInBytes">The stride of the output planar buffers in bytes.</param>
+        /// <returns>True if the transformation was successful, otherwise false.</returns>
         [DllImport(DjVuLibrePath, EntryPoint = "ddjvu_iw44_rgb_to_ycbcr", CallingConvention = CallingConvention.Cdecl)]
-        internal static extern bool RgbToYCbCr(IntPtr pixels, int width, int height, int rowSize, IntPtr outY, IntPtr outCb, IntPtr outCr, int outRowSize);
+        internal static extern bool RgbToYCbCr(IntPtr pixels, int width, int height, int rowSizeInPixels, IntPtr outY, IntPtr outCb, IntPtr outCr, int outRowSizeInBytes);
     }
 }

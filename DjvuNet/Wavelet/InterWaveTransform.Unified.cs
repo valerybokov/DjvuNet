@@ -72,7 +72,7 @@ namespace DjvuNet.Wavelet
         /// server topologies can be addressed in future iterations if required.
         /// </remarks>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int GetOptimalDegreeOfParallelism(long pixelCount)
+        internal static int GetThreadCountForRgb2YCbCr(long pixelCount)
         {
             int targetThreads = 1;
             int maxAvailableThreads = Environment.ProcessorCount;
@@ -106,6 +106,75 @@ namespace DjvuNet.Wavelet
             return Math.Min(targetThreads, maxAvailableThreads);
         }
 
+        /// <summary>
+        /// Calculates the optimal number of threads for parallel SIMD execution of the YCbCr2Rgb inverse transform.
+        /// Returns 1 to indicate the caller should bypass the TPL and fall back to a single-threaded loop.
+        /// </summary>
+        /// <remarks>
+        /// ARCHITECTURAL RATIONALE:
+        /// This step-function matrix is derived from extensive benchmarking of the TPL (Task Parallel Library) overhead
+        /// versus SIMD throughput. Below is the full empirical data demonstrating the exact threshold crossings
+        /// where scaling threads becomes profitable, measured in Time per Operation (Real).
+        ///
+        /// | Image Size |   V128 (1T) |  V128 (2T) |  V128 (4T) |  V128 (6T) | V128 (12T) |   V256 (1T) |  V256 (2T) |  V256 (4T) |  V256 (6T) | V256 (12T) |
+        /// |-----------:|------------:|-----------:|-----------:|-----------:|-----------:|------------:|-----------:|-----------:|-----------:|-----------:|
+        /// |      1,024 |   *0.52 µs* |    1.74 µs |    2.74 µs |    3.20 µs |    4.26 µs |   *0.55 µs* |    1.78 µs |    2.71 µs |    3.10 µs |    4.05 µs |
+        /// |      4,096 |   *2.02 µs* |    3.09 µs |    4.29 µs |    5.09 µs |    6.09 µs |   *2.20 µs* |    3.43 µs |    4.30 µs |    5.10 µs |    6.08 µs |
+        /// |      9,216 |    4.63 µs  |  *4.45 µs* |    5.79 µs |    6.77 µs |    8.31 µs |    4.91 µs  |  *4.79 µs* |    5.73 µs |    6.68 µs |    8.15 µs |
+        /// |     16,384 |    8.08 µs  |  *6.59 µs* |    6.97 µs |    8.04 µs |   10.40 µs |    8.72 µs  |  *6.77 µs* |    7.01 µs |    8.14 µs |   10.29 µs |
+        /// |     36,864 |   22.64 µs  |   13.12 µs | *10.77 µs* |   11.54 µs |   13.89 µs |   19.60 µs  |   12.84 µs | *10.76 µs* |   11.52 µs |   13.58 µs |
+        /// |     65,536 |   40.02 µs  |   21.24 µs | *15.98 µs* |   16.36 µs |   19.74 µs |   34.78 µs  |   22.66 µs | *16.11 µs* |   16.53 µs |   19.48 µs |
+        /// |    262,144 |  132.08 µs  |   74.21 µs | *53.06 µs* |   53.90 µs |   57.14 µs |  139.65 µs  |   77.32 µs | *53.45 µs* |   53.49 µs |   56.53 µs |
+        /// |  1,048,576 |  528.43 µs  |  276.37 µs |*204.07 µs* |  206.81 µs |  214.44 µs |  558.86 µs  |  294.91 µs |*203.82 µs* |  205.09 µs |  215.21 µs |
+        /// |  2,096,704 | 1035.50 µs  |  536.39 µs |*401.37 µs* |  406.31 µs |  422.04 µs | 1114.50 µs  |  587.87 µs |*401.12 µs* |  410.04 µs |  420.35 µs |
+        /// |  4,194,304 | 2097.30 µs  | 1069.40 µs |*792.48 µs* |  797.62 µs |  823.14 µs | 2224.20 µs  | 1165.80 µs |*804.03 µs* |  798.43 µs |  816.77 µs |
+        /// | 20,081,328 | 9865.70 µs  | 5034.10 µs |*3805.40 µs*| 3853.00 µs | 3925.70 µs | 10564.80 µs | 5494.20 µs |*3801.60 µs*| 3845.40 µs | 3931.90 µs |
+        ///
+        /// 1. Vector256 (AVX2): The inverse transform (planar to interleaved) applies immense pressure on the memory bus,
+        ///    saturating much earlier than the forward transform. TPL overhead is amortized at roughly 9,000 pixels.
+        ///    Due to the high cost of writing interleaved BGR data to memory, the bus completely saturates at 4 threads.
+        ///    Pushing to 6 or 12 threads causes L3 cache thrashing and active performance regressions.
+        ///
+        /// 2. Vector128 (SSSE3/AdvSimd): The write-bound nature of the inverse transform flattens the advantage of 
+        ///    slower data ingestion seen in the forward transform. It shares the exact same memory saturation cap (4) 
+        ///    and TPL crossover (~9,000) as AVX2.
+        ///
+        /// MEMORY TOPOLOGY DISCLAIMER:
+        /// The saturation caps (4 for both AVX2 and Vector128) are calibrated against standard dual-channel (2-channel)
+        /// memory configurations typical of consumer hardware. We did not benchmark quad-channel or octa-channel
+        /// memory configurations, as DjvuNet is not expected to be primarily utilized on enterprise server-grade
+        /// or workstation hardware (e.g., EPYC, Threadripper, Xeon). This missing optimization for high-bandwidth
+        /// server topologies can be addressed in future iterations if required.
+        /// </remarks>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static int GetThreadCountForYCbCr2Rgb(long pixelCount)
+        {
+            int targetThreads = 1;
+            int maxAvailableThreads = Environment.ProcessorCount;
+
+            if (Avx2.IsSupported)
+            {
+                // AVX2 Optimization Matrix (Inverse Transform)
+                // Writing interleaved pixels violently saturates the memory bus; strictly capped at 4.
+                // TPL overhead is amortized at ~9,000 pixels.
+                if (pixelCount >= 36_000)
+                    targetThreads = 4;
+                else if (pixelCount >= 9_000)
+                    targetThreads = 2;
+            }
+            else if (Vector128.IsHardwareAccelerated)
+            {
+                // Vector128 (SSSE3/AdvSimd) Optimization Matrix (Inverse Transform)
+                // The write-bound nature of the inverse transform flattens the advantage of slower data ingestion.
+                // It shares the exact same memory saturation cap (4) and TPL crossover (~9,000) as AVX2.
+                if (pixelCount >= 36_000)
+                    targetThreads = 4;
+                else if (pixelCount >= 9_000)
+                    targetThreads = 2;
+            }
+
+            return Math.Min(targetThreads, maxAvailableThreads);
+        }
 
         /// <summary>
         /// Core hardware-accelerated Color Space Conversion from BGR to YCbCr with explicit byte-stride support.
@@ -227,7 +296,7 @@ namespace DjvuNet.Wavelet
             {
                 if (width >= 32)
                 {
-                    int optimalThreads = GetOptimalDegreeOfParallelism(pixelCount);
+                    int optimalThreads = GetThreadCountForRgb2YCbCr(pixelCount);
                     if (optimalThreads > 1)
                     {
                         var options = new ParallelOptions { MaxDegreeOfParallelism = optimalThreads };
@@ -245,7 +314,7 @@ namespace DjvuNet.Wavelet
             {
                 if (width >= 16)
                 {
-                    int optimalThreads = GetOptimalDegreeOfParallelism(pixelCount);
+                    int optimalThreads = GetThreadCountForRgb2YCbCr(pixelCount);
                     if (optimalThreads > 1)
                     {
                         var options = new ParallelOptions { MaxDegreeOfParallelism = optimalThreads };
@@ -311,404 +380,46 @@ namespace DjvuNet.Wavelet
                     $"Row size ({rowSizeInBytes}) must be at least width * sizeof(Pixel) ({(long)width * sizeof(Pixel)}).");
             }
 
-            Pixel* p = pPixBuff;
+            long pixelCount = (long)width * height;
 
-            if (Avx2.IsSupported && width >= 32)
+            if (Avx2.IsSupported)
             {
-                var vec128 = Vector256.Create((short)128);
-                var vec0   = Vector256.Create((short)0);
-                var vec255 = Vector256.Create((short)255);
-                var vecZero8 = Vector256<byte>.Zero;
-
-                int vectorBound = width - 32;
-                int tailShift = (32 - (width % 32)) % 32;
-                int tailShiftBytes = tailShift * sizeof(Pixel);
-
-                for (int y = 0; y < height; y++)
+                if (width >= 32)
                 {
-                    byte* rowBase = (byte*)p;
-                    byte* pByte = rowBase;
-
-                    // PROLOGUE: Load the first chunk into the pipeline
-                    var ymmA = Vector256.Load(pByte);
-                    var ymmF = Vector256.Load(pByte + 32);
-                    var ymmB = Vector256.Load(pByte + 64);
-
-                    int x = 0;
-                    while (x < width)
+                    int optimalThreads = GetThreadCountForYCbCr2Rgb(pixelCount);
+                    if (optimalThreads > 1)
                     {
-                        // 1. PIPELINED READ-AHEAD (Branchless x86 CMOV)
-                        // Load the memory for the NEXT iteration.
-                        // If we are at the tail, shift the read pointer backward.
-                        // If we are at the end of the image (nextX >= width), we execute a safe dummy read
-                        // from the rowBase to flush the pipeline without page faulting.
-                        int nextX = x + 32;
-                        int nextShiftBytes = (nextX > vectorBound) ? tailShiftBytes : 0;
-                        byte* nextPtr = (nextX >= width) ? rowBase : (pByte + 96 - nextShiftBytes);
-
-                        var nextYmmA = Vector256.Load(nextPtr);
-                        var nextYmmF = Vector256.Load(nextPtr + 32);
-                        var nextYmmB = Vector256.Load(nextPtr + 64);
-
-                        // 2. UNIFIED MATH BLOCK
-                        var ymmC = ymmA;
-                        ymmA = Avx2.InsertVector128(ymmF, ymmA.GetLower(), 0);
-                        ymmC = Avx2.InsertVector128(ymmC, ymmB.GetLower(), 0);
-                        ymmB = Avx2.InsertVector128(ymmB, ymmF.GetLower(), 0);
-                        ymmF = Avx2.Permute2x128(ymmC, ymmC, 1);
-
-                        var ymmG = ymmA;
-                        ymmA = Avx2.ShiftLeftLogical128BitLane(ymmA, 8);
-                        ymmG = Avx2.ShiftRightLogical128BitLane(ymmG, 8);
-                        ymmA = Avx2.UnpackHigh(ymmA, ymmF);
-                        ymmF = Avx2.ShiftLeftLogical128BitLane(ymmF, 8);
-                        ymmG = Avx2.UnpackLow(ymmG, ymmB);
-                        ymmF = Avx2.UnpackHigh(ymmF, ymmB);
-
-                        var ymmD = ymmA;
-                        ymmA = Avx2.ShiftLeftLogical128BitLane(ymmA, 8);
-                        ymmD = Avx2.ShiftRightLogical128BitLane(ymmD, 8);
-                        ymmA = Avx2.UnpackHigh(ymmA, ymmG);
-                        ymmG = Avx2.ShiftLeftLogical128BitLane(ymmG, 8);
-                        ymmD = Avx2.UnpackLow(ymmD, ymmF);
-                        ymmG = Avx2.UnpackHigh(ymmG, ymmF);
-
-                        var ymmE = ymmA;
-                        ymmA = Avx2.ShiftLeftLogical128BitLane(ymmA, 8);
-                        ymmE = Avx2.ShiftRightLogical128BitLane(ymmE, 8);
-                        ymmA = Avx2.UnpackHigh(ymmA, ymmD);
-                        ymmD = Avx2.ShiftLeftLogical128BitLane(ymmD, 8);
-                        ymmE = Avx2.UnpackLow(ymmE, ymmG);
-                        ymmD = Avx2.UnpackHigh(ymmD, ymmG);
-
-                        var ymmH = vecZero8;
-
-                        ymmC = ymmA;
-                        ymmA = Avx2.UnpackLow(ymmA, ymmH);
-                        ymmC = Avx2.UnpackHigh(ymmC, ymmH);
-
-                        ymmB = ymmE;
-                        ymmE = Avx2.UnpackLow(ymmE, ymmH);
-                        ymmB = Avx2.UnpackHigh(ymmB, ymmH);
-
-                        ymmF = ymmD;
-                        ymmD = Avx2.UnpackLow(ymmD, ymmH);
-                        ymmF = Avx2.UnpackHigh(ymmF, ymmH);
-
-                        var y_even = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmA.AsInt16(), 8), 8);
-                        var b_even = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmC.AsInt16(), 8), 8);
-                        var r_even = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmE.AsInt16(), 8), 8);
-                        var y_odd  = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmB.AsInt16(), 8), 8);
-                        var b_odd  = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmD.AsInt16(), 8), 8);
-                        var r_odd  = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmF.AsInt16(), 8), 8);
-
-                        var tr_even = vec0;
-                        var tg_even = vec0;
-                        var tb_even = vec0;
-                        {
-                            var t1_even    = Avx2.ShiftRightArithmetic(b_even, 2);
-                            var r_sh1_even = Avx2.ShiftRightArithmetic(r_even, 1);
-                            var t2_even    = Avx2.Add(r_even, r_sh1_even);
-                            var y_128_even = Avx2.Add(y_even, vec128);
-                            var t3_even    = Avx2.Subtract(y_128_even, t1_even);
-
-                            tr_even = Avx2.Add(y_128_even, t2_even);
-                            var t2_sh1_even = Avx2.ShiftRightArithmetic(t2_even, 1);
-                            var b_sh1_even  = Avx2.ShiftLeftLogical(b_even, 1);
-
-                            tg_even = Avx2.Subtract(t3_even, t2_sh1_even);
-                            tb_even = Avx2.Add(t3_even, b_sh1_even);
-
-                            tr_even = Avx2.Max(vec0, Avx2.Min(vec255, tr_even));
-                            tg_even = Avx2.Max(vec0, Avx2.Min(vec255, tg_even));
-                            tb_even = Avx2.Max(vec0, Avx2.Min(vec255, tb_even));
-                        }
-
-                        var tr_odd = vec0;
-                        var tg_odd = vec0;
-                        var tb_odd = vec0;
-                        {
-                            var t1_odd    = Avx2.ShiftRightArithmetic(b_odd, 2);
-                            var r_sh1_odd = Avx2.ShiftRightArithmetic(r_odd, 1);
-                            var t2_odd    = Avx2.Add(r_odd, r_sh1_odd);
-                            var y_128_odd = Avx2.Add(y_odd, vec128);
-                            var t3_odd    = Avx2.Subtract(y_128_odd, t1_odd);
-
-                            tr_odd = Avx2.Add(y_128_odd, t2_odd);
-                            var t2_sh1_odd = Avx2.ShiftRightArithmetic(t2_odd, 1);
-                            var b_sh1_odd  = Avx2.ShiftLeftLogical(b_odd, 1);
-
-                            tg_odd = Avx2.Subtract(t3_odd, t2_sh1_odd);
-                            tb_odd = Avx2.Add(t3_odd, b_sh1_odd);
-
-                            tr_odd = Avx2.Max(vec0, Avx2.Min(vec255, tr_odd));
-                            tg_odd = Avx2.Max(vec0, Avx2.Min(vec255, tg_odd));
-                            tb_odd = Avx2.Max(vec0, Avx2.Min(vec255, tb_odd));
-                        }
-
-                        ymmA = Avx2.PackUnsignedSaturate(tb_even, tb_even);
-                        ymmB = Avx2.PackUnsignedSaturate(tb_odd, tb_odd);
-                        ymmC = Avx2.PackUnsignedSaturate(tg_even, tg_even);
-                        ymmD = Avx2.PackUnsignedSaturate(tg_odd, tg_odd);
-                        ymmE = Avx2.PackUnsignedSaturate(tr_even, tr_even);
-                        ymmF = Avx2.PackUnsignedSaturate(tr_odd, tr_odd);
-
-                        ymmA = Avx2.UnpackLow(ymmA, ymmC);
-                        ymmE = Avx2.UnpackLow(ymmE, ymmB);
-                        ymmD = Avx2.UnpackLow(ymmD, ymmF);
-
-                        ymmH = Avx2.ShiftRightLogical128BitLane(ymmA, 2);
-                        ymmG = Avx2.UnpackHigh(ymmA.AsInt16(), ymmE.AsInt16()).AsByte();
-                        ymmA = Avx2.UnpackLow(ymmA.AsInt16(), ymmE.AsInt16()).AsByte();
-
-                        ymmE = Avx2.ShiftRightLogical128BitLane(ymmE, 2);
-                        ymmB = Avx2.ShiftRightLogical128BitLane(ymmD, 2);
-                        ymmC = Avx2.UnpackHigh(ymmD.AsInt16(), ymmH.AsInt16()).AsByte();
-                        ymmD = Avx2.UnpackLow(ymmD.AsInt16(), ymmH.AsInt16()).AsByte();
-
-                        ymmF = Avx2.UnpackHigh(ymmE.AsInt16(), ymmB.AsInt16()).AsByte();
-                        ymmE = Avx2.UnpackLow(ymmE.AsInt16(), ymmB.AsInt16()).AsByte();
-
-                        ymmH = Avx2.Shuffle(ymmA.AsInt32(), 0x4E).AsByte();
-                        ymmA = Avx2.UnpackLow(ymmA.AsInt32(), ymmD.AsInt32()).AsByte();
-                        ymmD = Avx2.UnpackHigh(ymmD.AsInt32(), ymmE.AsInt32()).AsByte();
-                        ymmE = Avx2.UnpackLow(ymmE.AsInt32(), ymmH.AsInt32()).AsByte();
-
-                        ymmH = Avx2.Shuffle(ymmG.AsInt32(), 0x4E).AsByte();
-                        ymmG = Avx2.UnpackLow(ymmG.AsInt32(), ymmC.AsInt32()).AsByte();
-                        ymmC = Avx2.UnpackHigh(ymmC.AsInt32(), ymmF.AsInt32()).AsByte();
-                        ymmF = Avx2.UnpackLow(ymmF.AsInt32(), ymmH.AsInt32()).AsByte();
-
-                        ymmH = Avx2.UnpackLow(ymmA.AsInt64(), ymmE.AsInt64()).AsByte();
-                        ymmG = Avx2.UnpackLow(ymmD.AsInt64(), ymmG.AsInt64()).AsByte();
-                        ymmC = Avx2.UnpackLow(ymmF.AsInt64(), ymmC.AsInt64()).AsByte();
-
-                        ymmA = Avx2.Permute2x128(ymmH, ymmG, 0x20);
-                        ymmD = Avx2.Permute2x128(ymmC, ymmH, 0x30);
-                        ymmF = Avx2.Permute2x128(ymmG, ymmC, 0x31);
-
-                        // 3. STORE (Branchless x86 CMOV)
-                        int currentShiftBytes = (x > vectorBound) ? tailShiftBytes : 0;
-                        byte* storePtr = pByte - currentShiftBytes;
-
-                        ymmA.Store(storePtr);
-                        ymmD.Store(storePtr + 32);
-                        ymmF.Store(storePtr + 64);
-
-                        // 4. PIPELINE ADVANCE
-                        ymmA = nextYmmA;
-                        ymmF = nextYmmF;
-                        ymmB = nextYmmB;
-
-                        pByte += 96;
-                        x += 32;
+                        var options = new ParallelOptions { MaxDegreeOfParallelism = optimalThreads };
+                        InterWaveSimd.YCbCr2RgbParallelVector256(pPixBuff, width, height, rowSizeInBytes, options);
                     }
-
-                    // Strict byte-padding jump to the next row
-                    p = (Pixel*)(rowBase + rowSizeInBytes);
+                    else
+                    {
+                        InterWaveSimd.YCbCr2RgbVector256(pPixBuff, width, height, rowSizeInBytes);
+                    }
+                    return;
                 }
-                return;
             }
-            else if (Vector128.IsHardwareAccelerated && width >= 16)
+
+            if (Vector128.IsHardwareAccelerated)
             {
-                var v128 = Vector128.Create((short)128);
-                var vZero = Vector128<short>.Zero;
-                var v255 = Vector128.Create((short)255);
-
-                int vectorBound = width - 16;
-                int tailShift = (16 - (width % 16)) % 16;
-                int tailShiftBytes = tailShift * sizeof(Pixel);
-
-                for (int y = 0; y < height; y++)
+                if (width >= 16)
                 {
-                    byte* rowBase = (byte*)p;
-                    byte* pByte = rowBase;
-
-                    var xmmA = Vector128.Load(pByte);
-                    var xmmB = Vector128.Load(pByte + 16);
-                    var xmmC = Vector128.Load(pByte + 32);
-
-                    int x = 0;
-                    while (x < width)
+                    int optimalThreads = GetThreadCountForYCbCr2Rgb(pixelCount);
+                    if (optimalThreads > 1)
                     {
-                        int nextX = x + 16;
-                        int nextShiftBytes = (nextX > vectorBound) ? tailShiftBytes : 0;
-                        byte* nextPtr = (nextX >= width) ? rowBase : (pByte + 48 - nextShiftBytes);
-
-                        var nextXmmA = Vector128.Load(nextPtr);
-                        var nextXmmB = Vector128.Load(nextPtr + 16);
-                        var nextXmmC = Vector128.Load(nextPtr + 32);
-
-                        Vector128<byte> xmmYin, xmmCbin, xmmCrin;
-                        if (AdvSimd.Arm64.IsSupported)
-                        {
-                            var bMask0 = Vector128.Create((byte)0, 3, 6, 9, 12, 15, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255);
-                            var bMask1 = Vector128.Create((byte)255, 255, 255, 255, 255, 255, 2, 5, 8, 11, 14, 255, 255, 255, 255, 255);
-                            var bMask2 = Vector128.Create((byte)255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 1, 4, 7, 10, 13);
-                            var gMask0 = Vector128.Create((byte)1, 4, 7, 10, 13, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255);
-                            var gMask1 = Vector128.Create((byte)255, 255, 255, 255, 255, 0, 3, 6, 9, 12, 15, 255, 255, 255, 255, 255);
-                            var gMask2 = Vector128.Create((byte)255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 2, 5, 8, 11, 14);
-                            var rMask0 = Vector128.Create((byte)2, 5, 8, 11, 14, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255);
-                            var rMask1 = Vector128.Create((byte)255, 255, 255, 255, 255, 1, 4, 7, 10, 13, 255, 255, 255, 255, 255, 255);
-                            var rMask2 = Vector128.Create((byte)255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 3, 6, 9, 12, 15);
-
-                            xmmYin = AdvSimd.Or(AdvSimd.Arm64.VectorTableLookup(xmmA, bMask0), AdvSimd.Or(AdvSimd.Arm64.VectorTableLookup(xmmB, bMask1), AdvSimd.Arm64.VectorTableLookup(xmmC, bMask2)));
-                            xmmCbin = AdvSimd.Or(AdvSimd.Arm64.VectorTableLookup(xmmA, gMask0), AdvSimd.Or(AdvSimd.Arm64.VectorTableLookup(xmmB, gMask1), AdvSimd.Arm64.VectorTableLookup(xmmC, gMask2)));
-                            xmmCrin = AdvSimd.Or(AdvSimd.Arm64.VectorTableLookup(xmmA, rMask0), AdvSimd.Or(AdvSimd.Arm64.VectorTableLookup(xmmB, rMask1), AdvSimd.Arm64.VectorTableLookup(xmmC, rMask2)));
-                        }
-                        else if (Ssse3.IsSupported)
-                        {
-                            var bMask0 = Vector128.Create((byte)0, 3, 6, 9, 12, 15, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128);
-                            var bMask1 = Vector128.Create((byte)128, 128, 128, 128, 128, 128, 2, 5, 8, 11, 14, 128, 128, 128, 128, 128);
-                            var bMask2 = Vector128.Create((byte)128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 1, 4, 7, 10, 13);
-                            var gMask0 = Vector128.Create((byte)1, 4, 7, 10, 13, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128);
-                            var gMask1 = Vector128.Create((byte)128, 128, 128, 128, 128, 0, 3, 6, 9, 12, 15, 128, 128, 128, 128, 128);
-                            var gMask2 = Vector128.Create((byte)128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 2, 5, 8, 11, 14);
-                            var rMask0 = Vector128.Create((byte)2, 5, 8, 11, 14, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128);
-                            var rMask1 = Vector128.Create((byte)128, 128, 128, 128, 128, 1, 4, 7, 10, 13, 128, 128, 128, 128, 128, 128);
-                            var rMask2 = Vector128.Create((byte)128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 0, 3, 6, 9, 12, 15);
-
-                            xmmYin = Sse2.Or(Ssse3.Shuffle(xmmA, bMask0), Sse2.Or(Ssse3.Shuffle(xmmB, bMask1), Ssse3.Shuffle(xmmC, bMask2)));
-                            xmmCbin = Sse2.Or(Ssse3.Shuffle(xmmA, gMask0), Sse2.Or(Ssse3.Shuffle(xmmB, gMask1), Ssse3.Shuffle(xmmC, gMask2)));
-                            xmmCrin = Sse2.Or(Ssse3.Shuffle(xmmA, rMask0), Sse2.Or(Ssse3.Shuffle(xmmB, rMask1), Ssse3.Shuffle(xmmC, rMask2)));
-                        }
-                        else
-                        {
-                            xmmYin = Vector128<byte>.Zero;
-                            xmmCbin = Vector128<byte>.Zero;
-                            xmmCrin = Vector128<byte>.Zero;
-                        }
-
-                        var xmmYSbyte = xmmYin.AsSByte();
-                        var xmmCbSbyte = xmmCbin.AsSByte();
-                        var xmmCrSbyte = xmmCrin.AsSByte();
-
-                        var xmmYL = Vector128.WidenLower(xmmYSbyte);
-                        var xmmYH = Vector128.WidenUpper(xmmYSbyte);
-                        var xmmCbL = Vector128.WidenLower(xmmCbSbyte);
-                        var xmmCbH = Vector128.WidenUpper(xmmCbSbyte);
-                        var xmmCrL = Vector128.WidenLower(xmmCrSbyte);
-                        var xmmCrH = Vector128.WidenUpper(xmmCrSbyte);
-
-                        var xmmT1L = Vector128.ShiftRightArithmetic(xmmCbL, 2);
-                        var xmmCrSh1L = Vector128.ShiftRightArithmetic(xmmCrL, 1);
-                        var xmmT2L = Vector128.Add(xmmCrL, xmmCrSh1L);
-                        var xmmY128L = Vector128.Add(xmmYL, v128);
-                        var xmmT3L = Vector128.Subtract(xmmY128L, xmmT1L);
-
-                        var xmmRL = Vector128.Add(xmmY128L, xmmT2L);
-                        var xmmT2Sh1L = Vector128.ShiftRightArithmetic(xmmT2L, 1);
-                        var xmmCbSh1L = Vector128.ShiftLeft(xmmCbL, 1);
-
-                        var xmmGL = Vector128.Subtract(xmmT3L, xmmT2Sh1L);
-                        var xmmBL = Vector128.Add(xmmT3L, xmmCbSh1L);
-
-                        xmmRL = Vector128.Max(vZero, Vector128.Min(v255, xmmRL));
-                        xmmGL = Vector128.Max(vZero, Vector128.Min(v255, xmmGL));
-                        xmmBL = Vector128.Max(vZero, Vector128.Min(v255, xmmBL));
-
-                        var xmmT1H = Vector128.ShiftRightArithmetic(xmmCbH, 2);
-                        var xmmCrSh1H = Vector128.ShiftRightArithmetic(xmmCrH, 1);
-                        var xmmT2H = Vector128.Add(xmmCrH, xmmCrSh1H);
-                        var xmmY128H = Vector128.Add(xmmYH, v128);
-                        var xmmT3H = Vector128.Subtract(xmmY128H, xmmT1H);
-
-                        var xmmRH = Vector128.Add(xmmY128H, xmmT2H);
-                        var xmmT2Sh1H = Vector128.ShiftRightArithmetic(xmmT2H, 1);
-                        var xmmCbSh1H = Vector128.ShiftLeft(xmmCbH, 1);
-
-                        var xmmGH = Vector128.Subtract(xmmT3H, xmmT2Sh1H);
-                        var xmmBH = Vector128.Add(xmmT3H, xmmCbSh1H);
-
-                        xmmRH = Vector128.Max(vZero, Vector128.Min(v255, xmmRH));
-                        xmmGH = Vector128.Max(vZero, Vector128.Min(v255, xmmGH));
-                        xmmBH = Vector128.Max(vZero, Vector128.Min(v255, xmmBH));
-
-                        var xmmBOut = Vector128.Narrow(xmmBL.AsUInt16(), xmmBH.AsUInt16());
-                        var xmmGOut = Vector128.Narrow(xmmGL.AsUInt16(), xmmGH.AsUInt16());
-                        var xmmROut = Vector128.Narrow(xmmRL.AsUInt16(), xmmRH.AsUInt16());
-
-                        Vector128<byte> xmmOut0, xmmOut1, xmmOut2;
-                        if (AdvSimd.Arm64.IsSupported)
-                        {
-                            var bMask0 = Vector128.Create((byte)0, 255, 255, 1, 255, 255, 2, 255, 255, 3, 255, 255, 4, 255, 255, 5);
-                            var gMask0 = Vector128.Create((byte)255, 0, 255, 255, 1, 255, 255, 2, 255, 255, 3, 255, 255, 4, 255, 255);
-                            var rMask0 = Vector128.Create((byte)255, 255, 0, 255, 255, 1, 255, 255, 2, 255, 255, 3, 255, 255, 4, 255);
-                            var bMask1 = Vector128.Create((byte)255, 255, 6, 255, 255, 7, 255, 255, 8, 255, 255, 9, 255, 255, 10, 255);
-                            var gMask1 = Vector128.Create((byte)5, 255, 255, 6, 255, 255, 7, 255, 255, 8, 255, 255, 9, 255, 255, 10);
-                            var rMask1 = Vector128.Create((byte)255, 5, 255, 255, 6, 255, 255, 7, 255, 255, 8, 255, 255, 9, 255, 255);
-                            var bMask2 = Vector128.Create((byte)255, 11, 255, 255, 12, 255, 255, 13, 255, 255, 14, 255, 255, 15, 255, 255);
-                            var gMask2 = Vector128.Create((byte)255, 255, 11, 255, 255, 12, 255, 255, 13, 255, 255, 14, 255, 255, 15, 255);
-                            var rMask2 = Vector128.Create((byte)10, 255, 255, 11, 255, 255, 12, 255, 255, 13, 255, 255, 14, 255, 255, 15);
-
-                            xmmOut0 = AdvSimd.Or(AdvSimd.Arm64.VectorTableLookup(xmmBOut, bMask0), AdvSimd.Or(AdvSimd.Arm64.VectorTableLookup(xmmGOut, gMask0), AdvSimd.Arm64.VectorTableLookup(xmmROut, rMask0)));
-                            xmmOut1 = AdvSimd.Or(AdvSimd.Arm64.VectorTableLookup(xmmBOut, bMask1), AdvSimd.Or(AdvSimd.Arm64.VectorTableLookup(xmmGOut, gMask1), AdvSimd.Arm64.VectorTableLookup(xmmROut, rMask1)));
-                            xmmOut2 = AdvSimd.Or(AdvSimd.Arm64.VectorTableLookup(xmmBOut, bMask2), AdvSimd.Or(AdvSimd.Arm64.VectorTableLookup(xmmGOut, gMask2), AdvSimd.Arm64.VectorTableLookup(xmmROut, rMask2)));
-                        }
-                        else if (Ssse3.IsSupported)
-                        {
-                            var bMask0 = Vector128.Create((byte)0, 128, 128, 1, 128, 128, 2, 128, 128, 3, 128, 128, 4, 128, 128, 5);
-                            var gMask0 = Vector128.Create((byte)128, 0, 128, 128, 1, 128, 128, 2, 128, 128, 3, 128, 128, 4, 128, 128);
-                            var rMask0 = Vector128.Create((byte)128, 128, 0, 128, 128, 1, 128, 128, 2, 128, 128, 3, 128, 128, 4, 128);
-                            var bMask1 = Vector128.Create((byte)128, 128, 6, 128, 128, 7, 128, 128, 8, 128, 128, 9, 128, 128, 10, 128);
-                            var gMask1 = Vector128.Create((byte)5, 128, 128, 6, 128, 128, 7, 128, 128, 8, 128, 128, 9, 128, 128, 10);
-                            var rMask1 = Vector128.Create((byte)128, 5, 128, 128, 6, 128, 128, 7, 128, 128, 8, 128, 128, 9, 128, 128);
-                            var bMask2 = Vector128.Create((byte)128, 11, 128, 128, 12, 128, 128, 13, 128, 128, 14, 128, 128, 15, 128, 128);
-                            var gMask2 = Vector128.Create((byte)128, 128, 11, 128, 128, 12, 128, 128, 13, 128, 128, 14, 128, 128, 15, 128);
-                            var rMask2 = Vector128.Create((byte)10, 128, 128, 11, 128, 128, 12, 128, 128, 13, 128, 128, 14, 128, 128, 15);
-
-                            xmmOut0 = Sse2.Or(Ssse3.Shuffle(xmmBOut, bMask0), Sse2.Or(Ssse3.Shuffle(xmmGOut, gMask0), Ssse3.Shuffle(xmmROut, rMask0)));
-                            xmmOut1 = Sse2.Or(Ssse3.Shuffle(xmmBOut, bMask1), Sse2.Or(Ssse3.Shuffle(xmmGOut, gMask1), Ssse3.Shuffle(xmmROut, rMask1)));
-                            xmmOut2 = Sse2.Or(Ssse3.Shuffle(xmmBOut, bMask2), Sse2.Or(Ssse3.Shuffle(xmmGOut, gMask2), Ssse3.Shuffle(xmmROut, rMask2)));
-                        }
-                        else
-                        {
-                            xmmOut0 = Vector128<byte>.Zero; xmmOut1 = Vector128<byte>.Zero; xmmOut2 = Vector128<byte>.Zero;
-                        }
-
-                        int currentShiftBytes = (x > vectorBound) ? tailShiftBytes : 0;
-                        byte* storePtr = pByte - currentShiftBytes;
-
-                        xmmOut0.Store(storePtr);
-                        xmmOut1.Store(storePtr + 16);
-                        xmmOut2.Store(storePtr + 32);
-
-                        xmmA = nextXmmA;
-                        xmmB = nextXmmB;
-                        xmmC = nextXmmC;
-
-                        pByte += 48;
-                        x += 16;
+                        var options = new ParallelOptions { MaxDegreeOfParallelism = optimalThreads };
+                        InterWaveSimd.YCbCr2RgbParallelVector128(pPixBuff, width, height, rowSizeInBytes, options);
                     }
-
-                    p = (Pixel*)(rowBase + rowSizeInBytes);
+                    else
+                    {
+                        InterWaveSimd.YCbCr2RgbVector128(pPixBuff, width, height, rowSizeInBytes);
+                    }
+                    return;
                 }
-                return;
             }
 
             // Scalar Fallback
-            long inPadBytesScalar = rowSizeInBytes - ((long)width * sizeof(Pixel));
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++, p++)
-                {
-                    sbyte y_val = p->Blue;
-                    sbyte b_val = p->Green;
-                    sbyte r_val = p->Red;
-
-                    int t1 = b_val >> 2;
-                    int t2 = r_val + (r_val >> 1);
-                    int t3 = y_val + 128 - t1;
-                    int tr = y_val + 128 + t2;
-                    int tg = t3 - (t2 >> 1);
-                    int tb = t3 + (b_val << 1);
-
-                    p->Red   = (sbyte)Math.Max(0, Math.Min(255, tr));
-                    p->Green = (sbyte)Math.Max(0, Math.Min(255, tg));
-                    p->Blue  = (sbyte)Math.Max(0, Math.Min(255, tb));
-                }
-                p = (Pixel*)((byte*)p + inPadBytesScalar);
-            }
+            InterWaveTransform.YCbCr2RgbScalar(pPixBuff, width, height, rowSizeInBytes);
         }
     }
 }

@@ -6,6 +6,8 @@ using DjvuNet.Wavelet;
 using DjvuNet.Graphics;
 using Xunit;
 using DjvuNet.Tests;
+using System.Threading.Tasks;
+using System.Runtime.Intrinsics.X86;
 
 namespace DjvuNet.DjvuLibre.Compatibility.Tests
 {
@@ -29,9 +31,9 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             int totalPixels = height * rowSize;
             int totalBytes = totalPixels * 3; // 3 bytes per pixel
 
-            byte[] nativeBuffer = new byte[totalBytes];
-            sbyte[] scalarBuffer = new sbyte[totalBytes];
-            sbyte[] unifiedBuffer = new sbyte[totalBytes];
+            byte[] nativeBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            sbyte[] scalarBuffer = GC.AllocateUninitializedArray<sbyte>(totalBytes);
+            sbyte[] unifiedBuffer = GC.AllocateUninitializedArray<sbyte>(totalBytes);
 
             // Generate some random test data to represent Y, Cb, Cr
             Random rnd = new Random(Seed);
@@ -106,9 +108,9 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             int totalInPixels = height * rowSize;
             int totalInBytes = totalInPixels * 3; // 3 bytes per pixel
 
-            byte[] nativeBuffer = new byte[totalInBytes];
-            sbyte[] scalarBuffer = new sbyte[totalInBytes];
-            sbyte[] unifiedBuffer = new sbyte[totalInBytes];
+            byte[] nativeBuffer = GC.AllocateUninitializedArray<byte>(totalInBytes);
+            sbyte[] scalarBuffer = GC.AllocateUninitializedArray<sbyte>(totalInBytes);
+            sbyte[] unifiedBuffer = GC.AllocateUninitializedArray<sbyte>(totalInBytes);
 
             Random rnd = new Random(Seed);
             for (int i = 0; i < totalInBytes; i++)
@@ -120,11 +122,10 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             }
 
             // 1. Process via Scalar C#
-            // NOTE: The legacy YCbCr2Rgb has no stride support. It will fail.
-            // We run it anyway to prove it fails exactly like Rgb2YCbCrScalar did.
             fixed (sbyte* ptr = scalarBuffer)
             {
-                InterWaveTransform.YCbCr2Rgb((Pixel*)ptr, width, height);
+                int rowSizeInBytes = rowSize * sizeof(Pixel);
+                InterWaveTransform.YCbCr2RgbScalar((Pixel*)ptr, width, height, rowSizeInBytes);
             }
 
             // 2. Process via Unified AVX2 C#
@@ -148,7 +149,7 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             }
             finally
             {
-                DjvuMarshal.FreeHGlobal(nativePtr);
+                if (nativePtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativePtr);
             }
 
             // 4. Assert Byte-for-Byte Parity (ignoring padding)
@@ -164,27 +165,29 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
                 diffScUn = Util.ImageBinaryDiff((byte*)pSc, (byte*)pUn, width, height, strideBytes);
             }
 
-            bool scalarVsNativeFailed = diffScNt > 0.0;
-            bool scalarVsUnifiedFailed = diffScUn > 0.0;
+            bool scalarVsNativePassed = diffScNt == 0.0;
+            bool scalarVsUnifiedPassed = diffScUn == 0.0;
+            bool unifiedVsNativePassed = diffUnNt == 0.0;
 
-            Assert.Equal(0.0, diffUnNt);
-
-            Assert.True(scalarVsNativeFailed && scalarVsUnifiedFailed,
-                "Expected the legacy scalar method to fail parity against both Native and Unified outputs on padded buffers.");
+            Assert.True(scalarVsNativePassed && scalarVsUnifiedPassed && unifiedVsNativePassed,
+                $"Parity Mismatch (With Stride):\n" +
+                $"C# Scalar vs Native C++    -> Diff: {diffScNt:F4}\n" +
+                $"C# Unified vs Native C++   -> Diff: {diffUnNt:F4}\n" +
+                $"C# Scalar vs C# Unified    -> Diff: {diffScUn:F4}\n");
         }
 
         [Fact]
         public unsafe void Rgb2YCbCrNativeParityRandomData()
         {
-            int width = DefaultWidth;
-            int height = DefaultHeight;
+            int width = 1248;
+            int height = 1024;
             int rowSize = width; // rowSize in GPixels
             int outRowSize = width;
             int totalPixels = height * rowSize;
             int totalBytes = totalPixels * 3; // 3 bytes per pixel
 
-            byte[] nativeRgbBuffer = new byte[totalBytes];
-            sbyte[] managedRgbBuffer = new sbyte[totalBytes];
+            byte[] nativeRgbBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            sbyte[] managedRgbBuffer = GC.AllocateUninitializedArray<sbyte>(totalBytes);
 
             // Generate some random test data to represent RGB
             Random rnd = new Random(Seed);
@@ -195,13 +198,13 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
                 managedRgbBuffer[i] = unchecked((sbyte)val);
             }
 
-            sbyte[] managedOutY = new sbyte[totalPixels];
-            sbyte[] managedOutCb = new sbyte[totalPixels];
-            sbyte[] managedOutCr = new sbyte[totalPixels];
+            sbyte[] managedOutY = GC.AllocateUninitializedArray<sbyte>(totalPixels);
+            sbyte[] managedOutCb = GC.AllocateUninitializedArray<sbyte>(totalPixels);
+            sbyte[] managedOutCr = GC.AllocateUninitializedArray<sbyte>(totalPixels);
 
-            byte[] nativeOutY = new byte[totalPixels];
-            byte[] nativeOutCb = new byte[totalPixels];
-            byte[] nativeOutCr = new byte[totalPixels];
+            byte[] nativeOutY = GC.AllocateUninitializedArray<byte>(totalPixels);
+            byte[] nativeOutCb = GC.AllocateUninitializedArray<byte>(totalPixels);
+            byte[] nativeOutCr = GC.AllocateUninitializedArray<byte>(totalPixels);
 
             // 1. Process via Managed C#
             fixed (sbyte* ptr = managedRgbBuffer)
@@ -238,10 +241,10 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             }
             finally
             {
-                DjvuMarshal.FreeHGlobal(nativeRgbPtr);
-                DjvuMarshal.FreeHGlobal(nativeYPtr);
-                DjvuMarshal.FreeHGlobal(nativeCbPtr);
-                DjvuMarshal.FreeHGlobal(nativeCrPtr);
+                if (nativeRgbPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeRgbPtr);
+                if (nativeYPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeYPtr);
+                if (nativeCbPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeCbPtr);
+                if (nativeCrPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeCrPtr);
             }
 
             // 3. Assert Byte-for-Byte Parity
@@ -280,8 +283,8 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
 
             int totalOutPixels = height * outRowSize;
 
-            byte[] nativeRgbBuffer = new byte[totalInBytes];
-            sbyte[] managedRgbBuffer = new sbyte[totalInBytes];
+            byte[] nativeRgbBuffer = GC.AllocateUninitializedArray<byte>(totalInBytes);
+            sbyte[] managedRgbBuffer = GC.AllocateUninitializedArray<sbyte>(totalInBytes);
 
             // Generate synthetic random test data for the entire buffer (including padding)
             Random rnd = new Random(Seed);
@@ -292,13 +295,13 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
                 managedRgbBuffer[i] = unchecked((sbyte)val);
             }
 
-            sbyte[] managedOutY = new sbyte[totalOutPixels];
-            sbyte[] managedOutCb = new sbyte[totalOutPixels];
-            sbyte[] managedOutCr = new sbyte[totalOutPixels];
+            sbyte[] managedOutY = GC.AllocateUninitializedArray<sbyte>(totalOutPixels);
+            sbyte[] managedOutCb = GC.AllocateUninitializedArray<sbyte>(totalOutPixels);
+            sbyte[] managedOutCr = GC.AllocateUninitializedArray<sbyte>(totalOutPixels);
 
-            byte[] nativeOutY = new byte[totalOutPixels];
-            byte[] nativeOutCb = new byte[totalOutPixels];
-            byte[] nativeOutCr = new byte[totalOutPixels];
+            byte[] nativeOutY = GC.AllocateUninitializedArray<byte>(totalOutPixels);
+            byte[] nativeOutCb = GC.AllocateUninitializedArray<byte>(totalOutPixels);
+            byte[] nativeOutCr = GC.AllocateUninitializedArray<byte>(totalOutPixels);
 
             // 1. Process via Managed C#
             fixed (sbyte* ptr = managedRgbBuffer)
@@ -335,10 +338,10 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             }
             finally
             {
-                DjvuMarshal.FreeHGlobal(nativeRgbPtr);
-                DjvuMarshal.FreeHGlobal(nativeYPtr);
-                DjvuMarshal.FreeHGlobal(nativeCbPtr);
-                DjvuMarshal.FreeHGlobal(nativeCrPtr);
+                if (nativeRgbPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeRgbPtr);
+                if (nativeYPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeYPtr);
+                if (nativeCbPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeCbPtr);
+                if (nativeCrPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeCrPtr);
             }
 
             // 3. Assert Byte-for-Byte Parity
@@ -378,8 +381,8 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             int totalPixels = height * rowSize;
             int totalBytes = totalPixels * 3; // 3 bytes per pixel
 
-            byte[] nativeRgbBuffer = new byte[totalBytes];
-            sbyte[] managedRgbBuffer = new sbyte[totalBytes];
+            byte[] nativeRgbBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            sbyte[] managedRgbBuffer = GC.AllocateUninitializedArray<sbyte>(totalBytes);
 
             Random rnd = new Random(Seed);
             for (int i = 0; i < totalBytes; i++)
@@ -389,17 +392,17 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
                 managedRgbBuffer[i] = unchecked((sbyte)val);
             }
 
-            sbyte[] scalarOutY = new sbyte[totalPixels];
-            sbyte[] scalarOutCb = new sbyte[totalPixels];
-            sbyte[] scalarOutCr = new sbyte[totalPixels];
+            sbyte[] scalarOutY = GC.AllocateUninitializedArray<sbyte>(totalPixels);
+            sbyte[] scalarOutCb = GC.AllocateUninitializedArray<sbyte>(totalPixels);
+            sbyte[] scalarOutCr = GC.AllocateUninitializedArray<sbyte>(totalPixels);
 
-            sbyte[] unifiedOutY = new sbyte[totalPixels];
-            sbyte[] unifiedOutCb = new sbyte[totalPixels];
-            sbyte[] unifiedOutCr = new sbyte[totalPixels];
+            sbyte[] unifiedOutY = GC.AllocateUninitializedArray<sbyte>(totalPixels);
+            sbyte[] unifiedOutCb = GC.AllocateUninitializedArray<sbyte>(totalPixels);
+            sbyte[] unifiedOutCr = GC.AllocateUninitializedArray<sbyte>(totalPixels);
 
-            byte[] nativeOutY = new byte[totalPixels];
-            byte[] nativeOutCb = new byte[totalPixels];
-            byte[] nativeOutCr = new byte[totalPixels];
+            byte[] nativeOutY = GC.AllocateUninitializedArray<byte>(totalPixels);
+            byte[] nativeOutCb = GC.AllocateUninitializedArray<byte>(totalPixels);
+            byte[] nativeOutCr = GC.AllocateUninitializedArray<byte>(totalPixels);
 
             // 1. Process via Scalar C#
             fixed (sbyte* ptr = managedRgbBuffer)
@@ -445,10 +448,10 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             }
             finally
             {
-                DjvuMarshal.FreeHGlobal(nativeRgbPtr);
-                DjvuMarshal.FreeHGlobal(nativeYPtr);
-                DjvuMarshal.FreeHGlobal(nativeCbPtr);
-                DjvuMarshal.FreeHGlobal(nativeCrPtr);
+                if (nativeRgbPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeRgbPtr);
+                if (nativeYPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeYPtr);
+                if (nativeCbPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeCbPtr);
+                if (nativeCrPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeCrPtr);
             }
 
             // 4. Assert Byte-for-Byte Parity
@@ -484,8 +487,8 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             int totalPixels = height * rowSize;
             int totalBytes = totalPixels * 3; // 3 bytes per pixel
 
-            byte[] nativeRgbBuffer = new byte[totalBytes];
-            sbyte[] managedRgbBuffer = new sbyte[totalBytes];
+            byte[] nativeRgbBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            sbyte[] managedRgbBuffer = GC.AllocateUninitializedArray<sbyte>(totalBytes);
 
             Random rnd = new Random(Seed);
             for (int i = 0; i < totalBytes; i++)
@@ -495,13 +498,13 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
                 managedRgbBuffer[i] = unchecked((sbyte)val);
             }
 
-            sbyte[] unifiedOutY = new sbyte[totalPixels];
-            sbyte[] unifiedOutCb = new sbyte[totalPixels];
-            sbyte[] unifiedOutCr = new sbyte[totalPixels];
+            sbyte[] unifiedOutY = GC.AllocateUninitializedArray<sbyte>(totalPixels);
+            sbyte[] unifiedOutCb = GC.AllocateUninitializedArray<sbyte>(totalPixels);
+            sbyte[] unifiedOutCr = GC.AllocateUninitializedArray<sbyte>(totalPixels);
 
-            byte[] nativeOutY = new byte[totalPixels];
-            byte[] nativeOutCb = new byte[totalPixels];
-            byte[] nativeOutCr = new byte[totalPixels];
+            byte[] nativeOutY = GC.AllocateUninitializedArray<byte>(totalPixels);
+            byte[] nativeOutCb = GC.AllocateUninitializedArray<byte>(totalPixels);
+            byte[] nativeOutCr = GC.AllocateUninitializedArray<byte>(totalPixels);
 
             // 2. Process via Unified AVX2 C#
             fixed (sbyte* ptr = managedRgbBuffer)
@@ -540,10 +543,10 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             }
             finally
             {
-                DjvuMarshal.FreeHGlobal(nativeRgbPtr);
-                DjvuMarshal.FreeHGlobal(nativeYPtr);
-                DjvuMarshal.FreeHGlobal(nativeCbPtr);
-                DjvuMarshal.FreeHGlobal(nativeCrPtr);
+                if (nativeRgbPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeRgbPtr);
+                if (nativeYPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeYPtr);
+                if (nativeCbPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeCbPtr);
+                if (nativeCrPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeCrPtr);
             }
 
             // 4. Assert Byte-for-Byte Parity with Diagnostic Logging
@@ -592,8 +595,8 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
 
             int totalOutPixels = height * outRowSize;
 
-            byte[] nativeRgbBuffer = new byte[totalInBytes];
-            sbyte[] managedRgbBuffer = new sbyte[totalInBytes];
+            byte[] nativeRgbBuffer = GC.AllocateUninitializedArray<byte>(totalInBytes);
+            sbyte[] managedRgbBuffer = GC.AllocateUninitializedArray<sbyte>(totalInBytes);
 
             Random rnd = new Random(Seed);
             for (int i = 0; i < totalInBytes; i++)
@@ -603,17 +606,17 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
                 managedRgbBuffer[i] = unchecked((sbyte)val);
             }
 
-            sbyte[] scalarOutY = new sbyte[totalOutPixels];
-            sbyte[] scalarOutCb = new sbyte[totalOutPixels];
-            sbyte[] scalarOutCr = new sbyte[totalOutPixels];
+            sbyte[] scalarOutY = GC.AllocateUninitializedArray<sbyte>(totalOutPixels);
+            sbyte[] scalarOutCb = GC.AllocateUninitializedArray<sbyte>(totalOutPixels);
+            sbyte[] scalarOutCr = GC.AllocateUninitializedArray<sbyte>(totalOutPixels);
 
-            sbyte[] unifiedOutY = new sbyte[totalOutPixels];
-            sbyte[] unifiedOutCb = new sbyte[totalOutPixels];
-            sbyte[] unifiedOutCr = new sbyte[totalOutPixels];
+            sbyte[] unifiedOutY = GC.AllocateUninitializedArray<sbyte>(totalOutPixels);
+            sbyte[] unifiedOutCb = GC.AllocateUninitializedArray<sbyte>(totalOutPixels);
+            sbyte[] unifiedOutCr = GC.AllocateUninitializedArray<sbyte>(totalOutPixels);
 
-            byte[] nativeOutY = new byte[totalOutPixels];
-            byte[] nativeOutCb = new byte[totalOutPixels];
-            byte[] nativeOutCr = new byte[totalOutPixels];
+            byte[] nativeOutY = GC.AllocateUninitializedArray<byte>(totalOutPixels);
+            byte[] nativeOutCb = GC.AllocateUninitializedArray<byte>(totalOutPixels);
+            byte[] nativeOutCr = GC.AllocateUninitializedArray<byte>(totalOutPixels);
 
             // 1. Process via Scalar C#
             fixed (sbyte* ptr = managedRgbBuffer)
@@ -659,10 +662,10 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             }
             finally
             {
-                DjvuMarshal.FreeHGlobal(nativeRgbPtr);
-                DjvuMarshal.FreeHGlobal(nativeYPtr);
-                DjvuMarshal.FreeHGlobal(nativeCbPtr);
-                DjvuMarshal.FreeHGlobal(nativeCrPtr);
+                if (nativeRgbPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeRgbPtr);
+                if (nativeYPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeYPtr);
+                if (nativeCbPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeCbPtr);
+                if (nativeCrPtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativeCrPtr);
             }
 
             // 4. Assert Byte-for-Byte Parity (ignoring padding)
@@ -706,7 +709,7 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             int inRowSize = width * 3;
             int totalInBytes = totalPixels * 3;
 
-            byte[] rgbBuffer = new byte[totalInBytes];
+            byte[] rgbBuffer = GC.AllocateUninitializedArray<byte>(totalInBytes);
             int idx = 0;
             for (int r = 0; r < 256; r++)
             {
@@ -721,13 +724,13 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
                 }
             }
 
-            sbyte[] unifiedY = new sbyte[totalPixels];
-            sbyte[] unifiedCb = new sbyte[totalPixels];
-            sbyte[] unifiedCr = new sbyte[totalPixels];
+            sbyte[] unifiedY = GC.AllocateUninitializedArray<sbyte>(totalPixels);
+            sbyte[] unifiedCb = GC.AllocateUninitializedArray<sbyte>(totalPixels);
+            sbyte[] unifiedCr = GC.AllocateUninitializedArray<sbyte>(totalPixels);
 
-            byte[] nativeY = new byte[totalPixels];
-            byte[] nativeCb = new byte[totalPixels];
-            byte[] nativeCr = new byte[totalPixels];
+            byte[] nativeY = GC.AllocateUninitializedArray<byte>(totalPixels);
+            byte[] nativeCb = GC.AllocateUninitializedArray<byte>(totalPixels);
+            byte[] nativeCr = GC.AllocateUninitializedArray<byte>(totalPixels);
 
             IntPtr nativeRgbPtr = IntPtr.Zero;
             IntPtr nativeYPtr = IntPtr.Zero;
@@ -794,6 +797,337 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             {
                 Console.WriteLine($"Total Diffs: {diffCount}");
                 Assert.True(diffCount == 0, $"Found diffs in Rgb2YCbCr conversion.\n{sb.ToString()}");
+            }
+        }
+        [Fact]
+        public unsafe void YCbCr2RgbParallelVector256_NativeParityRandomData()
+        {
+            if (!Avx2.IsSupported) Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+
+            int width = 1248;
+            int height = 1024;
+            int rowSizeInBytes = width * 3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] managedBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] nativeBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            new Random(12345).NextBytes(managedBuffer);
+            Buffer.BlockCopy(managedBuffer, 0, nativeBuffer, 0, totalBytes);
+
+            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+
+            fixed (byte* pOutM = managedBuffer, pOutN = nativeBuffer)
+            {
+                IntPtr nativePtr = DjvuMarshal.AllocHGlobal((uint)totalBytes);
+                try
+                {
+                    Marshal.Copy(nativeBuffer, 0, nativePtr, totalBytes);
+
+                    InterWaveSimd.YCbCr2RgbParallelVector256((Pixel*)pOutM, width, height, rowSizeInBytes, options);
+
+                    bool success = NativeMethods.YCbCrToRgb(nativePtr, width, height, width);
+                    Assert.True(success);
+
+                    Marshal.Copy(nativePtr, nativeBuffer, 0, totalBytes);
+                }
+                finally
+                {
+                    if (nativePtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativePtr);
+                }
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pOutN, pOutM, width, height, rowSizeInBytes));
+            }
+        }
+
+        [Fact]
+        public unsafe void YCbCr2RgbParallelVector256_NativeParityWithStride()
+        {
+            if (!Avx2.IsSupported) Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+
+            int width = 120;
+            int height = 16;
+            int rowSizeInPixels = width + 1; // 1 pixel of padding (3 bytes)
+            int rowSizeInBytes = rowSizeInPixels * 3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] managedBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] nativeBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            new Random(12345).NextBytes(managedBuffer);
+            Buffer.BlockCopy(managedBuffer, 0, nativeBuffer, 0, totalBytes);
+
+            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+
+            fixed (byte* pOutM = managedBuffer, pOutN = nativeBuffer)
+            {
+                IntPtr nativePtr = DjvuMarshal.AllocHGlobal((uint)totalBytes);
+                try
+                {
+                    Marshal.Copy(nativeBuffer, 0, nativePtr, totalBytes);
+
+                    InterWaveSimd.YCbCr2RgbParallelVector256((Pixel*)pOutM, width, height, rowSizeInBytes, options);
+
+                    bool success = NativeMethods.YCbCrToRgb(nativePtr, width, height, rowSizeInPixels);
+                    Assert.True(success);
+
+                    Marshal.Copy(nativePtr, nativeBuffer, 0, totalBytes);
+                }
+                finally
+                {
+                    if (nativePtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativePtr);
+                }
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pOutN, pOutM, width, height, rowSizeInBytes));
+            }
+        }
+        [Fact]
+        public unsafe void YCbCr2RgbParallelVector256_BruteForceParity()
+        {
+            if (!Avx2.IsSupported) Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+
+            int width = 4096;
+            int height = 4096;
+            int rowSizeInBytes = width * 3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] managedBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] nativeBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] backupBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            fixed (byte* pBackup = backupBuffer)
+            {
+                Pixel* pGenerator = (Pixel*)pBackup;
+                for (int y = sbyte.MinValue; y <= sbyte.MaxValue; y++)
+                {
+                    for (int cb = sbyte.MinValue; cb <= sbyte.MaxValue; cb++)
+                    {
+                        for (int cr = sbyte.MinValue; cr <= sbyte.MaxValue; cr++)
+                        {
+                            pGenerator->Blue = (sbyte)y;
+                            pGenerator->Green = (sbyte)cb;
+                            pGenerator->Red = (sbyte)cr;
+                            pGenerator++;
+                        }
+                    }
+                }
+            }
+
+            Buffer.BlockCopy(backupBuffer, 0, managedBuffer, 0, totalBytes);
+            Buffer.BlockCopy(backupBuffer, 0, nativeBuffer, 0, totalBytes);
+
+            var options = new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+
+            fixed (byte* pOutM = managedBuffer)
+            {
+                IntPtr nativePtr = DjvuMarshal.AllocHGlobal((uint)totalBytes);
+                try
+                {
+                    Marshal.Copy(nativeBuffer, 0, nativePtr, totalBytes);
+
+                    InterWaveSimd.YCbCr2RgbParallelVector256((Pixel*)pOutM, width, height, rowSizeInBytes, options);
+
+                    bool success = NativeMethods.YCbCrToRgb(nativePtr, width, height, width);
+                    Assert.True(success);
+
+                    Marshal.Copy(nativePtr, nativeBuffer, 0, totalBytes);
+                }
+                finally
+                {
+                    DjvuMarshal.FreeHGlobal(nativePtr);
+                }
+            }
+
+            int diffCount = 0;
+            var sb = new System.Text.StringBuilder();
+
+            fixed (byte* pNative = nativeBuffer, pManaged = managedBuffer, pBackup = backupBuffer)
+            {
+                Pixel* pN = (Pixel*)pNative;
+                Pixel* pM = (Pixel*)pManaged;
+                Pixel* pIn = (Pixel*)pBackup;
+                int totalPixels = width * height;
+
+                for (int i = 0; i < totalPixels; i++, pN++, pM++, pIn++)
+                {
+                    if (pM->Blue != pN->Blue || pM->Green != pN->Green || pM->Red != pN->Red)
+                    {
+                        if (diffCount < 256)
+                        {
+                            sb.AppendLine($"Diff at {i} (Y:{pIn->Blue}, Cb:{pIn->Green}, Cr:{pIn->Red}) - Native(B:{pN->Blue}, G:{pN->Green}, R:{pN->Red}) vs Vector256(B:{pM->Blue}, G:{pM->Green}, R:{pM->Red})");
+                        }
+                        diffCount++;
+                    }
+                }
+            }
+
+            if (diffCount > 0)
+            {
+                Console.WriteLine($"Total Diffs: {diffCount}");
+                Assert.True(diffCount == 0, $"Found diffs in YCbCr2Rgb conversion.\n{sb.ToString()}");
+            }
+        }
+        [Fact]
+        public unsafe void YCbCr2RgbVector256_NativeParityRandomData()
+        {
+            if (!Avx2.IsSupported) Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+
+            int width = 1248;
+            int height = 1024;
+            int rowSizeInBytes = width * 3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] managedBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] nativeBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            new Random(12345).NextBytes(managedBuffer);
+            Buffer.BlockCopy(managedBuffer, 0, nativeBuffer, 0, totalBytes);
+
+            fixed (byte* pOutM = managedBuffer, pOutN = nativeBuffer)
+            {
+                IntPtr nativePtr = DjvuMarshal.AllocHGlobal((uint)totalBytes);
+                try
+                {
+                    Marshal.Copy(nativeBuffer, 0, nativePtr, totalBytes);
+
+                    InterWaveSimd.YCbCr2RgbVector256((Pixel*)pOutM, width, height, rowSizeInBytes);
+
+                    bool success = NativeMethods.YCbCrToRgb(nativePtr, width, height, width);
+                    Assert.True(success);
+
+                    Marshal.Copy(nativePtr, nativeBuffer, 0, totalBytes);
+                }
+                finally
+                {
+                    if (nativePtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativePtr);
+                }
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pOutN, pOutM, width, height, rowSizeInBytes));
+            }
+        }
+
+        [Fact]
+        public unsafe void YCbCr2RgbVector256_NativeParityWithStride()
+        {
+            if (!Avx2.IsSupported) Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+
+            int width = 120;
+            int height = 16;
+            int rowSizeInPixels = width + 1; // 1 pixel of padding (3 bytes)
+            int rowSizeInBytes = rowSizeInPixels * 3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] managedBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] nativeBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            new Random(12345).NextBytes(managedBuffer);
+            Buffer.BlockCopy(managedBuffer, 0, nativeBuffer, 0, totalBytes);
+
+            fixed (byte* pOutM = managedBuffer, pOutN = nativeBuffer)
+            {
+                IntPtr nativePtr = DjvuMarshal.AllocHGlobal((uint)totalBytes);
+                try
+                {
+                    Marshal.Copy(nativeBuffer, 0, nativePtr, totalBytes);
+
+                    InterWaveSimd.YCbCr2RgbVector256((Pixel*)pOutM, width, height, rowSizeInBytes);
+
+                    bool success = NativeMethods.YCbCrToRgb(nativePtr, width, height, rowSizeInPixels);
+                    Assert.True(success);
+
+                    Marshal.Copy(nativePtr, nativeBuffer, 0, totalBytes);
+                }
+                finally
+                {
+                    if (nativePtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativePtr);
+                }
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pOutN, pOutM, width, height, rowSizeInBytes));
+            }
+        }
+
+        [Fact]
+        public unsafe void YCbCr2RgbVector256_BruteForceParity()
+        {
+            if (!Avx2.IsSupported) Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+
+            int width = 4096;
+            int height = 4096;
+            int rowSizeInBytes = width * 3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] managedBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] nativeBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] backupBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            fixed (byte* pBackup = backupBuffer)
+            {
+                Pixel* pGenerator = (Pixel*)pBackup;
+                for (int y = sbyte.MinValue; y <= sbyte.MaxValue; y++)
+                {
+                    for (int cb = sbyte.MinValue; cb <= sbyte.MaxValue; cb++)
+                    {
+                        for (int cr = sbyte.MinValue; cr <= sbyte.MaxValue; cr++)
+                        {
+                            pGenerator->Blue = (sbyte)y;
+                            pGenerator->Green = (sbyte)cb;
+                            pGenerator->Red = (sbyte)cr;
+                            pGenerator++;
+                        }
+                    }
+                }
+            }
+
+            Buffer.BlockCopy(backupBuffer, 0, managedBuffer, 0, totalBytes);
+            Buffer.BlockCopy(backupBuffer, 0, nativeBuffer, 0, totalBytes);
+
+            fixed (byte* pOutM = managedBuffer)
+            {
+                IntPtr nativePtr = DjvuMarshal.AllocHGlobal((uint)totalBytes);
+                try
+                {
+                    Marshal.Copy(nativeBuffer, 0, nativePtr, totalBytes);
+
+                    InterWaveSimd.YCbCr2RgbVector256((Pixel*)pOutM, width, height, rowSizeInBytes);
+
+                    bool success = NativeMethods.YCbCrToRgb(nativePtr, width, height, width);
+                    Assert.True(success);
+
+                    Marshal.Copy(nativePtr, nativeBuffer, 0, totalBytes);
+                }
+                finally
+                {
+                    DjvuMarshal.FreeHGlobal(nativePtr);
+                }
+            }
+
+            int diffCount = 0;
+            var sb = new System.Text.StringBuilder();
+
+            fixed (byte* pNative = nativeBuffer, pManaged = managedBuffer, pBackup = backupBuffer)
+            {
+                Pixel* pN = (Pixel*)pNative;
+                Pixel* pM = (Pixel*)pManaged;
+                Pixel* pIn = (Pixel*)pBackup;
+                int totalPixels = width * height;
+
+                for (int i = 0; i < totalPixels; i++, pN++, pM++, pIn++)
+                {
+                    if (pM->Blue != pN->Blue || pM->Green != pN->Green || pM->Red != pN->Red)
+                    {
+                        if (diffCount < 256)
+                        {
+                            sb.AppendLine($"Diff at {i} (Y:{pIn->Blue}, Cb:{pIn->Green}, Cr:{pIn->Red}) - Native(B:{pN->Blue}, G:{pN->Green}, R:{pN->Red}) vs Vector256(B:{pM->Blue}, G:{pM->Green}, R:{pM->Red})");
+                        }
+                        diffCount++;
+                    }
+                }
+            }
+
+            if (diffCount > 0)
+            {
+                Console.WriteLine($"Total Diffs: {diffCount}");
+                Assert.True(diffCount == 0, $"Found diffs in YCbCr2Rgb conversion.\n{sb.ToString()}");
             }
         }
     }

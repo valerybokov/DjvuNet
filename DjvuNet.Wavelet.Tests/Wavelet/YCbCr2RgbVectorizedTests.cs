@@ -5,8 +5,9 @@ using System.Runtime.Intrinsics.X86;
 using System.Text;
 using Xunit;
 using DjvuNet.Graphics;
+using DjvuNet.Tests;
 
-namespace DjvuNet.Wavelet.Tests.Wavelet
+namespace DjvuNet.Wavelet.Tests
 {
     public class YCbCr2RgbVectorizedTests
     {
@@ -25,7 +26,7 @@ namespace DjvuNet.Wavelet.Tests.Wavelet
             for (int i = 0; i < 16; i++)
             {
                 // Hex encoding: High nibble = Channel (1=B, 2=G, 3=R). Low nibble = Index
-                bBytes[i] = (byte)(0x10 + i); 
+                bBytes[i] = (byte)(0x10 + i);
                 gBytes[i] = (byte)(0x20 + i);
                 rBytes[i] = (byte)(0x30 + i);
             }
@@ -115,7 +116,7 @@ namespace DjvuNet.Wavelet.Tests.Wavelet
         [Fact]
         public void TransformYCbCrToRgbVector128_MathParity()
         {
-            if (!Vector128.IsHardwareAccelerated) 
+            if (!Vector128.IsHardwareAccelerated)
             {
                 Assert.Skip("Vector128 hardware acceleration is not supported on this architecture.");
             }
@@ -202,17 +203,17 @@ namespace DjvuNet.Wavelet.Tests.Wavelet
         [Fact]
         public unsafe void YCbCr2RgbVector128_LoopMatchesScalar()
         {
-            if (!Vector128.IsHardwareAccelerated) 
+            if (!Vector128.IsHardwareAccelerated)
             {
                 Assert.Skip("Vector128 hardware acceleration is not supported on this architecture.");
             }
 
             int width = 34; // Forces two full iterations + one 2-pixel shifted tail
             int height = 2;
-            int stride = width * 3;
+            int rowSizeInBytes = width * 3;
 
-            byte[] outVec = new byte[height * stride];
-            byte[] outScl = new byte[height * stride];
+            byte[] outVec = new byte[height * rowSizeInBytes];
+            byte[] outScl = new byte[height * rowSizeInBytes];
 
             var rand = new Random(Seed);
             for (int i = 0; i < outVec.Length; i++)
@@ -224,13 +225,217 @@ namespace DjvuNet.Wavelet.Tests.Wavelet
 
             fixed (byte* pOutVec = outVec, pOutScl = outScl)
             {
-                InterWaveTransform.YCbCr2Rgb((Pixel*)pOutVec, width, height, stride);
-#pragma warning disable CS0618 // Intentional use of deprecated scalar loop for baseline parity check
-                InterWaveTransform.YCbCr2RgbScalar((Pixel*)pOutScl, width, height);
-#pragma warning restore CS0618
-            }
+                InterWaveTransform.YCbCr2Rgb((Pixel*)pOutVec, width, height, rowSizeInBytes);
+                InterWaveTransform.YCbCr2RgbScalar((Pixel*)pOutScl, width, height, rowSizeInBytes);
 
-            Assert.Equal(outScl, outVec);
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pOutScl, pOutVec, width, height, rowSizeInBytes));
+            }
+        }
+
+        [Fact]
+        public unsafe void Vector128MultiThreaded_MatchesScalar_RealData_Continuous()
+        {
+            if (!Ssse3.IsSupported && !AdvSimd.IsSupported) Assert.Skip("Vector128 hardware acceleration is not supported on this CPU.");
+
+            int width = 1248;
+            int height = 1024;
+            int rowSizeInBytes = width * 3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] bufferVec = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] bufferScl = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            new Random(Seed).NextBytes(bufferVec);
+            Buffer.BlockCopy(bufferVec, 0, bufferScl, 0, totalBytes);
+
+            var options = new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = 4 };
+
+            fixed (byte* pVec = bufferVec, pScl = bufferScl)
+            {
+                InterWaveTransform.YCbCr2RgbScalar((Pixel*)pScl, width, height, rowSizeInBytes);
+                InterWaveSimd.YCbCr2RgbParallelVector128((Pixel*)pVec, width, height, rowSizeInBytes, options);
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pScl, pVec, width, height, rowSizeInBytes));
+            }
+        }
+
+        [Fact]
+        public unsafe void Vector128MultiThreaded_MatchesScalar_RealData_Padded()
+        {
+            if (!Ssse3.IsSupported && !AdvSimd.IsSupported) Assert.Skip("Vector128 hardware acceleration is not supported on this CPU.");
+
+            int width = 1247;
+            int height = 1024;
+            int rowSizeInBytes = (width * 3 + 3) & ~3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] bufferVec = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] bufferScl = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            new Random(Seed).NextBytes(bufferVec);
+            Buffer.BlockCopy(bufferVec, 0, bufferScl, 0, totalBytes);
+
+            var options = new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = 4 };
+
+            fixed (byte* pVec = bufferVec, pScl = bufferScl)
+            {
+                InterWaveTransform.YCbCr2RgbScalar((Pixel*)pScl, width, height, rowSizeInBytes);
+                InterWaveSimd.YCbCr2RgbParallelVector128((Pixel*)pVec, width, height, rowSizeInBytes, options);
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pScl, pVec, width, height, rowSizeInBytes));
+            }
+        }
+        [Fact]
+        public unsafe void Vector256MultiThreaded_MatchesScalar_RealData_Continuous()
+        {
+            if (!Avx2.IsSupported) Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+
+            int width = 1248;
+            int height = 1024;
+            int rowSizeInBytes = width * 3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] bufferVec = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] bufferScl = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            new Random(Seed).NextBytes(bufferVec);
+            Buffer.BlockCopy(bufferVec, 0, bufferScl, 0, totalBytes);
+
+            var options = new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = 4 };
+
+            fixed (byte* pVec = bufferVec, pScl = bufferScl)
+            {
+                InterWaveTransform.YCbCr2RgbScalar((Pixel*)pScl, width, height, rowSizeInBytes);
+                InterWaveSimd.YCbCr2RgbParallelVector256((Pixel*)pVec, width, height, rowSizeInBytes, options);
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pScl, pVec, width, height, rowSizeInBytes));
+            }
+        }
+
+        [Fact]
+        public unsafe void Vector256MultiThreaded_MatchesScalar_RealData_Padded()
+        {
+            if (!Avx2.IsSupported) Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+
+            int width = 1247;
+            int height = 1024;
+            int rowSizeInBytes = (width * 3 + 3) & ~3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] bufferVec = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] bufferScl = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            new Random(Seed).NextBytes(bufferVec);
+            Buffer.BlockCopy(bufferVec, 0, bufferScl, 0, totalBytes);
+
+            var options = new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = 4 };
+
+            fixed (byte* pVec = bufferVec, pScl = bufferScl)
+            {
+                InterWaveTransform.YCbCr2RgbScalar((Pixel*)pScl, width, height, rowSizeInBytes);
+                InterWaveSimd.YCbCr2RgbParallelVector256((Pixel*)pVec, width, height, rowSizeInBytes, options);
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pScl, pVec, width, height, rowSizeInBytes));
+            }
+        }
+        [Fact]
+        public unsafe void Vector128SingleThread_MatchesScalar_RealData_Continuous()
+        {
+            if (!Ssse3.IsSupported && !AdvSimd.IsSupported) Assert.Skip("Vector128 hardware acceleration is not supported on this CPU.");
+
+            int width = 1248;
+            int height = 1024;
+            int rowSizeInBytes = width * 3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] bufferVec = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] bufferScl = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            new Random(Seed).NextBytes(bufferVec);
+            Buffer.BlockCopy(bufferVec, 0, bufferScl, 0, totalBytes);
+
+            fixed (byte* pVec = bufferVec, pScl = bufferScl)
+            {
+                InterWaveTransform.YCbCr2RgbScalar((Pixel*)pScl, width, height, rowSizeInBytes);
+                InterWaveSimd.YCbCr2RgbVector128((Pixel*)pVec, width, height, rowSizeInBytes);
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pScl, pVec, width, height, rowSizeInBytes));
+            }
+        }
+
+        [Fact]
+        public unsafe void Vector128SingleThread_MatchesScalar_RealData_Padded()
+        {
+            if (!Ssse3.IsSupported && !AdvSimd.IsSupported) Assert.Skip("Vector128 hardware acceleration is not supported on this CPU.");
+
+            int width = 1247;
+            int height = 1024;
+            int rowSizeInBytes = (width * 3 + 3) & ~3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] bufferVec = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] bufferScl = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            new Random(Seed).NextBytes(bufferVec);
+            Buffer.BlockCopy(bufferVec, 0, bufferScl, 0, totalBytes);
+
+            fixed (byte* pVec = bufferVec, pScl = bufferScl)
+            {
+                InterWaveTransform.YCbCr2RgbScalar((Pixel*)pScl, width, height, rowSizeInBytes);
+                InterWaveSimd.YCbCr2RgbVector128((Pixel*)pVec, width, height, rowSizeInBytes);
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pScl, pVec, width, height, rowSizeInBytes));
+            }
+        }
+
+        [Fact]
+        public unsafe void Vector256SingleThread_MatchesScalar_RealData_Continuous()
+        {
+            if (!Avx2.IsSupported) Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+
+            int width = 1248;
+            int height = 1024;
+            int rowSizeInBytes = width * 3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] bufferVec = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] bufferScl = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            new Random(Seed).NextBytes(bufferVec);
+            Buffer.BlockCopy(bufferVec, 0, bufferScl, 0, totalBytes);
+
+            fixed (byte* pVec = bufferVec, pScl = bufferScl)
+            {
+                InterWaveTransform.YCbCr2RgbScalar((Pixel*)pScl, width, height, rowSizeInBytes);
+                InterWaveSimd.YCbCr2RgbVector256((Pixel*)pVec, width, height, rowSizeInBytes);
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pScl, pVec, width, height, rowSizeInBytes));
+            }
+        }
+
+        [Fact]
+        public unsafe void Vector256SingleThread_MatchesScalar_RealData_Padded()
+        {
+            if (!Avx2.IsSupported) Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+
+            int width = 1247;
+            int height = 1024;
+            int rowSizeInBytes = (width * 3 + 3) & ~3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] bufferVec = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] bufferScl = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            new Random(Seed).NextBytes(bufferVec);
+            Buffer.BlockCopy(bufferVec, 0, bufferScl, 0, totalBytes);
+
+            fixed (byte* pVec = bufferVec, pScl = bufferScl)
+            {
+                InterWaveTransform.YCbCr2RgbScalar((Pixel*)pScl, width, height, rowSizeInBytes);
+                InterWaveSimd.YCbCr2RgbVector256((Pixel*)pVec, width, height, rowSizeInBytes);
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pScl, pVec, width, height, rowSizeInBytes));
+            }
         }
     }
 }

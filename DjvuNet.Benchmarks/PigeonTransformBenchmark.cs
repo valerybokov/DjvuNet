@@ -37,12 +37,10 @@ namespace DjvuNet.Benchmarks
         [Benchmark(Baseline = true)]
         public unsafe void YCbCr2RgbScalar()
         {
-#pragma warning disable CS0618
             fixed (sbyte* ptr = _managedBuffer)
             {
-                InterWaveTransform.YCbCr2RgbScalar((Pixel*)ptr, DefaultWidth, DefaultHeight);
+                InterWaveTransform.YCbCr2RgbScalar((Pixel*)ptr, DefaultWidth, DefaultHeight, DefaultWidth * 3);
             }
-#pragma warning restore CS0618
         }
 
         [Benchmark]

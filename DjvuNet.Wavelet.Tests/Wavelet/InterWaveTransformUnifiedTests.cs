@@ -3,6 +3,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Formats.Tar;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 using Xunit;
 using DjvuNet.Errors;
@@ -51,7 +52,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void YCbCr2Rgb_MatchesScalar_RealData_Continuous()
         {
-            if (!Avx2.IsSupported) 
+            if (!Avx2.IsSupported)
             {
                 Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
             }
@@ -61,8 +62,8 @@ namespace DjvuNet.Wavelet.Tests
 
             int width = 5448;
             int height = 3686;
-            int stride = width * 3;
-            int totalBytes = stride * height;
+            int rowSizeInBytes = width * 3;
+            int totalBytes = rowSizeInBytes * height;
 
             byte[] sourceData = ReadGzBinary(imagePath, totalBytes);
             Assert.Equal(totalBytes, sourceData.Length);
@@ -75,13 +76,11 @@ namespace DjvuNet.Wavelet.Tests
             fixed (byte* ptrScalar = bufferScalar)
             fixed (byte* ptrUnified = bufferUnified)
             {
-#pragma warning disable CS0618
-                InterWaveTransform.YCbCr2RgbScalar((Pixel*)ptrScalar, width, height);
-#pragma warning restore CS0618
+                InterWaveTransform.YCbCr2RgbScalar((Pixel*)ptrScalar, width, height, rowSizeInBytes);
 
-                InterWaveTransform.YCbCr2Rgb((Pixel*)ptrUnified, width, height, stride);
+                InterWaveTransform.YCbCr2Rgb((Pixel*)ptrUnified, width, height, rowSizeInBytes);
 
-                double diff = Util.ImageBinaryDiff(ptrScalar, ptrUnified, width, height, stride, 24, 8);
+                double diff = Util.ImageBinaryDiff(ptrScalar, ptrUnified, width, height, rowSizeInBytes, 24, 8);
                 Assert.Equal(0.0, diff);
             }
         }
@@ -89,7 +88,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void YCbCr2Rgb_MatchesScalar_RealData_Padded()
         {
-            if (!Avx2.IsSupported) 
+            if (!Avx2.IsSupported)
             {
                 Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
             }
@@ -99,8 +98,8 @@ namespace DjvuNet.Wavelet.Tests
 
             int width = 5447;
             int height = 3686;
-            int stride = (width * 3 + 3) & ~3; // 16344 bytes
-            int totalBytes = stride * height;
+            int rowSizeInBytes = (width * 3 + 3) & ~3; // 16344 bytes
+            int totalBytes = rowSizeInBytes * height;
 
             byte[] sourceData = ReadGzBinary(imagePath, totalBytes);
             Assert.Equal(totalBytes, sourceData.Length);
@@ -113,64 +112,56 @@ namespace DjvuNet.Wavelet.Tests
             fixed (byte* ptrScalar = bufferScalar)
             fixed (byte* ptrUnified = bufferUnified)
             {
-                // Note: The deprecated Scalar method DOES NOT support stride. It will mathematically fail
-                // parity against the Unified method which correctly handles the padded bytes.
-                // We wrap the scalar call using width instead of stride, which corrupts the output linearly.
-#pragma warning disable CS0618
-                InterWaveTransform.YCbCr2RgbScalar((Pixel*)ptrScalar, width, height);
-#pragma warning restore CS0618
+                InterWaveTransform.YCbCr2RgbScalar((Pixel*)ptrScalar, width, height, rowSizeInBytes);
 
-                InterWaveTransform.YCbCr2Rgb((Pixel*)ptrUnified, width, height, stride);
+                InterWaveTransform.YCbCr2Rgb((Pixel*)ptrUnified, width, height, rowSizeInBytes);
 
-                double diff = Util.ImageBinaryDiff(ptrScalar, ptrUnified, width, height, stride, 24, 8);
+                double diff = Util.ImageBinaryDiff(ptrScalar, ptrUnified, width, height, rowSizeInBytes, 24, 8);
 
-                // Assert that the scalar method FAILS to match the stride-safe method
-                Assert.True(diff > 0.0, "Expected Scalar method to fail parity on padded image due to lack of stride support.");
+                // Assert that the scalar method matches the rowSizeInBytes-safe method
+                Assert.Equal(0.0, diff);
             }
         }
 
         [Fact]
         public unsafe void YCbCr2Rgb_MatchesScalar_SmallSequential()
         {
-            if (!Avx2.IsSupported) 
+            if (!Avx2.IsSupported)
             {
                 Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
             }
 
             int width = 50;
             int height = 3;
-            int stride = (width * 3 + 3) & ~3; // 152 bytes
-            int totalBytes = stride * height;
+            int rowSizeInBytes = (width * 3 + 3) & ~3; // 152 bytes
+            int totalBytes = rowSizeInBytes * height;
 
             byte[] bufferScalar = new byte[totalBytes];
             byte[] bufferUnified = new byte[totalBytes];
 
             // Fill with sequential bytes to easily track permutations
-            for (int i = 0; i < totalBytes; i++)
+            for (uint i = 0; i < totalBytes; i++)
             {
-                bufferScalar[i] = (byte)(i);
+                bufferScalar[i] = (byte)(i % 251);
                 bufferUnified[i] = bufferScalar[i];
             }
 
             fixed (byte* ptrScalar = bufferScalar)
             fixed (byte* ptrUnified = bufferUnified)
             {
-#pragma warning disable CS0618
-                InterWaveTransform.YCbCr2RgbScalar((Pixel*)ptrScalar, width, height);
-#pragma warning restore CS0618
+                InterWaveTransform.YCbCr2RgbScalar((Pixel*)ptrScalar, width, height, rowSizeInBytes);
 
-                InterWaveTransform.YCbCr2Rgb((Pixel*)ptrUnified, width, height, stride);
+                InterWaveTransform.YCbCr2Rgb((Pixel*)ptrUnified, width, height, rowSizeInBytes);
 
-                // Since we padded the buffer and height > 1, the scalar method (which ignores stride) will corrupt the second row.
-                double diff = Util.ImageBinaryDiff(ptrScalar, ptrUnified, width, height, stride, 24, 8);
-                Assert.True(diff > 0.0, "Expected Scalar method to fail parity on padded sequential array.");
+                double diff = Util.ImageBinaryDiff(ptrScalar, ptrUnified, width, height, rowSizeInBytes, 24, 8);
+                Assert.Equal(0.0, diff);
             }
         }
 
         [Fact]
         public unsafe void Rgb2YCbCr_InputValidation_NullPointers_ThrowsDjvuArgumentNullException()
         {
-            if (!Avx2.IsSupported) 
+            if (!Avx2.IsSupported)
             {
                 Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
             }
@@ -210,7 +201,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void YCbCr2Rgb_InputValidation_NullPointers_ThrowsDjvuArgumentNullException()
         {
-            if (!Avx2.IsSupported) 
+            if (!Avx2.IsSupported)
             {
                 Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
             }
@@ -223,7 +214,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Rgb2YCbCr_InputValidation_InvalidDimensions_ThrowsDjvuArgumentOutOfRangeException()
         {
-            if (!Avx2.IsSupported) 
+            if (!Avx2.IsSupported)
             {
                 Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
             }
@@ -259,7 +250,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void YCbCr2Rgb_InputValidation_InvalidDimensions_ThrowsDjvuArgumentOutOfRangeException()
         {
-            if (!Avx2.IsSupported) 
+            if (!Avx2.IsSupported)
             {
                 Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
             }
@@ -289,7 +280,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Rgb2YCbCr_InputValidation_InvalidStride_ThrowsDjvuArgumentOutOfRangeException()
         {
-            if (!Avx2.IsSupported) 
+            if (!Avx2.IsSupported)
             {
                 Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
             }
@@ -325,7 +316,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void YCbCr2Rgb_InputValidation_InvalidStride_ThrowsDjvuArgumentOutOfRangeException()
         {
-            if (!Avx2.IsSupported) 
+            if (!Avx2.IsSupported)
             {
                 Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
             }
@@ -348,7 +339,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Rgb2YCbCr_InputValidation_OverlappingInputOutput_ThrowsDjvuInvalidOperationException()
         {
-            if (!Avx2.IsSupported) 
+            if (!Avx2.IsSupported)
             {
                 Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
             }
@@ -381,7 +372,7 @@ namespace DjvuNet.Wavelet.Tests
         [Fact]
         public unsafe void Rgb2YCbCr_InputValidation_OverlappingOutputBuffers_ThrowsDjvuInvalidOperationException()
         {
-            if (!Avx2.IsSupported) 
+            if (!Avx2.IsSupported)
             {
                 Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
             }
@@ -408,6 +399,182 @@ namespace DjvuNet.Wavelet.Tests
                 if (pIn != IntPtr.Zero) Marshal.FreeHGlobal(pIn);
                 if (pSharedOut != IntPtr.Zero) Marshal.FreeHGlobal(pSharedOut);
                 if (pSafeOut != IntPtr.Zero) Marshal.FreeHGlobal(pSafeOut);
+            }
+        }
+
+        [Theory]
+        [InlineData(15, 100, false)] // Sub-Vector128 (forces scalar)
+        [InlineData(16, 100, false)] // Exact Vector128
+        [InlineData(17, 100, false)] // Vector128 + 1 (tests tail logic)
+        [InlineData(23, 100, true)]  // Odd size, padded
+        [InlineData(29, 100, false)] // Pre-Vector256
+        [InlineData(31, 100, false)] // Pre-Vector256
+        [InlineData(32, 100, false)] // Exact Vector256
+        [InlineData(33, 100, false)] // Vector256 + 1 (tests tail logic)
+        [InlineData(47, 100, true)]  // Odd size, padded
+        [InlineData(48, 100, false)] // Vector256 * 1.5
+        [InlineData(49, 100, false)] // Vector256 * 1.5 + 1
+        [InlineData(63, 100, false)] // Pre-2x Vector256
+        [InlineData(64, 100, false)] // Exact 2x Vector256
+        [InlineData(65, 100, true)]  // 2x Vector256 + 1, padded
+        public unsafe void YCbCr2Rgb_VectorWidthEdgeCases_MatchesScalar(int width, int height, bool isPadded)
+        {
+            if (!Avx2.IsSupported && !Vector128.IsHardwareAccelerated)
+                Assert.Skip("SIMD hardware acceleration is not supported on this CPU.");
+
+            int baseRowSize = width * 3;
+            int rowSizeInBytes = isPadded ? ((baseRowSize + 3) & ~3) : baseRowSize;
+            int totalBytes = rowSizeInBytes * height;
+
+            byte[] bufferScalar = new byte[totalBytes];
+            byte[] bufferUnified = new byte[totalBytes];
+
+            for (uint i = 0; i < totalBytes; i++)
+            {
+                bufferScalar[i] = (byte)(i % 251);
+                bufferUnified[i] = bufferScalar[i];
+            }
+
+            fixed (byte* ptrScalar = bufferScalar)
+            fixed (byte* ptrUnified = bufferUnified)
+            {
+                InterWaveTransform.YCbCr2RgbScalar((Pixel*)ptrScalar, width, height, rowSizeInBytes);
+                InterWaveTransform.YCbCr2Rgb((Pixel*)ptrUnified, width, height, rowSizeInBytes);
+                Assert.Equal(0.0, Util.ImageBinaryDiff(ptrScalar, ptrUnified, width, height, rowSizeInBytes, 24, 8));
+            }
+        }
+
+        [Theory]
+        [InlineData(15, 100, false)]
+        [InlineData(16, 100, false)]
+        [InlineData(17, 100, false)]
+        [InlineData(23, 100, true)]
+        [InlineData(29, 100, false)]
+        [InlineData(31, 100, false)]
+        [InlineData(32, 100, false)]
+        [InlineData(33, 100, false)]
+        [InlineData(47, 100, true)]
+        [InlineData(48, 100, false)]
+        [InlineData(49, 100, false)]
+        [InlineData(63, 100, false)]
+        [InlineData(64, 100, false)]
+        [InlineData(65, 100, true)]
+        public unsafe void Rgb2YCbCr_VectorWidthEdgeCases_MatchesScalar(int width, int height, bool isPadded)
+        {
+            if (!Avx2.IsSupported && !Vector128.IsHardwareAccelerated)
+                Assert.Skip("SIMD hardware acceleration is not supported on this CPU.");
+
+            int baseInRowSize = width * 3;
+            int rowSizeInBytes = isPadded ? ((baseInRowSize + 3) & ~3) : baseInRowSize;
+            int totalInBytes = rowSizeInBytes * height;
+
+            int outRowSizeInBytes = isPadded ? ((width + 3) & ~3) : width;
+            int totalOutBytes = outRowSizeInBytes * height;
+
+            byte[] bufferIn = new byte[totalInBytes];
+            for (uint i = 0; i < totalInBytes; i++) bufferIn[i] = (byte)(i % 251);
+
+            byte[] yScalar = new byte[totalOutBytes];
+            byte[] cbScalar = new byte[totalOutBytes];
+            byte[] crScalar = new byte[totalOutBytes];
+
+            byte[] yUnified = new byte[totalOutBytes];
+            byte[] cbUnified = new byte[totalOutBytes];
+            byte[] crUnified = new byte[totalOutBytes];
+
+            fixed (byte* pIn = bufferIn)
+            fixed (byte* pYS = yScalar, pCbS = cbScalar, pCrS = crScalar)
+            fixed (byte* pYU = yUnified, pCbU = cbUnified, pCrU = crUnified)
+            {
+                InterWaveTransform.Rgb2YCbCrScalar((Pixel*)pIn, width, height, rowSizeInBytes, (sbyte*)pYS, (sbyte*)pCbS, (sbyte*)pCrS, outRowSizeInBytes);
+                InterWaveTransform.Rgb2YCbCr((Pixel*)pIn, width, height, rowSizeInBytes, (sbyte*)pYU, (sbyte*)pCbU, (sbyte*)pCrU, outRowSizeInBytes);
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pYS, pYU, width, height, outRowSizeInBytes, 8, 8));
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pCbS, pCbU, width, height, outRowSizeInBytes, 8, 8));
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pCrS, pCrU, width, height, outRowSizeInBytes, 8, 8));
+            }
+        }
+
+        // TPL Boundaries (Height = 100 to ensure rows can be distributed to threads)
+        // YCbCr2Rgb Boundaries: 9000 (2T), 36000 (4T)
+        [Theory]
+        [InlineData(89, 100, false)]  // 8900 pixels: Strictly 1 Thread (V256/V128)
+        [InlineData(90, 100, false)]  // 9000 pixels: Exact 2 Thread boundary (V256/V128)
+        [InlineData(91, 100, true)]   // 9100 pixels: Padded 2 Thread boundary
+        [InlineData(359, 100, false)] // 35900 pixels: Just below 4 Thread boundary
+        [InlineData(360, 100, false)] // 36000 pixels: Exact 4 Thread ceiling
+        [InlineData(361, 100, true)]  // 36100 pixels: Padded 4 Thread ceiling
+        public unsafe void YCbCr2Rgb_ParallelRoutingBoundaries_MatchesScalar(int width, int height, bool isPadded)
+        {
+            if (!Avx2.IsSupported && !Vector128.IsHardwareAccelerated)
+                Assert.Skip("SIMD hardware acceleration is not supported on this CPU.");
+
+            int baseRowSize = width * 3;
+            int rowSizeInBytes = isPadded ? ((baseRowSize + 3) & ~3) : baseRowSize;
+            int totalBytes = rowSizeInBytes * height;
+
+            byte[] bufferScalar = new byte[totalBytes];
+            byte[] bufferUnified = new byte[totalBytes];
+
+            for (uint i = 0; i < totalBytes; i++)
+            {
+                bufferScalar[i] = (byte)(i % 251);
+                bufferUnified[i] = bufferScalar[i];
+            }
+
+            fixed (byte* ptrScalar = bufferScalar)
+            fixed (byte* ptrUnified = bufferUnified)
+            {
+                InterWaveTransform.YCbCr2RgbScalar((Pixel*)ptrScalar, width, height, rowSizeInBytes);
+                InterWaveTransform.YCbCr2Rgb((Pixel*)ptrUnified, width, height, rowSizeInBytes);
+                Assert.Equal(0.0, Util.ImageBinaryDiff(ptrScalar, ptrUnified, width, height, rowSizeInBytes, 24, 8));
+            }
+        }
+
+        // Rgb2YCbCr Boundaries:
+        // V128: 2000 (2T), 9216 (4T), 24000 (6T), 1M (12T)
+        // V256: 12000 (2T), 24000 (4T), 2M (6T)
+        [Theory]
+        [InlineData(19, 100, false)]  // 1900 px: 1T
+        [InlineData(20, 100, false)]  // 2000 px: V128 2T boundary
+        [InlineData(92, 100, true)]   // 9200 px: near V128 4T boundary
+        [InlineData(119, 100, false)] // 11900 px: V256 1T
+        [InlineData(120, 100, false)] // 12000 px: V256 2T boundary
+        [InlineData(239, 100, true)]  // 23900 px: V256 2T / V128 4T
+        [InlineData(240, 100, false)] // 24000 px: V256 4T / V128 6T boundary
+        public unsafe void Rgb2YCbCr_ParallelRoutingBoundaries_MatchesScalar(int width, int height, bool isPadded)
+        {
+            if (!Avx2.IsSupported && !Vector128.IsHardwareAccelerated)
+                Assert.Skip("SIMD hardware acceleration is not supported on this CPU.");
+
+            int baseInRowSize = width * 3;
+            int rowSizeInBytes = isPadded ? ((baseInRowSize + 3) & ~3) : baseInRowSize;
+            int totalInBytes = rowSizeInBytes * height;
+
+            int outRowSizeInBytes = isPadded ? ((width + 3) & ~3) : width;
+            int totalOutBytes = outRowSizeInBytes * height;
+
+            byte[] bufferIn = new byte[totalInBytes];
+            for (uint i = 0; i < totalInBytes; i++) bufferIn[i] = (byte)(i % 251);
+
+            byte[] yScalar = new byte[totalOutBytes];
+            byte[] cbScalar = new byte[totalOutBytes];
+            byte[] crScalar = new byte[totalOutBytes];
+
+            byte[] yUnified = new byte[totalOutBytes];
+            byte[] cbUnified = new byte[totalOutBytes];
+            byte[] crUnified = new byte[totalOutBytes];
+
+            fixed (byte* pIn = bufferIn)
+            fixed (byte* pYS = yScalar, pCbS = cbScalar, pCrS = crScalar)
+            fixed (byte* pYU = yUnified, pCbU = cbUnified, pCrU = crUnified)
+            {
+                InterWaveTransform.Rgb2YCbCrScalar((Pixel*)pIn, width, height, rowSizeInBytes, (sbyte*)pYS, (sbyte*)pCbS, (sbyte*)pCrS, outRowSizeInBytes);
+                InterWaveTransform.Rgb2YCbCr((Pixel*)pIn, width, height, rowSizeInBytes, (sbyte*)pYU, (sbyte*)pCbU, (sbyte*)pCrU, outRowSizeInBytes);
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pYS, pYU, width, height, outRowSizeInBytes, 8, 8));
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pCbS, pCbU, width, height, outRowSizeInBytes, 8, 8));
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pCrS, pCrU, width, height, outRowSizeInBytes, 8, 8));
             }
         }
     }

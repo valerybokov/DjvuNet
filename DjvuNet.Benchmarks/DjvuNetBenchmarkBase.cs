@@ -1,0 +1,232 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
+using System.IO.Compression;
+using System.Formats.Tar;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using BenchmarkDotNet.Attributes;
+using DjvuNet.Errors;
+using DjvuNet.Graphics;
+using DjvuNet.Tests;
+using DjvuNet.DjvuLibre;
+using Bitmap = System.Drawing.Bitmap;
+using Rectangle = System.Drawing.Rectangle;
+
+namespace DjvuNet.Benchmarks
+{
+    public enum TransformDirection
+    {
+        ForwardRgbToYCbCr,
+        ReverseYCbCrToRgb
+    }
+
+    public abstract class DjvuNetBenchmarkBase
+    {
+        protected const int InvocationCount = 10;
+        protected const int MaxWidth = 5448;
+        protected const int MaxHeight = 3686;
+        protected const int MaxPixels = MaxWidth * MaxHeight;
+
+        protected IntPtr[] _nativePixelBuffers;
+        protected IntPtr[] _nativePlanarBuffers;
+        protected IntPtr _masterBackupBuffer;
+
+        public abstract int PixelCount { get; set; }
+        protected abstract TransformDirection BenchmarkDirection { get; }
+
+        public int ImageWidth => PixelCount switch
+        {
+            1024 => 32,
+            4096 => 64,
+            9216 => 96,
+            16384 => 128,
+            36864 => 192,
+            65536 => 256,
+            262144 => 512,
+            1048576 => 1024,
+            2096704 => 1448,
+            4194304 => 2048,
+            _ => MaxWidth
+        };
+
+        public int ImageHeight => PixelCount switch
+        {
+            1024 => 32,
+            4096 => 64,
+            9216 => 96,
+            16384 => 128,
+            36864 => 192,
+            65536 => 256,
+            262144 => 512,
+            1048576 => 1024,
+            2096704 => 1448,
+            4194304 => 2048,
+            _ => MaxHeight
+        };
+
+        public int ImageRatio => MaxPixels / PixelCount;
+
+        [ParamsSource(nameof(ThreadCountValues))]
+        public virtual int ThreadCount { get; set; }
+
+        public virtual IEnumerable<int> ThreadCountValues => new[] { /*2, 4, 6, */ Environment.ProcessorCount };
+        protected ParallelOptions _options;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        protected unsafe void GetIterationPointersYCbCr2Rgb(int invocationIndex, int ratioIndex, out Pixel* pOut)
+        {
+            Pixel* basePixelPointer = (Pixel*)_nativePixelBuffers[invocationIndex].ToPointer();
+            int pixelOffset = ratioIndex * PixelCount;
+            pOut = basePixelPointer + pixelOffset;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        protected unsafe void GetIterationPointersRgb2YCbCr(int invocationIndex, int ratioIndex, out Pixel* pRgb, out sbyte* pY, out sbyte* pCb, out sbyte* pCr)
+        {
+            Pixel* basePixelPointer = (Pixel*)_nativePixelBuffers[invocationIndex].ToPointer();
+            sbyte* basePlanarPointer = (sbyte*)_nativePlanarBuffers[invocationIndex].ToPointer();
+
+            int pixelOffset = ratioIndex * PixelCount;
+            int planarOffset = pixelOffset * 3; // 3 planes
+
+            pRgb = basePixelPointer + pixelOffset;
+            pY = basePlanarPointer + planarOffset;
+            pCb = pY + PixelCount;
+            pCr = pCb + PixelCount;
+        }
+
+        [GlobalSetup]
+        public unsafe virtual void GlobalSetup()
+        {
+            long pixelBytes = MaxPixels * sizeof(Pixel);
+            long planarBytes = MaxPixels * 3 * sizeof(sbyte);
+
+            _nativePixelBuffers = new IntPtr[InvocationCount];
+            if (BenchmarkDirection == TransformDirection.ForwardRgbToYCbCr)
+            {
+                _nativePlanarBuffers = new IntPtr[InvocationCount];
+            }
+
+            try
+            {
+                _masterBackupBuffer = DjvuMarshal.AllocHGlobal((uint)pixelBytes);
+
+                if (BenchmarkDirection == TransformDirection.ForwardRgbToYCbCr)
+                {
+                    string imagePath = Path.Combine(Util.ArtifactsPath, "TitanIR-24bgr.png");
+                    if (!File.Exists(imagePath)) throw new FileNotFoundException($"Benchmark artifact not found: {imagePath}");
+
+                    using (var bmp = new Bitmap(imagePath))
+                    {
+                        var rect = new Rectangle(0, 0, MaxWidth, MaxHeight);
+                        BitmapData data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+                        try
+                        {
+                            Buffer.MemoryCopy(data.Scan0.ToPointer(), _masterBackupBuffer.ToPointer(), pixelBytes, pixelBytes);
+                        }
+                        finally
+                        {
+                            bmp.UnlockBits(data);
+                        }
+                    }
+                }
+                else if (BenchmarkDirection == TransformDirection.ReverseYCbCrToRgb)
+                {
+                    string artifactPath = Path.Combine(Util.ArtifactsPath, "TitanIR-5448x3686-24bpp-YCbCr.bin.tar.gz");
+                    if (!File.Exists(artifactPath)) throw new FileNotFoundException($"Benchmark artifact not found: {artifactPath}");
+
+                    using (FileStream fs = new FileStream(artifactPath, FileMode.Open, FileAccess.Read))
+                    using (GZipStream gzip = new GZipStream(fs, CompressionMode.Decompress))
+                    using (TarReader tar = new TarReader(gzip))
+                    {
+                        TarEntry entry = tar.GetNextEntry();
+                        if (entry == null || entry.DataStream == null)
+                        {
+                            throw new DjvuFormatException("No valid file found in the tar.gz archive.");
+                        }
+
+                        byte[] chunk = new byte[81920];
+                        int bytesRead;
+                        int offset = 0;
+                        while ((bytesRead = entry.DataStream.Read(chunk, 0, chunk.Length)) > 0)
+                        {
+                            if (offset + bytesRead > pixelBytes)
+                            {
+                                throw new DjvuInvalidOperationException("Decompressed stream size exceeds the allocated unmanaged buffer size.");
+                            }
+                            Marshal.Copy(chunk, 0, _masterBackupBuffer + offset, bytesRead);
+                            offset += bytesRead;
+                        }
+                    }
+                }
+                else
+                {
+                    throw new DjvuInvalidOperationException($"Invalid or unsupported TransformDirection: {BenchmarkDirection}");
+                }
+
+                for (int i = 0; i < InvocationCount; i++)
+                {
+                    _nativePixelBuffers[i] = DjvuMarshal.AllocHGlobal((uint)pixelBytes);
+                    if (BenchmarkDirection == TransformDirection.ForwardRgbToYCbCr)
+                    {
+                        _nativePlanarBuffers[i] = DjvuMarshal.AllocHGlobal((uint)planarBytes);
+                    }
+                }
+            }
+            catch
+            {
+                GlobalCleanup();
+                throw;
+            }
+        }
+
+        [IterationSetup]
+        public unsafe virtual void IterationSetup()
+        {
+            long pixelBytes = MaxPixels * sizeof(Pixel);
+            for (int i = 0; i < InvocationCount; i++)
+            {
+                Buffer.MemoryCopy(_masterBackupBuffer.ToPointer(), _nativePixelBuffers[i].ToPointer(), pixelBytes, pixelBytes);
+            }
+            _options = new ParallelOptions { MaxDegreeOfParallelism = ThreadCount };
+        }
+
+        [GlobalCleanup]
+        public virtual void GlobalCleanup()
+        {
+            if (_masterBackupBuffer != IntPtr.Zero)
+            {
+                DjvuMarshal.FreeHGlobal(_masterBackupBuffer);
+                _masterBackupBuffer = IntPtr.Zero;
+            }
+
+            if (_nativePixelBuffers != null)
+            {
+                for (int i = 0; i < InvocationCount; i++)
+                {
+                    if (_nativePixelBuffers[i] != IntPtr.Zero)
+                    {
+                        DjvuMarshal.FreeHGlobal(_nativePixelBuffers[i]);
+                        _nativePixelBuffers[i] = IntPtr.Zero;
+                    }
+                }
+            }
+
+            if (_nativePlanarBuffers != null)
+            {
+                for (int i = 0; i < InvocationCount; i++)
+                {
+                    if (_nativePlanarBuffers[i] != IntPtr.Zero)
+                    {
+                        DjvuMarshal.FreeHGlobal(_nativePlanarBuffers[i]);
+                        _nativePlanarBuffers[i] = IntPtr.Zero;
+                    }
+                }
+            }
+        }
+    }
+}

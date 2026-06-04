@@ -10,6 +10,7 @@ using BenchmarkDotNet.Configs;
 using DjvuNet.Graphics;
 using DjvuNet.Wavelet;
 using DjvuNet.Tests;
+using DjvuNet.DjvuLibre;
 using Bitmap = System.Drawing.Bitmap;
 using Rectangle = System.Drawing.Rectangle;
 
@@ -68,10 +69,10 @@ namespace DjvuNet.Benchmarks
         public unsafe void GlobalSetup()
         {
             int maxPixels = 5448 * 3686;
-            nativePixelBuffer = Marshal.AllocHGlobal(maxPixels * sizeof(Pixel));
+            nativePixelBuffer = DjvuMarshal.AllocHGlobal((uint)(maxPixels * sizeof(Pixel)));
             pixelPointer = (Pixel*)nativePixelBuffer.ToPointer();
 
-            nativeOutputBuffer = Marshal.AllocHGlobal(maxPixels * sizeof(Pixel));
+            nativeOutputBuffer = DjvuMarshal.AllocHGlobal((uint)(maxPixels * sizeof(Pixel)));
             outputPointer = (byte*)nativeOutputBuffer.ToPointer();
 
             string imagePath = GetArtifactPath("TitanIR-24bgr.png");
@@ -94,12 +95,12 @@ namespace DjvuNet.Benchmarks
         {
             if (nativePixelBuffer != IntPtr.Zero)
             {
-                Marshal.FreeHGlobal(nativePixelBuffer);
+                DjvuMarshal.FreeHGlobal(nativePixelBuffer);
                 nativePixelBuffer = IntPtr.Zero;
             }
             if (nativeOutputBuffer != IntPtr.Zero)
             {
-                Marshal.FreeHGlobal(nativeOutputBuffer);
+                DjvuMarshal.FreeHGlobal(nativeOutputBuffer);
                 nativeOutputBuffer = IntPtr.Zero;
             }
         }

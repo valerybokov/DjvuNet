@@ -10,7 +10,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Formats.Tar;
 
-namespace DjvuNet.Wavelet.Tests.Wavelet
+namespace DjvuNet.Wavelet.Tests
 {
     public class Rgb2YCbCrVectorizedTests
     {

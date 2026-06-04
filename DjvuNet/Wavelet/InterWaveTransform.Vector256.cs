@@ -1271,5 +1271,395 @@ namespace DjvuNet.Wavelet
                 }
             });
         }
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        internal static unsafe void YCbCr2RgbVector256(Pixel* pixelBuffer, int width, int height, int rowSizeInBytes)
+        {
+            if (!Avx2.IsSupported)
+            {
+                throw new PlatformNotSupportedException("AVX2 is not supported on this platform.");
+            }
+            else if (width < 32)
+            {
+                throw new DjvuArgumentOutOfRangeException(nameof(width), width, "Width must be at least 32 pixels for Vector256 (AVX2) processing.");
+            }
+
+            Pixel* ptr = pixelBuffer;
+            var vec128 = Vector256.Create((short)128);
+            var vec0   = Vector256.Create((short)0);
+            var vec255 = Vector256.Create((short)255);
+            var vecZero8 = Vector256<byte>.Zero;
+
+            int vectorBound = width - 32;
+            int tailShift = (32 - (width % 32)) % 32;
+            int tailShiftBytes = tailShift * sizeof(Pixel);
+
+            for (int y = 0; y < height; y++)
+            {
+                byte* rowBase = (byte*)ptr;
+                byte* pByte = rowBase;
+
+                var ymmA = Vector256.Load(pByte);
+                var ymmF = Vector256.Load(pByte + 32);
+                var ymmB = Vector256.Load(pByte + 64);
+
+                int x = 0;
+                while (x < width)
+                {
+                    int nextX = x + 32;
+                    int nextShiftBytes = (nextX > vectorBound) ? tailShiftBytes : 0;
+                    byte* nextPtr = (nextX >= width) ? rowBase : (pByte + 96 - nextShiftBytes);
+
+                    var nextYmmA = Vector256.Load(nextPtr);
+                    var nextYmmF = Vector256.Load(nextPtr + 32);
+                    var nextYmmB = Vector256.Load(nextPtr + 64);
+
+                    var ymmC = ymmA;
+                    ymmA = Avx2.InsertVector128(ymmF, ymmA.GetLower(), 0);
+                    ymmC = Avx2.InsertVector128(ymmC, ymmB.GetLower(), 0);
+                    ymmB = Avx2.InsertVector128(ymmB, ymmF.GetLower(), 0);
+                    ymmF = Avx2.Permute2x128(ymmC, ymmC, 1);
+
+                    var ymmG = ymmA;
+                    ymmA = Avx2.ShiftLeftLogical128BitLane(ymmA, 8);
+                    ymmG = Avx2.ShiftRightLogical128BitLane(ymmG, 8);
+                    ymmA = Avx2.UnpackHigh(ymmA, ymmF);
+                    ymmF = Avx2.ShiftLeftLogical128BitLane(ymmF, 8);
+                    ymmG = Avx2.UnpackLow(ymmG, ymmB);
+                    ymmF = Avx2.UnpackHigh(ymmF, ymmB);
+
+                    var ymmD = ymmA;
+                    ymmA = Avx2.ShiftLeftLogical128BitLane(ymmA, 8);
+                    ymmD = Avx2.ShiftRightLogical128BitLane(ymmD, 8);
+                    ymmA = Avx2.UnpackHigh(ymmA, ymmG);
+                    ymmG = Avx2.ShiftLeftLogical128BitLane(ymmG, 8);
+                    ymmD = Avx2.UnpackLow(ymmD, ymmF);
+                    ymmG = Avx2.UnpackHigh(ymmG, ymmF);
+
+                    var ymmE = ymmA;
+                    ymmA = Avx2.ShiftLeftLogical128BitLane(ymmA, 8);
+                    ymmE = Avx2.ShiftRightLogical128BitLane(ymmE, 8);
+                    ymmA = Avx2.UnpackHigh(ymmA, ymmD);
+                    ymmD = Avx2.ShiftLeftLogical128BitLane(ymmD, 8);
+                    ymmE = Avx2.UnpackLow(ymmE, ymmG);
+                    ymmD = Avx2.UnpackHigh(ymmD, ymmG);
+
+                    var ymmH = vecZero8;
+
+                    ymmC = ymmA;
+                    ymmA = Avx2.UnpackLow(ymmA, ymmH);
+                    ymmC = Avx2.UnpackHigh(ymmC, ymmH);
+
+                    ymmB = ymmE;
+                    ymmE = Avx2.UnpackLow(ymmE, ymmH);
+                    ymmB = Avx2.UnpackHigh(ymmB, ymmH);
+
+                    ymmF = ymmD;
+                    ymmD = Avx2.UnpackLow(ymmD, ymmH);
+                    ymmF = Avx2.UnpackHigh(ymmF, ymmH);
+
+                    var y_even = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmA.AsInt16(), 8), 8);
+                    var b_even = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmC.AsInt16(), 8), 8);
+                    var r_even = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmE.AsInt16(), 8), 8);
+                    var y_odd  = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmB.AsInt16(), 8), 8);
+                    var b_odd  = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmD.AsInt16(), 8), 8);
+                    var r_odd  = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmF.AsInt16(), 8), 8);
+
+                    var tr_even = vec0;
+                    var tg_even = vec0;
+                    var tb_even = vec0;
+                    {
+                        var t1_even    = Avx2.ShiftRightArithmetic(b_even, 2);
+                        var r_sh1_even = Avx2.ShiftRightArithmetic(r_even, 1);
+                        var t2_even    = Avx2.Add(r_even, r_sh1_even);
+                        var y_128_even = Avx2.Add(y_even, vec128);
+                        var t3_even    = Avx2.Subtract(y_128_even, t1_even);
+
+                        tr_even = Avx2.Add(y_128_even, t2_even);
+                        var t2_sh1_even = Avx2.ShiftRightArithmetic(t2_even, 1);
+                        var b_sh1_even  = Avx2.ShiftLeftLogical(b_even, 1);
+
+                        tg_even = Avx2.Subtract(t3_even, t2_sh1_even);
+                        tb_even = Avx2.Add(t3_even, b_sh1_even);
+
+                        tr_even = Avx2.Max(vec0, Avx2.Min(vec255, tr_even));
+                        tg_even = Avx2.Max(vec0, Avx2.Min(vec255, tg_even));
+                        tb_even = Avx2.Max(vec0, Avx2.Min(vec255, tb_even));
+                    }
+
+                    var tr_odd = vec0;
+                    var tg_odd = vec0;
+                    var tb_odd = vec0;
+                    {
+                        var t1_odd    = Avx2.ShiftRightArithmetic(b_odd, 2);
+                        var r_sh1_odd = Avx2.ShiftRightArithmetic(r_odd, 1);
+                        var t2_odd    = Avx2.Add(r_odd, r_sh1_odd);
+                        var y_128_odd = Avx2.Add(y_odd, vec128);
+                        var t3_odd    = Avx2.Subtract(y_128_odd, t1_odd);
+
+                        tr_odd = Avx2.Add(y_128_odd, t2_odd);
+                        var t2_sh1_odd = Avx2.ShiftRightArithmetic(t2_odd, 1);
+                        var b_sh1_odd  = Avx2.ShiftLeftLogical(b_odd, 1);
+
+                        tg_odd = Avx2.Subtract(t3_odd, t2_sh1_odd);
+                        tb_odd = Avx2.Add(t3_odd, b_sh1_odd);
+
+                        tr_odd = Avx2.Max(vec0, Avx2.Min(vec255, tr_odd));
+                        tg_odd = Avx2.Max(vec0, Avx2.Min(vec255, tg_odd));
+                        tb_odd = Avx2.Max(vec0, Avx2.Min(vec255, tb_odd));
+                    }
+
+                    ymmA = Avx2.PackUnsignedSaturate(tb_even, tb_even);
+                    ymmB = Avx2.PackUnsignedSaturate(tb_odd, tb_odd);
+                    ymmC = Avx2.PackUnsignedSaturate(tg_even, tg_even);
+                    ymmD = Avx2.PackUnsignedSaturate(tg_odd, tg_odd);
+                    ymmE = Avx2.PackUnsignedSaturate(tr_even, tr_even);
+                    ymmF = Avx2.PackUnsignedSaturate(tr_odd, tr_odd);
+
+                    ymmA = Avx2.UnpackLow(ymmA, ymmC);
+                    ymmE = Avx2.UnpackLow(ymmE, ymmB);
+                    ymmD = Avx2.UnpackLow(ymmD, ymmF);
+
+                    ymmH = Avx2.ShiftRightLogical128BitLane(ymmA, 2);
+                    ymmG = Avx2.UnpackHigh(ymmA.AsInt16(), ymmE.AsInt16()).AsByte();
+                    ymmA = Avx2.UnpackLow(ymmA.AsInt16(), ymmE.AsInt16()).AsByte();
+
+                    ymmE = Avx2.ShiftRightLogical128BitLane(ymmE, 2);
+                    ymmB = Avx2.ShiftRightLogical128BitLane(ymmD, 2);
+                    ymmC = Avx2.UnpackHigh(ymmD.AsInt16(), ymmH.AsInt16()).AsByte();
+                    ymmD = Avx2.UnpackLow(ymmD.AsInt16(), ymmH.AsInt16()).AsByte();
+
+                    ymmF = Avx2.UnpackHigh(ymmE.AsInt16(), ymmB.AsInt16()).AsByte();
+                    ymmE = Avx2.UnpackLow(ymmE.AsInt16(), ymmB.AsInt16()).AsByte();
+
+                    ymmH = Avx2.Shuffle(ymmA.AsInt32(), 0x4E).AsByte();
+                    ymmA = Avx2.UnpackLow(ymmA.AsInt32(), ymmD.AsInt32()).AsByte();
+                    ymmD = Avx2.UnpackHigh(ymmD.AsInt32(), ymmE.AsInt32()).AsByte();
+                    ymmE = Avx2.UnpackLow(ymmE.AsInt32(), ymmH.AsInt32()).AsByte();
+
+                    ymmH = Avx2.Shuffle(ymmG.AsInt32(), 0x4E).AsByte();
+                    ymmG = Avx2.UnpackLow(ymmG.AsInt32(), ymmC.AsInt32()).AsByte();
+                    ymmC = Avx2.UnpackHigh(ymmC.AsInt32(), ymmF.AsInt32()).AsByte();
+                    ymmF = Avx2.UnpackLow(ymmF.AsInt32(), ymmH.AsInt32()).AsByte();
+
+                    ymmH = Avx2.UnpackLow(ymmA.AsInt64(), ymmE.AsInt64()).AsByte();
+                    ymmG = Avx2.UnpackLow(ymmD.AsInt64(), ymmG.AsInt64()).AsByte();
+                    ymmC = Avx2.UnpackLow(ymmF.AsInt64(), ymmC.AsInt64()).AsByte();
+
+                    ymmA = Avx2.Permute2x128(ymmH, ymmG, 0x20);
+                    ymmD = Avx2.Permute2x128(ymmC, ymmH, 0x30);
+                    ymmF = Avx2.Permute2x128(ymmG, ymmC, 0x31);
+
+                    int currentShiftBytes = (x > vectorBound) ? tailShiftBytes : 0;
+                    byte* storePtr = pByte - currentShiftBytes;
+
+                    ymmA.Store(storePtr);
+                    ymmD.Store(storePtr + 32);
+                    ymmF.Store(storePtr + 64);
+
+                    ymmA = nextYmmA;
+                    ymmF = nextYmmF;
+                    ymmB = nextYmmB;
+
+                    pByte += 96;
+                    x += 32;
+                }
+
+                ptr = (Pixel*)(rowBase + rowSizeInBytes);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        internal static unsafe void YCbCr2RgbParallelVector256(Pixel* pixelBuffer, int width, int height, int rowSizeInBytes, ParallelOptions options)
+        {
+            if (!Avx2.IsSupported)
+            {
+                throw new PlatformNotSupportedException("AVX2 is not supported on this platform.");
+            }
+            else if (width < 32)
+            {
+                throw new DjvuArgumentOutOfRangeException(nameof(width), width, "Width must be at least 32 pixels for Vector256 (AVX2) processing.");
+            }
+
+            int vectorBound = width - 32;
+            int tailShift = (32 - (width % 32)) % 32;
+            int tailShiftBytes = tailShift * sizeof(Pixel);
+
+            Parallel.For(0, height, options, y =>
+            {
+                var vec128 = Vector256.Create((short)128);
+                var vec0   = Vector256.Create((short)0);
+                var vec255 = Vector256.Create((short)255);
+                var vecZero8 = Vector256<byte>.Zero;
+
+                byte* rowBase = (byte*)pixelBuffer + ((long)y * rowSizeInBytes);
+                byte* pByte = rowBase;
+
+                var ymmA = Vector256.Load(pByte);
+                var ymmF = Vector256.Load(pByte + 32);
+                var ymmB = Vector256.Load(pByte + 64);
+
+                int x = 0;
+                while (x < width)
+                {
+                    int nextX = x + 32;
+                    int nextShiftBytes = (nextX > vectorBound) ? tailShiftBytes : 0;
+                    byte* nextPtr = (nextX >= width) ? rowBase : (pByte + 96 - nextShiftBytes);
+
+                    var nextYmmA = Vector256.Load(nextPtr);
+                    var nextYmmF = Vector256.Load(nextPtr + 32);
+                    var nextYmmB = Vector256.Load(nextPtr + 64);
+
+                    var ymmC = ymmA;
+                    ymmA = Avx2.InsertVector128(ymmF, ymmA.GetLower(), 0);
+                    ymmC = Avx2.InsertVector128(ymmC, ymmB.GetLower(), 0);
+                    ymmB = Avx2.InsertVector128(ymmB, ymmF.GetLower(), 0);
+                    ymmF = Avx2.Permute2x128(ymmC, ymmC, 1);
+
+                    var ymmG = ymmA;
+                    ymmA = Avx2.ShiftLeftLogical128BitLane(ymmA, 8);
+                    ymmG = Avx2.ShiftRightLogical128BitLane(ymmG, 8);
+                    ymmA = Avx2.UnpackHigh(ymmA, ymmF);
+                    ymmF = Avx2.ShiftLeftLogical128BitLane(ymmF, 8);
+                    ymmG = Avx2.UnpackLow(ymmG, ymmB);
+                    ymmF = Avx2.UnpackHigh(ymmF, ymmB);
+
+                    var ymmD = ymmA;
+                    ymmA = Avx2.ShiftLeftLogical128BitLane(ymmA, 8);
+                    ymmD = Avx2.ShiftRightLogical128BitLane(ymmD, 8);
+                    ymmA = Avx2.UnpackHigh(ymmA, ymmG);
+                    ymmG = Avx2.ShiftLeftLogical128BitLane(ymmG, 8);
+                    ymmD = Avx2.UnpackLow(ymmD, ymmF);
+                    ymmG = Avx2.UnpackHigh(ymmG, ymmF);
+
+                    var ymmE = ymmA;
+                    ymmA = Avx2.ShiftLeftLogical128BitLane(ymmA, 8);
+                    ymmE = Avx2.ShiftRightLogical128BitLane(ymmE, 8);
+                    ymmA = Avx2.UnpackHigh(ymmA, ymmD);
+                    ymmD = Avx2.ShiftLeftLogical128BitLane(ymmD, 8);
+                    ymmE = Avx2.UnpackLow(ymmE, ymmG);
+                    ymmD = Avx2.UnpackHigh(ymmD, ymmG);
+
+                    var ymmH = vecZero8;
+
+                    ymmC = ymmA;
+                    ymmA = Avx2.UnpackLow(ymmA, ymmH);
+                    ymmC = Avx2.UnpackHigh(ymmC, ymmH);
+
+                    ymmB = ymmE;
+                    ymmE = Avx2.UnpackLow(ymmE, ymmH);
+                    ymmB = Avx2.UnpackHigh(ymmB, ymmH);
+
+                    ymmF = ymmD;
+                    ymmD = Avx2.UnpackLow(ymmD, ymmH);
+                    ymmF = Avx2.UnpackHigh(ymmF, ymmH);
+
+                    var y_even = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmA.AsInt16(), 8), 8);
+                    var b_even = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmC.AsInt16(), 8), 8);
+                    var r_even = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmE.AsInt16(), 8), 8);
+                    var y_odd  = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmB.AsInt16(), 8), 8);
+                    var b_odd  = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmD.AsInt16(), 8), 8);
+                    var r_odd  = Avx2.ShiftRightArithmetic(Avx2.ShiftLeftLogical(ymmF.AsInt16(), 8), 8);
+
+                    var tr_even = vec0;
+                    var tg_even = vec0;
+                    var tb_even = vec0;
+                    {
+                        var t1_even    = Avx2.ShiftRightArithmetic(b_even, 2);
+                        var r_sh1_even = Avx2.ShiftRightArithmetic(r_even, 1);
+                        var t2_even    = Avx2.Add(r_even, r_sh1_even);
+                        var y_128_even = Avx2.Add(y_even, vec128);
+                        var t3_even    = Avx2.Subtract(y_128_even, t1_even);
+
+                        tr_even = Avx2.Add(y_128_even, t2_even);
+                        var t2_sh1_even = Avx2.ShiftRightArithmetic(t2_even, 1);
+                        var b_sh1_even  = Avx2.ShiftLeftLogical(b_even, 1);
+
+                        tg_even = Avx2.Subtract(t3_even, t2_sh1_even);
+                        tb_even = Avx2.Add(t3_even, b_sh1_even);
+
+                        tr_even = Avx2.Max(vec0, Avx2.Min(vec255, tr_even));
+                        tg_even = Avx2.Max(vec0, Avx2.Min(vec255, tg_even));
+                        tb_even = Avx2.Max(vec0, Avx2.Min(vec255, tb_even));
+                    }
+
+                    var tr_odd = vec0;
+                    var tg_odd = vec0;
+                    var tb_odd = vec0;
+                    {
+                        var t1_odd    = Avx2.ShiftRightArithmetic(b_odd, 2);
+                        var r_sh1_odd = Avx2.ShiftRightArithmetic(r_odd, 1);
+                        var t2_odd    = Avx2.Add(r_odd, r_sh1_odd);
+                        var y_128_odd = Avx2.Add(y_odd, vec128);
+                        var t3_odd    = Avx2.Subtract(y_128_odd, t1_odd);
+
+                        tr_odd = Avx2.Add(y_128_odd, t2_odd);
+                        var t2_sh1_odd = Avx2.ShiftRightArithmetic(t2_odd, 1);
+                        var b_sh1_odd  = Avx2.ShiftLeftLogical(b_odd, 1);
+
+                        tg_odd = Avx2.Subtract(t3_odd, t2_sh1_odd);
+                        tb_odd = Avx2.Add(t3_odd, b_sh1_odd);
+
+                        tr_odd = Avx2.Max(vec0, Avx2.Min(vec255, tr_odd));
+                        tg_odd = Avx2.Max(vec0, Avx2.Min(vec255, tg_odd));
+                        tb_odd = Avx2.Max(vec0, Avx2.Min(vec255, tb_odd));
+                    }
+
+                    ymmA = Avx2.PackUnsignedSaturate(tb_even, tb_even);
+                    ymmB = Avx2.PackUnsignedSaturate(tb_odd, tb_odd);
+                    ymmC = Avx2.PackUnsignedSaturate(tg_even, tg_even);
+                    ymmD = Avx2.PackUnsignedSaturate(tg_odd, tg_odd);
+                    ymmE = Avx2.PackUnsignedSaturate(tr_even, tr_even);
+                    ymmF = Avx2.PackUnsignedSaturate(tr_odd, tr_odd);
+
+                    ymmA = Avx2.UnpackLow(ymmA, ymmC);
+                    ymmE = Avx2.UnpackLow(ymmE, ymmB);
+                    ymmD = Avx2.UnpackLow(ymmD, ymmF);
+
+                    ymmH = Avx2.ShiftRightLogical128BitLane(ymmA, 2);
+                    ymmG = Avx2.UnpackHigh(ymmA.AsInt16(), ymmE.AsInt16()).AsByte();
+                    ymmA = Avx2.UnpackLow(ymmA.AsInt16(), ymmE.AsInt16()).AsByte();
+
+                    ymmE = Avx2.ShiftRightLogical128BitLane(ymmE, 2);
+                    ymmB = Avx2.ShiftRightLogical128BitLane(ymmD, 2);
+                    ymmC = Avx2.UnpackHigh(ymmD.AsInt16(), ymmH.AsInt16()).AsByte();
+                    ymmD = Avx2.UnpackLow(ymmD.AsInt16(), ymmH.AsInt16()).AsByte();
+
+                    ymmF = Avx2.UnpackHigh(ymmE.AsInt16(), ymmB.AsInt16()).AsByte();
+                    ymmE = Avx2.UnpackLow(ymmE.AsInt16(), ymmB.AsInt16()).AsByte();
+
+                    ymmH = Avx2.Shuffle(ymmA.AsInt32(), 0x4E).AsByte();
+                    ymmA = Avx2.UnpackLow(ymmA.AsInt32(), ymmD.AsInt32()).AsByte();
+                    ymmD = Avx2.UnpackHigh(ymmD.AsInt32(), ymmE.AsInt32()).AsByte();
+                    ymmE = Avx2.UnpackLow(ymmE.AsInt32(), ymmH.AsInt32()).AsByte();
+
+                    ymmH = Avx2.Shuffle(ymmG.AsInt32(), 0x4E).AsByte();
+                    ymmG = Avx2.UnpackLow(ymmG.AsInt32(), ymmC.AsInt32()).AsByte();
+                    ymmC = Avx2.UnpackHigh(ymmC.AsInt32(), ymmF.AsInt32()).AsByte();
+                    ymmF = Avx2.UnpackLow(ymmF.AsInt32(), ymmH.AsInt32()).AsByte();
+
+                    ymmH = Avx2.UnpackLow(ymmA.AsInt64(), ymmE.AsInt64()).AsByte();
+                    ymmG = Avx2.UnpackLow(ymmD.AsInt64(), ymmG.AsInt64()).AsByte();
+                    ymmC = Avx2.UnpackLow(ymmF.AsInt64(), ymmC.AsInt64()).AsByte();
+
+                    ymmA = Avx2.Permute2x128(ymmH, ymmG, 0x20);
+                    ymmD = Avx2.Permute2x128(ymmC, ymmH, 0x30);
+                    ymmF = Avx2.Permute2x128(ymmG, ymmC, 0x31);
+
+                    int currentShiftBytes = (x > vectorBound) ? tailShiftBytes : 0;
+                    byte* storePtr = pByte - currentShiftBytes;
+
+                    ymmA.Store(storePtr);
+                    ymmD.Store(storePtr + 32);
+                    ymmF.Store(storePtr + 64);
+
+                    ymmA = nextYmmA;
+                    ymmF = nextYmmF;
+                    ymmB = nextYmmB;
+
+                    pByte += 96;
+                    x += 32;
+                }
+            });
+        }
     }
 }

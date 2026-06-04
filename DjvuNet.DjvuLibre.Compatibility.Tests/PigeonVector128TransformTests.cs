@@ -1,6 +1,8 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.Arm;
+using System.Runtime.Intrinsics.X86;
 using System.Threading.Tasks;
 using DjvuNet.DjvuLibre;
 using DjvuNet.Graphics;
@@ -684,6 +686,338 @@ namespace DjvuNet.DjvuLibre.Compatibility.Tests
             {
                 Console.WriteLine($"Total Diffs: {diffCount}");
                 Assert.Fail($"Found diffs in Rgb2YCbCr conversion.\n{sb.ToString()}");
+            }
+        }
+        [Fact]
+        public unsafe void YCbCr2RgbParallelVector128_NativeParityRandomData()
+        {
+            if (!Ssse3.IsSupported && !AdvSimd.IsSupported) Assert.Skip("Vector128 hardware acceleration is not supported on this CPU.");
+
+            int width = 1248;
+            int height = 1024;
+            int rowSizeInBytes = width * 3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] managedBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] nativeBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            new Random(12345).NextBytes(managedBuffer);
+            Buffer.BlockCopy(managedBuffer, 0, nativeBuffer, 0, totalBytes);
+
+            var options = new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+
+            fixed (byte* pOutM = managedBuffer, pOutN = nativeBuffer)
+            {
+                IntPtr nativePtr = DjvuMarshal.AllocHGlobal((uint)totalBytes);
+                try
+                {
+                    Marshal.Copy(nativeBuffer, 0, nativePtr, totalBytes);
+
+                    InterWaveSimd.YCbCr2RgbParallelVector128((Pixel*)pOutM, width, height, rowSizeInBytes, options);
+
+                    bool success = NativeMethods.YCbCrToRgb(nativePtr, width, height, width);
+                    Assert.True(success);
+
+                    Marshal.Copy(nativePtr, nativeBuffer, 0, totalBytes);
+                }
+                finally
+                {
+                    if (nativePtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativePtr);
+                }
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pOutN, pOutM, width, height, rowSizeInBytes));
+            }
+        }
+
+        [Fact]
+        public unsafe void YCbCr2RgbParallelVector128_NativeParityWithStride()
+        {
+            if (!Ssse3.IsSupported && !AdvSimd.IsSupported) Assert.Skip("Vector128 hardware acceleration is not supported on this CPU.");
+
+            int width = 120;
+            int height = 16;
+            int rowSizeInPixels = width + 1; // 1 pixel of padding (3 bytes)
+            int rowSizeInBytes = rowSizeInPixels * 3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] managedBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] nativeBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            new Random(12345).NextBytes(managedBuffer);
+            Buffer.BlockCopy(managedBuffer, 0, nativeBuffer, 0, totalBytes);
+
+            var options = new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+
+            fixed (byte* pOutM = managedBuffer, pOutN = nativeBuffer)
+            {
+                IntPtr nativePtr = DjvuMarshal.AllocHGlobal((uint)totalBytes);
+                try
+                {
+                    Marshal.Copy(nativeBuffer, 0, nativePtr, totalBytes);
+
+                    InterWaveSimd.YCbCr2RgbParallelVector128((Pixel*)pOutM, width, height, rowSizeInBytes, options);
+
+                    bool success = NativeMethods.YCbCrToRgb(nativePtr, width, height, rowSizeInPixels);
+                    Assert.True(success);
+
+                    Marshal.Copy(nativePtr, nativeBuffer, 0, totalBytes);
+                }
+                finally
+                {
+                    if (nativePtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativePtr);
+                }
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pOutN, pOutM, width, height, rowSizeInBytes));
+            }
+        }
+
+        [Fact]
+        public unsafe void YCbCr2RgbParallelVector128_BruteForceParity()
+        {
+            if (!Ssse3.IsSupported && !AdvSimd.IsSupported) Assert.Skip("Vector128 hardware acceleration is not supported on this CPU.");
+
+            int width = 4096;
+            int height = 4096;
+            int rowSizeInBytes = width * 3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] managedBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] nativeBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] backupBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            fixed (byte* pBackup = backupBuffer)
+            {
+                Pixel* pGenerator = (Pixel*)pBackup;
+                for (int y = sbyte.MinValue; y <= sbyte.MaxValue; y++)
+                {
+                    for (int cb = sbyte.MinValue; cb <= sbyte.MaxValue; cb++)
+                    {
+                        for (int cr = sbyte.MinValue; cr <= sbyte.MaxValue; cr++)
+                        {
+                            pGenerator->Blue = (sbyte)y;
+                            pGenerator->Green = (sbyte)cb;
+                            pGenerator->Red = (sbyte)cr;
+                            pGenerator++;
+                        }
+                    }
+                }
+            }
+
+            Buffer.BlockCopy(backupBuffer, 0, managedBuffer, 0, totalBytes);
+            Buffer.BlockCopy(backupBuffer, 0, nativeBuffer, 0, totalBytes);
+
+            var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+
+            fixed (byte* pOutM = managedBuffer)
+            {
+                IntPtr nativePtr = DjvuMarshal.AllocHGlobal((uint)totalBytes);
+                try
+                {
+                    Marshal.Copy(nativeBuffer, 0, nativePtr, totalBytes);
+
+                    InterWaveSimd.YCbCr2RgbParallelVector128((Pixel*)pOutM, width, height, rowSizeInBytes, options);
+
+                    bool success = NativeMethods.YCbCrToRgb(nativePtr, width, height, width);
+                    Assert.True(success);
+
+                    Marshal.Copy(nativePtr, nativeBuffer, 0, totalBytes);
+                }
+                finally
+                {
+                    DjvuMarshal.FreeHGlobal(nativePtr);
+                }
+            }
+
+            int diffCount = 0;
+            var sb = new System.Text.StringBuilder();
+
+            fixed (byte* pNative = nativeBuffer, pManaged = managedBuffer, pBackup = backupBuffer)
+            {
+                Pixel* pN = (Pixel*)pNative;
+                Pixel* pM = (Pixel*)pManaged;
+                Pixel* pIn = (Pixel*)pBackup;
+                int totalPixels = width * height;
+
+                for (int i = 0; i < totalPixels; i++, pN++, pM++, pIn++)
+                {
+                    if (pM->Blue != pN->Blue || pM->Green != pN->Green || pM->Red != pN->Red)
+                    {
+                        if (diffCount < 256)
+                        {
+                            sb.AppendLine($"Diff at {i} (Y:{pIn->Blue}, Cb:{pIn->Green}, Cr:{pIn->Red}) - Native(B:{pN->Blue}, G:{pN->Green}, R:{pN->Red}) vs Vector128(B:{pM->Blue}, G:{pM->Green}, R:{pM->Red})");
+                        }
+                        diffCount++;
+                    }
+                }
+            }
+
+            if (diffCount > 0)
+            {
+                Console.WriteLine($"Total Diffs: {diffCount}");
+                Assert.True(diffCount == 0, $"Found diffs in YCbCr2Rgb conversion.\n{sb.ToString()}");
+            }
+        }
+        [Fact]
+        public unsafe void YCbCr2RgbVector128_NativeParityRandomData()
+        {
+            if (!Ssse3.IsSupported && !AdvSimd.IsSupported) Assert.Skip("Vector128 hardware acceleration is not supported on this CPU.");
+
+            int width = 1248;
+            int height = 1024;
+            int rowSizeInBytes = width * 3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] managedBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] nativeBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            new Random(12345).NextBytes(managedBuffer);
+            Buffer.BlockCopy(managedBuffer, 0, nativeBuffer, 0, totalBytes);
+
+            fixed (byte* pOutM = managedBuffer, pOutN = nativeBuffer)
+            {
+                IntPtr nativePtr = DjvuMarshal.AllocHGlobal((uint)totalBytes);
+                try
+                {
+                    Marshal.Copy(nativeBuffer, 0, nativePtr, totalBytes);
+
+                    InterWaveSimd.YCbCr2RgbVector128((Pixel*)pOutM, width, height, rowSizeInBytes);
+
+                    bool success = NativeMethods.YCbCrToRgb(nativePtr, width, height, width);
+                    Assert.True(success);
+
+                    Marshal.Copy(nativePtr, nativeBuffer, 0, totalBytes);
+                }
+                finally
+                {
+                    if (nativePtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativePtr);
+                }
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pOutN, pOutM, width, height, rowSizeInBytes));
+            }
+        }
+
+        [Fact]
+        public unsafe void YCbCr2RgbVector128_NativeParityWithStride()
+        {
+            if (!Ssse3.IsSupported && !AdvSimd.IsSupported) Assert.Skip("Vector128 hardware acceleration is not supported on this CPU.");
+
+            int width = 120;
+            int height = 16;
+            int rowSizeInPixels = width + 1; // 1 pixel of padding (3 bytes)
+            int rowSizeInBytes = rowSizeInPixels * 3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] managedBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] nativeBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            new Random(12345).NextBytes(managedBuffer);
+            Buffer.BlockCopy(managedBuffer, 0, nativeBuffer, 0, totalBytes);
+
+            fixed (byte* pOutM = managedBuffer, pOutN = nativeBuffer)
+            {
+                IntPtr nativePtr = DjvuMarshal.AllocHGlobal((uint)totalBytes);
+                try
+                {
+                    Marshal.Copy(nativeBuffer, 0, nativePtr, totalBytes);
+
+                    InterWaveSimd.YCbCr2RgbVector128((Pixel*)pOutM, width, height, rowSizeInBytes);
+
+                    bool success = NativeMethods.YCbCrToRgb(nativePtr, width, height, rowSizeInPixels);
+                    Assert.True(success);
+
+                    Marshal.Copy(nativePtr, nativeBuffer, 0, totalBytes);
+                }
+                finally
+                {
+                    if (nativePtr != IntPtr.Zero) DjvuMarshal.FreeHGlobal(nativePtr);
+                }
+
+                Assert.Equal(0.0, Util.ImageBinaryDiff(pOutN, pOutM, width, height, rowSizeInBytes));
+            }
+        }
+
+        [Fact]
+        public unsafe void YCbCr2RgbVector128_BruteForceParity()
+        {
+            if (!Ssse3.IsSupported && !AdvSimd.IsSupported) Assert.Skip("Vector128 hardware acceleration is not supported on this CPU.");
+
+            int width = 4096;
+            int height = 4096;
+            int rowSizeInBytes = width * 3;
+            int totalBytes = height * rowSizeInBytes;
+
+            byte[] managedBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] nativeBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+            byte[] backupBuffer = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+            fixed (byte* pBackup = backupBuffer)
+            {
+                Pixel* pGenerator = (Pixel*)pBackup;
+                for (int y = sbyte.MinValue; y <= sbyte.MaxValue; y++)
+                {
+                    for (int cb = sbyte.MinValue; cb <= sbyte.MaxValue; cb++)
+                    {
+                        for (int cr = sbyte.MinValue; cr <= sbyte.MaxValue; cr++)
+                        {
+                            pGenerator->Blue = (sbyte)y;
+                            pGenerator->Green = (sbyte)cb;
+                            pGenerator->Red = (sbyte)cr;
+                            pGenerator++;
+                        }
+                    }
+                }
+            }
+
+            Buffer.BlockCopy(backupBuffer, 0, managedBuffer, 0, totalBytes);
+            Buffer.BlockCopy(backupBuffer, 0, nativeBuffer, 0, totalBytes);
+
+            fixed (byte* pOutM = managedBuffer)
+            {
+                IntPtr nativePtr = DjvuMarshal.AllocHGlobal((uint)totalBytes);
+                try
+                {
+                    Marshal.Copy(nativeBuffer, 0, nativePtr, totalBytes);
+
+                    InterWaveSimd.YCbCr2RgbVector128((Pixel*)pOutM, width, height, rowSizeInBytes);
+
+                    bool success = NativeMethods.YCbCrToRgb(nativePtr, width, height, width);
+                    Assert.True(success);
+
+                    Marshal.Copy(nativePtr, nativeBuffer, 0, totalBytes);
+                }
+                finally
+                {
+                    DjvuMarshal.FreeHGlobal(nativePtr);
+                }
+            }
+
+            int diffCount = 0;
+            var sb = new System.Text.StringBuilder();
+
+            fixed (byte* pNative = nativeBuffer, pManaged = managedBuffer, pBackup = backupBuffer)
+            {
+                Pixel* pN = (Pixel*)pNative;
+                Pixel* pM = (Pixel*)pManaged;
+                Pixel* pIn = (Pixel*)pBackup;
+                int totalPixels = width * height;
+
+                for (int i = 0; i < totalPixels; i++, pN++, pM++, pIn++)
+                {
+                    if (pM->Blue != pN->Blue || pM->Green != pN->Green || pM->Red != pN->Red)
+                    {
+                        if (diffCount < 256)
+                        {
+                            sb.AppendLine($"Diff at {i} (Y:{pIn->Blue}, Cb:{pIn->Green}, Cr:{pIn->Red}) - Native(B:{pN->Blue}, G:{pN->Green}, R:{pN->Red}) vs Vector128(B:{pM->Blue}, G:{pM->Green}, R:{pM->Red})");
+                        }
+                        diffCount++;
+                    }
+                }
+            }
+
+            if (diffCount > 0)
+            {
+                Console.WriteLine($"Total Diffs: {diffCount}");
+                Assert.True(diffCount == 0, $"Found diffs in YCbCr2Rgb conversion.\n{sb.ToString()}");
             }
         }
     }

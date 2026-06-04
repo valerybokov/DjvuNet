@@ -115,16 +115,15 @@ namespace DjvuNet.Benchmarks
         [Benchmark(OperationsPerInvoke = InvocationCount)]
         public unsafe void Scalar()
         {
-#pragma warning disable CS0618
+            int rowSizeInBytes = (_width * 3 + 3) & ~3;
             for (int i = 0; i < InvocationCount; i++)
             {
                 fixed (sbyte* ptr = _managedBuffers[i])
                 {
-                    // Note: Will produce corrupt image on padded variant, but times execution fairly.
-                    InterWaveTransform.YCbCr2RgbScalar((Pixel*)ptr, _width, _height);
+
+                    InterWaveTransform.YCbCr2RgbScalar((Pixel*)ptr, _width, _height, rowSizeInBytes);
                 }
             }
-#pragma warning restore CS0618
         }
 
         [Benchmark(OperationsPerInvoke = InvocationCount)]

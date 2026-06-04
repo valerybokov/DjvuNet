@@ -329,29 +329,31 @@ namespace DjvuNet.Wavelet
         /// <param name="pPixBuff">Pointer to Pixel buffer</param>
         /// <param name="width">Width of image in pixels</param>
         /// <param name="height">Height of image in pixels</param>
-        [System.Obsolete("This flat-loop scalar method is deprecated due to lack of stride padding support. " +
-            "Use the unified InterWaveTransform.YCbCr2Rgb method instead, which handles arbitrary " +
-            "byte strides and includes AVX2 optimizations.", error: false)]
-        public static unsafe void YCbCr2RgbScalar(Pixel* pPixBuff, int width, int height)
+        /// <param name="rowSizeInBytes">The exact stride of the input buffer in bytes, including any padding.</param>
+        public static unsafe void YCbCr2RgbScalar(Pixel* pPixBuff, int width, int height, int rowSizeInBytes)
         {
             Pixel* q = pPixBuff;
-            int dataLength = width * height;
+            long inPadBytesScalar = rowSizeInBytes - ((long)width * sizeof(Pixel));
 
-            for (int i = 0; i < dataLength; i++, q++)
+            for (int y = 0; y < height; y++)
             {
-                sbyte y = q->Blue;
-                sbyte b = q->Green;
-                sbyte r = q->Red;
-                // This is the Pigeon transform
-                int t1 = b >> 2;
-                int t2 = r + (r >> 1);
-                int t3 = y + 128 - t1;
-                int tr = y + 128 + t2;
-                int tg = t3 - (t2 >> 1);
-                int tb = t3 + (b << 1);
-                q->Red = (sbyte) Max(0, Min(255, tr));
-                q->Green = (sbyte) Max(0, Min(255, tg));
-                q->Blue = (sbyte) Max(0, Min(255, tb));
+                for (int x = 0; x < width; x++, q++)
+                {
+                    sbyte y_val = q->Blue;
+                    sbyte b_val = q->Green;
+                    sbyte r_val = q->Red;
+                    // This is the Pigeon transform
+                    int t1 = b_val >> 2;
+                    int t2 = r_val + (r_val >> 1);
+                    int t3 = y_val + 128 - t1;
+                    int tr = y_val + 128 + t2;
+                    int tg = t3 - (t2 >> 1);
+                    int tb = t3 + (b_val << 1);
+                    q->Red = (sbyte) Max(0, Min(255, tr));
+                    q->Green = (sbyte) Max(0, Min(255, tg));
+                    q->Blue = (sbyte) Max(0, Min(255, tb));
+                }
+                q = (Pixel*)((byte*)q + inPadBytesScalar);
             }
         }
 

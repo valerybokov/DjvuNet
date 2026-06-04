@@ -43,7 +43,7 @@ to be finished but still has couple bugs which need to be fixed.
 - Test framework is systematically developed and is composed of unit and functional tests. It covers project in top down way and provides
 around 85% code coverage using 2 586 test cases with implementation target being more than 90% code coverage.
 
-- Performance tests are implemented using BenchmarkDotNet in the `DjvuNet.Benchmarks` project. 
+- Performance tests are implemented using BenchmarkDotNet in the `DjvuNet.Benchmarks` project.
 
 - AVX2 SIMD optimizations for the YCbCr-to-RGB color space conversion (Pigeon transform) achieved a ~3.3x speedup over the legacy scalar implementation for 3-byte continuous conversions. The inverse `Rgb2YCbCr` transform achieved an even greater ~5.7x speedup over the scalar baseline.
 
@@ -118,6 +118,9 @@ The following matrix tracks single-threaded execution time across the four `Rgb2
 
 Building on the single-threaded baseline, the router dynamically scales the `MaxDegreeOfParallelism` for the `Rgb2YCbCr` transform. It calculates break-even thresholds to avoid parallelization overhead on small images and caps maximum threads on large images to prevent memory bus saturation (e.g., AVX2 saturates a dual-channel memory bus at 4 to 6 threads).
 
+**MEMORY TOPOLOGY DISCLAIMER:**
+The saturation caps (6 for AVX2, 12 for Vector128) are calibrated against standard dual-channel (2-channel) memory configurations typical of consumer hardware. We did not benchmark quad-channel or octa-channel memory configurations, as DjvuNet is not expected to be primarily utilized on enterprise server-grade or workstation hardware (e.g., EPYC, Threadripper, Xeon). This missing optimization for high-bandwidth server topologies can be addressed in future iterations if required.
+
 | Image Size |   V128 (1T) |  V128 (2T) |  V128 (4T) |  V128 (6T) | V128 (12T) |   V256 (1T) |  V256 (2T) |  V256 (4T) |  V256 (6T) | V256 (12T) |
 |-----------:|------------:|-----------:|-----------:|-----------:|-----------:|------------:|-----------:|-----------:|-----------:|-----------:|
 |      1,024 |   *1.81 µs* |    2.59 µs |    4.12 µs |    4.80 µs |    6.16 µs |   *0.55 µs* |    1.82 µs |    2.85 µs |    3.49 µs |    4.60 µs |
@@ -131,6 +134,56 @@ Building on the single-threaded baseline, the router dynamically scales the `Max
 |  2,096,704 | 3645.00 µs  | 1860.00 µs |  964.40 µs |  673.10 µs |*601.00 µs* | 1118.00 µs  |  592.80 µs |  429.00 µs |*426.70 µs* |  450.40 µs |
 |  4,194,304 | 7262.00 µs  | 3752.00 µs | 1919.00 µs | 1316.00 µs |*1183.00 µs*| 2249.00 µs  | 1319.00 µs |  985.20 µs |*968.40 µs* | 1027.00 µs |
 | 20,081,328 |34860.00 µs  |17694.00 µs | 9124.00 µs | 6387.00 µs |*6151.00 µs*|10588.00 µs  | 6128.00 µs |*5888.00 µs*| 6081.00 µs | 6158.00 µs |
+
+*(Note: Data reflects normalized "Time/Op (Real)" processing bounds per image payload. Asterisks (*) denote the dynamically selected optimal routing path).*
+
+### SIMD and Parallelization Scaling Analysis (YCbCr2Rgb)
+
+The inverse `YCbCr2Rgb` transform pipeline exhibits significantly different hardware constraints compared to the forward transform. Because the processing of 3-byte YCbCr pixels to BGR is less computationally demanding, the multithreaded SIMD pipeline faster saturates the CPU memory bus (or CPU cache memory), and multi-threading yields diminishing returns much earlier in the benchmark matrix.
+
+The `GetThreadCountForYCbCr2Rgb` dispatcher shares identical routing logic for both AVX2 (`Vector256`) and SSSE3/AdvSimd (`Vector128`) paths because the bottleneck is identical (memory write bandwidth, strictly capped at 4 threads).
+
+#### Unified Single-Thread Baseline Matrix (YCbCr2Rgb Time per Image)
+
+The following matrix tracks single-threaded execution time across the four `YCbCr2Rgb` implementations. All times are normalized to microseconds (µs) to represent the absolute "Time per Image".
+
+| Image Size | Native C++ |  C# Scalar |  Vector128 | Vector256 (AVX2) |
+|-----------:|-----------:|-----------:|-----------:|-----------------:|
+|      1,024 |     3.4 µs |     1.9 µs |     0.5 µs |           0.5 µs |
+|      4,096 |    13.2 µs |     7.8 µs |     2.0 µs |           2.2 µs |
+|      9,216 |    29.2 µs |    17.3 µs |     4.6 µs |           4.9 µs |
+|     16,384 |    51.6 µs |    30.8 µs |     8.1 µs |           8.7 µs |
+|     36,864 |   115.5 µs |    68.9 µs |    22.6 µs |          19.6 µs |
+|     65,536 |   204.8 µs |   119.7 µs |    40.0 µs |          34.8 µs |
+|    262,144 |   819.8 µs |   476.6 µs |   132.1 µs |         139.7 µs |
+|  1,048,576 |  3278.0 µs |  1899.1 µs |   528.4 µs |         558.9 µs |
+|  2,096,704 |  6564.9 µs |  3783.7 µs |  1035.5 µs |        1114.5 µs |
+|  4,194,304 | 13043.2 µs |  7576.3 µs |  2097.3 µs |        2224.2 µs |
+| 20,081,328 | 62727.2 µs | 36178.6 µs |  9865.7 µs |       10564.8 µs |
+
+#### Parallel SIMD Scaling Matrix (YCbCr2Rgb Time per Image)
+
+Building on the single-threaded baseline, the router dynamically scales the `MaxDegreeOfParallelism` based on the following exact thresholds for both Vector sizes:
+- `pixelCount < 9,000`: 1 Thread (Avoid TPL overhead)
+- `pixelCount >= 9,000`: 2 Threads
+- `pixelCount >= 36,000`: 4 Threads (Memory bus saturation cap)
+
+**MEMORY TOPOLOGY DISCLAIMER:**
+The saturation caps (4 for both AVX2 and Vector128) are calibrated against standard dual-channel (2-channel) memory configurations typical of consumer hardware. We did not benchmark quad-channel or octa-channel memory configurations, as DjvuNet is not expected to be primarily utilized on enterprise server-grade or workstation hardware (e.g., EPYC, Threadripper, Xeon). This missing optimization for high-bandwidth server topologies can be addressed in future iterations if required.
+
+| Image Size |   V128 (1T) |  V128 (2T) |  V128 (4T) |  V128 (6T) | V128 (12T) |   V256 (1T) |  V256 (2T) |  V256 (4T) |  V256 (6T) | V256 (12T) |
+|-----------:|------------:|-----------:|-----------:|-----------:|-----------:|------------:|-----------:|-----------:|-----------:|-----------:|
+|      1,024 |   *0.52 µs* |    1.74 µs |    2.74 µs |    3.20 µs |    4.26 µs |   *0.55 µs* |    1.78 µs |    2.71 µs |    3.10 µs |    4.05 µs |
+|      4,096 |   *2.02 µs* |    3.09 µs |    4.29 µs |    5.09 µs |    6.09 µs |   *2.20 µs* |    3.43 µs |    4.30 µs |    5.10 µs |    6.08 µs |
+|      9,216 |    4.63 µs  |  *4.45 µs* |    5.79 µs |    6.77 µs |    8.31 µs |    4.91 µs  |  *4.79 µs* |    5.73 µs |    6.68 µs |    8.15 µs |
+|     16,384 |    8.08 µs  |  *6.59 µs* |    6.97 µs |    8.04 µs |   10.40 µs |    8.72 µs  |  *6.77 µs* |    7.01 µs |    8.14 µs |   10.29 µs |
+|     36,864 |   22.64 µs  |   13.12 µs | *10.77 µs* |   11.54 µs |   13.89 µs |   19.60 µs  |   12.84 µs | *10.76 µs* |   11.52 µs |   13.58 µs |
+|     65,536 |   40.02 µs  |   21.24 µs | *15.98 µs* |   16.36 µs |   19.74 µs |   34.78 µs  |   22.66 µs | *16.11 µs* |   16.53 µs |   19.48 µs |
+|    262,144 |  132.08 µs  |   74.21 µs | *53.06 µs* |   53.90 µs |   57.14 µs |  139.65 µs  |   77.32 µs | *53.45 µs* |   53.49 µs |   56.53 µs |
+|  1,048,576 |  528.43 µs  |  276.37 µs |*204.07 µs* |  206.81 µs |  214.44 µs |  558.86 µs  |  294.91 µs |*203.82 µs* |  205.09 µs |  215.21 µs |
+|  2,096,704 | 1035.50 µs  |  536.39 µs |*401.37 µs* |  406.31 µs |  422.04 µs | 1114.50 µs  |  587.87 µs |*401.12 µs* |  410.04 µs |  420.35 µs |
+|  4,194,304 | 2097.30 µs  | 1069.40 µs |*792.48 µs* |  797.62 µs |  823.14 µs | 2224.20 µs  | 1165.80 µs |*804.03 µs* |  798.43 µs |  816.77 µs |
+| 20,081,328 | 9865.70 µs  | 5034.10 µs |*3805.40 µs*| 3853.00 µs | 3925.70 µs | 10564.80 µs | 5494.20 µs |*3801.60 µs*| 3845.40 µs | 3931.90 µs |
 
 *(Note: Data reflects normalized "Time/Op (Real)" processing bounds per image payload. Asterisks (*) denote the dynamically selected optimal routing path).*
 
@@ -343,6 +396,76 @@ Download and install the .NET Core SDK from [.NET Downloads](https://www.microso
 #### Building and Testing
 
 Follow Linux instructions for Building and Testing
+
+### Fast Developer Loop (Targeted Build, Test and Benchmark Execution)
+
+When iterating quickly on a specific feature, running the full `build.{cmd|sh} -Test` suite is too slow. Before entering the fast developer loop, you **must build the whole repository once using the build script** (e.g., `build.cmd -c Release -BuildTests`) targeting the configuration you want to use to bootstrap the environment and restore all managed and native dependencies.
+
+Because DjvuNet relies on native P/Invoke bindings, to run a single test, use `dotnet publish` to resolve dependencies and collect all binaries in publish directories, and then execute the standalone xUnit v3 test executable directly.
+
+**Step 1: Publish the Test Project**
+`````
+dotnet publish -c Release DjvuNet.Wavelet.Tests\DjvuNet.Wavelet.Tests.csproj
+`````
+
+**Step 2: Execute the Test Directly**
+Run the executable directly from the publish output directory using the xUnit `-method` filter. The method name must be a fully qualified name, or you can use wildcard characters like `*methodname*`.
+
+Example for Windows x64 Release:
+`````
+build\bin\Windows.x64.Release\binaries\net10.0\win-x64\publish\DjvuNet.Wavelet.Tests.exe -method *methodname*
+`````
+
+To check compilation status of the single project simply run (if you run this command before you have run the whole repo build it may fail due to missing dependencies):
+
+Example for Windows Debug:
+`````
+dotnet build DjvuNet.Wavelet.Tests\DjvuNet.Wavelet.Tests.csproj
+`````
+
+Example for Windows Release:
+`````
+dotnet build -c Release DjvuNet\DjvuNet.csproj
+`````
+
+### Fast Developer Loop (Interactive Benchmark Execution)
+
+Similarly, the `DjvuNet.Benchmarks` project compiles to a standalone executable leveraging BenchmarkDotNet. Because it also references native dependencies, you must publish the project first.
+
+**Step 1: Publish the Benchmark Project**
+`````
+dotnet publish -c Release DjvuNet.Benchmarks\DjvuNet.Benchmarks.csproj
+`````
+
+**Step 2: Execute the Benchmark Menu**
+Run the executable directly from the publish output directory *without any arguments*. This will trigger an interactive menu listing all available benchmark classes.
+
+Example for Windows x64 Release:
+`````
+build\bin\Windows.x64.Release\binaries\net10.0\win-x64\publish\DjvuNet.Benchmarks.exe
+`````
+
+**Example Output:**
+`````
+Available Benchmarks:
+  #0  ImageCacheBenchmark
+  #1  PigeonTransformBenchmark
+  #2  Rgb2YCbCrBenchmark
+  #3  Rgb2YCbCrHybridVsUnifiedBenchmark
+...
+You should select the target benchmark(s). Please, print a number of a benchmark (e.g. `0`) or a contained benchmark caption (e.g. `ImageCacheBenchmark`).
+If you want to select few, please separate them with space ` ` (e.g. `1 2 3`).
+You can also provide the class name in console arguments by using --filter. (e.g. `--filter *ImageCacheBenchmark*`).
+Enter the asterisk `*` to select all.
+`````
+
+*(Note: You can bypass the interactive menu by passing the `--filter` argument directly, e.g., `DjvuNet.Benchmarks.exe --filter *PigeonTransformBenchmark*`)*
+
+**Step 3: Review Results**
+The benchmark executable features a custom post-processing pipeline. Upon completion, it automatically formats and archives the BenchmarkDotNet reports (HTML, MD, CSV, JSON, and ASM disassembly dumps) into the `TestResults\Benchmarks\reports\` directory at the repository root, injecting version and timestamp headers. Log files are saved in `TestResults\Benchmarks\`.
+
+**Note on Unit Test Results:**
+When executing the fast loop directly in the console, test results print to `stdout`. However, when running the full suite via the build script (e.g., `build.cmd -Test`), all xUnit XML test results are centralized and saved to the `TestResults\<Framework>\` directory (e.g., `TestResults\net10.0\DjvuNet.Wavelet.Tests.xml`).
 
 ## Usage
 

@@ -9,7 +9,7 @@ using DjvuNet.Wavelet;
 using Xunit;
 using System.Threading.Tasks;
 
-namespace DjvuNet.Wavelet.Tests.Wavelet
+namespace DjvuNet.Wavelet.Tests
 {
     public class Rgb2YCbCrHybridVectorTests
     {
