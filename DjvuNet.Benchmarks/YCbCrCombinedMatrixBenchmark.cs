@@ -64,7 +64,7 @@ namespace DjvuNet.Benchmarks
 
         public override IEnumerable<int> ThreadCountValues => new[] { 1 };
 
-        protected override TransformDirection BenchmarkDirection => TransformDirection.ForwardRgbToYCbCr;
+        protected override DjvuNetBenchmarkType BenchmarkType => DjvuNetBenchmarkType.ForwardRgbToYCbCr;
 
         [Benchmark(Baseline = true, OperationsPerInvoke = InvocationCount)]
         public unsafe void Vector128SingleThread()

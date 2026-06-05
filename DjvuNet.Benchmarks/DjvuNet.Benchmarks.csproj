@@ -4,6 +4,7 @@
     <ItemGroup>
       <Compile Include="Program.cs"/>
       <Compile Include="DjvuNetBenchmarkBase.cs"/>
+      <Compile Include="ImageBinaryDiffBenchmark.cs"/>
       <Compile Include="ImageCacheBenchmark.cs"/>
       <Compile Include="YCbCr2RgbBenchmark.cs"/>
       <Compile Include="Rgb2YCbCrBenchmark.cs"/>

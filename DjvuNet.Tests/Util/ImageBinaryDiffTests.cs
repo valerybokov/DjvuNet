@@ -1,10 +1,16 @@
 using System;
+using System.IO;
+using System.IO.Compression;
+using System.Formats.Tar;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using System.Runtime.Intrinsics.X86;
+using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Intrinsics;
 using Xunit;
+using DjvuNet.Errors;
 
 namespace DjvuNet.Tests.UtilTests
 {
@@ -177,83 +183,6 @@ namespace DjvuNet.Tests.UtilTests
             }
         }
 
-        // WARNING: This is an EXACT COPY of the Vector128 block from DjvuNet.Shared.Tests/Util.cs.
-        // It is copied here to allow explicit testing of the Vector128 fallback logic on AVX2-capable machines
-        // without introducing function call overhead into the production hot path.
-        // ANY CHANGES TO THE VECTOR128 LOGIC IN Util.cs MUST BE MIRRORED HERE.
-        internal static unsafe double TestOnly_ImageBinaryDiffVector128(byte* scan0_1, byte* scan0_2, uint widthBytes, uint height, int stride)
-        {
-            int vectorBound = (int)widthBytes - 16;
-            int tailShift = (int)((16 - (widthBytes % 16)) % 16);
-
-            Vector128<ulong> imageAccum64L = Vector128<ulong>.Zero;
-            Vector128<ulong> imageAccum64H = Vector128<ulong>.Zero;
-
-            Vector128<sbyte> seq128 = Vector128.Create((sbyte)0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-            Vector128<sbyte> threshold = Vector128.Create((sbyte)(tailShift - 1));
-            Vector128<byte> tailMask = Vector128.GreaterThan(seq128, threshold).AsByte();
-
-            for (uint i = 0; i < height; i++)
-            {
-                byte* p1 = scan0_1 + ((long)i * stride);
-                byte* p2 = scan0_2 + ((long)i * stride);
-                int x = 0;
-
-                while (x <= vectorBound)
-                {
-                    int batchLimit = Math.Min(x + (255 * 16), vectorBound + 16);
-                    if (batchLimit > vectorBound) batchLimit = vectorBound + 1;
-
-                    Vector128<ushort> batchAccum16L = Vector128<ushort>.Zero;
-                    Vector128<ushort> batchAccum16H = Vector128<ushort>.Zero;
-
-                    while (x < batchLimit)
-                    {
-                        Vector128<byte> r1 = Vector128.Load(p1);
-                        Vector128<byte> r2 = Vector128.Load(p2);
-
-                        Vector128<byte> diff = Vector128.Subtract(Vector128.Max(r1, r2), Vector128.Min(r1, r2));
-
-                        batchAccum16L = Vector128.Add(batchAccum16L, Vector128.WidenLower(diff));
-                        batchAccum16H = Vector128.Add(batchAccum16H, Vector128.WidenUpper(diff));
-
-                        p1 += 16;
-                        p2 += 16;
-                        x += 16;
-                    }
-
-                    Vector128<uint> batch32L = Vector128.Add(Vector128.WidenLower(batchAccum16L), Vector128.WidenUpper(batchAccum16L));
-                    Vector128<uint> batch32H = Vector128.Add(Vector128.WidenLower(batchAccum16H), Vector128.WidenUpper(batchAccum16H));
-
-                    imageAccum64L = Vector128.Add(imageAccum64L, Vector128.Add(Vector128.WidenLower(batch32L), Vector128.WidenUpper(batch32L)));
-                    imageAccum64H = Vector128.Add(imageAccum64H, Vector128.Add(Vector128.WidenLower(batch32H), Vector128.WidenUpper(batch32H)));
-                }
-
-                if (x < widthBytes)
-                {
-                    Vector128<byte> r1 = Vector128.Load(p1 - tailShift);
-                    Vector128<byte> r2 = Vector128.Load(p2 - tailShift);
-
-                    r1 = Vector128.BitwiseAnd(r1, tailMask);
-                    r2 = Vector128.BitwiseAnd(r2, tailMask);
-
-                    Vector128<byte> diff = Vector128.Subtract(Vector128.Max(r1, r2), Vector128.Min(r1, r2));
-
-                    Vector128<ushort> sum16L = Vector128.WidenLower(diff);
-                    Vector128<ushort> sum16H = Vector128.WidenUpper(diff);
-
-                    Vector128<uint> sum32L = Vector128.Add(Vector128.WidenLower(sum16L), Vector128.WidenUpper(sum16L));
-                    Vector128<uint> sum32H = Vector128.Add(Vector128.WidenLower(sum16H), Vector128.WidenUpper(sum16H));
-
-                    imageAccum64L = Vector128.Add(imageAccum64L, Vector128.Add(Vector128.WidenLower(sum32L), Vector128.WidenUpper(sum32L)));
-                    imageAccum64H = Vector128.Add(imageAccum64H, Vector128.Add(Vector128.WidenLower(sum32H), Vector128.WidenUpper(sum32H)));
-                }
-            }
-
-            Vector128<ulong> finalSum64 = Vector128.Add(imageAccum64L, imageAccum64H);
-            return Vector128.Sum(finalSum64);
-        }
-
         [Theory]
         [InlineData(16)] // Exact vector boundary (Vector128)
         [InlineData(17)] // 1 byte remainder (SIMD processes 0-15, overlapping shift would re-process byte 1)
@@ -308,6 +237,7 @@ namespace DjvuNet.Tests.UtilTests
             int height = 3;
             int stride = width; // Contiguous visible data
             int totalPixels = height * stride;
+            int pixelSizeInBits = 8; // 1 byte per pixel
 
             // Allocate extra space to hold "padding" bytes at the very end
             int allocationSize = totalPixels + 2;
@@ -332,8 +262,8 @@ namespace DjvuNet.Tests.UtilTests
             fixed (byte* p1 = img1)
             fixed (byte* p2 = img2)
             {
-                // widthBytes = 10, pixelSizeInBytes = 1
-                double diff = Util.ImageBinaryDiffScalar(p1, p2, (uint)width, (uint)height, stride);
+                // widthBytes = 10, pixelSizeInBits = 8 (1 byte per pixel)
+                double diff = Util.ImageBinaryDiffScalar(p1, p2, (uint)width, (uint)height, stride, pixelSizeInBits);
 
                 Console.WriteLine($"\nTested Scalar 8-bpp Diff: {diff}");
                 Console.WriteLine($"\n--- Hex Dump: Last 16 bytes + Poisoned Padding ---");
@@ -358,6 +288,465 @@ namespace DjvuNet.Tests.UtilTests
                 // when processing the final pixel, resulting in a difference > 0.
                 Assert.True(diff == 0.0, $"Expected zero difference between identical buffers, but got {diff}. "
                     + " This indicates the scalar fallback logic overread into the padding bytes.");
+            }
+        }
+
+        [Fact]
+        public unsafe void ImageDiffVector256_MatchesScalar_RealData()
+        {
+            if (!Avx2.IsSupported) Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+
+            using (var bmp = new Bitmap(Path.Combine(Util.ArtifactsPath, "TitanIR-24bgr.png")))
+            {
+                var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+                var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+                try
+                {
+                    byte* scan0 = (byte*)data.Scan0.ToPointer();
+                    int stride = data.Stride;
+                    uint width = (uint)bmp.Width;
+                    uint height = (uint)bmp.Height;
+
+                    // Duplicate the image to memory to diff against itself
+                    byte[] copy = new byte[stride * height];
+                    Marshal.Copy(data.Scan0, copy, 0, copy.Length);
+                    fixed (byte* copyPtr = copy)
+                    {
+                        double scalarDiff = Util.ImageBinaryDiffScalar(scan0, copyPtr, width, height, stride, 24);
+                        double vectorDiff = Util.ImageDiffVector256(scan0, copyPtr, width, height, stride);
+
+                        Assert.Equal(scalarDiff, vectorDiff, 10);
+                    }
+                }
+                finally
+                {
+                    bmp.UnlockBits(data);
+                }
+            }
+        }
+
+        [Fact]
+        public unsafe void ImageDiffVector128_MatchesScalar_RealData()
+        {
+            if (!Vector128.IsHardwareAccelerated)
+                Assert.Skip("Vector128 hardware acceleration is not supported on this CPU.");
+
+            using (var bmp = new Bitmap(Path.Combine(Util.ArtifactsPath, "TitanIR-24bgr.png")))
+            {
+                var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+                var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+                try
+                {
+                    byte* scan0 = (byte*)data.Scan0.ToPointer();
+                    int stride = data.Stride;
+                    uint width = (uint)bmp.Width;
+                    uint height = (uint)bmp.Height;
+
+                    byte[] copy = new byte[stride * height];
+                    Marshal.Copy(data.Scan0, copy, 0, copy.Length);
+                    fixed (byte* copyPtr = copy)
+                    {
+                        double scalarDiff = Util.ImageBinaryDiffScalar(scan0, copyPtr, width, height, stride, 24);
+                        double vectorDiff = Util.ImageDiffVector128(scan0, copyPtr, width, height, stride);
+
+                        Assert.Equal(scalarDiff, vectorDiff, 10);
+                    }
+                }
+                finally
+                {
+                    bmp.UnlockBits(data);
+                }
+            }
+        }
+
+        [Fact]
+        public unsafe void ImageDiffParallel256_MatchesScalar_RealData_Padded()
+        {
+            if (!Avx2.IsSupported) Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+
+            using (var bmp = new Bitmap(Path.Combine(Util.ArtifactsPath, "TitanIR-24bgr-padded.png")))
+            {
+                var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+                var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+                try
+                {
+                    byte* scan0 = (byte*)data.Scan0.ToPointer();
+                    int stride = data.Stride;
+                    uint widthBytes = (uint)(bmp.Width * 3);
+                    uint width = (uint)bmp.Width;
+                    uint height = (uint)bmp.Height;
+
+                    // Duplicate the image to memory to poison the padding
+                    byte[] copy = new byte[stride * height];
+                    Marshal.Copy(data.Scan0, copy, 0, copy.Length);
+
+                    int paddingBytes = stride - (int)widthBytes;
+                    if (paddingBytes > 0)
+                    {
+                        for (int y = 0; y < height; y++)
+                        {
+                            int rowOffset = y * stride;
+                            for (int p = 0; p < paddingBytes; p++)
+                            {
+                                copy[rowOffset + widthBytes + p] = (byte)((y * 13 + p * 17) & 0xFF); // Poison padding with unique pattern
+                            }
+                        }
+                    }
+
+                    fixed (byte* copyPtr = copy)
+                    {
+                        var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+                        double scalarDiff = Util.ImageBinaryDiffScalar(scan0, copyPtr, width, height, stride, 24);
+                        double parallelDiff = Util.ImageDiffParallel256(scan0, copyPtr, width, height, stride, options);
+
+                        Assert.Equal(0.0, scalarDiff);
+                        Assert.Equal(0.0, parallelDiff);
+                    }
+                }
+                finally
+                {
+                    bmp.UnlockBits(data);
+                }
+            }
+        }
+
+        [Fact]
+        public unsafe void ImageDiffParallel128_MatchesScalar_RealData_Padded()
+        {
+            if (!Vector128.IsHardwareAccelerated)
+                Assert.Skip("Vector128 hardware acceleration is not supported on this CPU.");
+
+            using (var bmp = new Bitmap(Path.Combine(Util.ArtifactsPath, "TitanIR-24bgr-padded.png")))
+            {
+                var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+                var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+                try
+                {
+                    byte* scan0 = (byte*)data.Scan0.ToPointer();
+                    int stride = data.Stride;
+                    uint widthBytes = (uint)(bmp.Width * 3);
+                    uint width = (uint)bmp.Width;
+                    uint height = (uint)bmp.Height;
+
+                    // Duplicate the image to memory to poison the padding
+                    byte[] copy = new byte[stride * height];
+                    Marshal.Copy(data.Scan0, copy, 0, copy.Length);
+
+                    int paddingBytes = stride - (int)widthBytes;
+                    if (paddingBytes > 0)
+                    {
+                        for (int y = 0; y < height; y++)
+                        {
+                            int rowOffset = y * stride;
+                            for (int p = 0; p < paddingBytes; p++)
+                            {
+                                copy[rowOffset + widthBytes + p] = (byte)((y * 13 + p * 17) & 0xFF); // Poison padding with unique pattern
+                            }
+                        }
+                    }
+
+                    fixed (byte* copyPtr = copy)
+                    {
+                        var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+                        double scalarDiff = Util.ImageBinaryDiffScalar(scan0, copyPtr, width, height, stride, 24);
+                        double parallelDiff = Util.ImageDiffParallel128(scan0, copyPtr, width, height, stride, options);
+
+                        Assert.Equal(0.0, scalarDiff);
+                        Assert.Equal(0.0, parallelDiff);
+                    }
+                }
+                finally
+                {
+                    bmp.UnlockBits(data);
+                }
+            }
+        }
+
+        private unsafe (byte[] img1, byte[] img2) CreateExactRatioBuffers()
+        {
+            // width=12 (36 widthBytes), height=2, stride=36. Total=72 bytes.
+            byte[] img1 = new byte[72];
+            byte[] img2 = new byte[72];
+            for (int i = 0; i < 36; i++) img2[i] = 127;
+            for (int i = 36; i < 72; i++) img2[i] = 128;
+            return (img1, img2);
+        }
+
+        [Fact]
+        public unsafe void ImageBinaryDiffScalar_KnownRatio_CalculatesExactFraction()
+        {
+            var buffers = CreateExactRatioBuffers();
+            fixed (byte* p1 = buffers.img1)
+            fixed (byte* p2 = buffers.img2)
+            {
+                Assert.Equal(0.5, Util.ImageBinaryDiffScalar(p1, p2, 12, 2, 36, 24));
+            }
+        }
+
+        [Fact]
+        public unsafe void ImageDiffVector256_KnownRatio_CalculatesExactFraction()
+        {
+            if (!Avx2.IsSupported) Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+            var buffers = CreateExactRatioBuffers();
+            fixed (byte* p1 = buffers.img1)
+            fixed (byte* p2 = buffers.img2)
+            {
+                Assert.Equal(0.5, Util.ImageDiffVector256(p1, p2, 12, 2, 36));
+            }
+        }
+
+        [Fact]
+        public unsafe void ImageDiffVector128_KnownRatio_CalculatesExactFraction()
+        {
+            if (!Vector128.IsHardwareAccelerated) Assert.Skip("Vector128 hardware acceleration is not supported on this CPU.");
+            var buffers = CreateExactRatioBuffers();
+            fixed (byte* p1 = buffers.img1)
+            fixed (byte* p2 = buffers.img2)
+            {
+                Assert.Equal(0.5, Util.ImageDiffVector128(p1, p2, 12, 2, 36));
+            }
+        }
+
+        [Fact]
+        public unsafe void ImageDiffParallel256_KnownRatio_CalculatesExactFraction()
+        {
+            if (!Avx2.IsSupported) Assert.Skip("AVX2 hardware acceleration is not supported on this CPU.");
+            var buffers = CreateExactRatioBuffers();
+            fixed (byte* p1 = buffers.img1)
+            fixed (byte* p2 = buffers.img2)
+            {
+                var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+                Assert.Equal(0.5, Util.ImageDiffParallel256(p1, p2, 12, 2, 36, options));
+            }
+        }
+
+        [Fact]
+        public unsafe void ImageDiffParallel128_KnownRatio_CalculatesExactFraction()
+        {
+            if (!Vector128.IsHardwareAccelerated) Assert.Skip("Vector128 hardware acceleration is not supported on this CPU.");
+            var buffers = CreateExactRatioBuffers();
+            fixed (byte* p1 = buffers.img1)
+            fixed (byte* p2 = buffers.img2)
+            {
+                var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+                Assert.Equal(0.5, Util.ImageDiffParallel128(p1, p2, 12, 2, 36, options));
+            }
+        }
+        [Fact]
+        public unsafe void ImageBinaryDiffCore_KnownRatio_CalculatesExactFraction()
+        {
+            var buffers = CreateExactRatioBuffers();
+            fixed (byte* p1 = buffers.img1)
+            fixed (byte* p2 = buffers.img2)
+            {
+                Assert.Equal(0.5, Util.ImageBinaryDiffCore(p1, p2, 12, 2, 36, 24, 8));
+            }
+        }
+
+        [Theory]
+        [InlineData("Vector256", 1)]
+        [InlineData("Vector256", 2)]
+        [InlineData("Vector128", 1)]
+        [InlineData("Vector128", 2)]
+        [InlineData("Parallel256", 1)]
+        [InlineData("Parallel256", 2)]
+        [InlineData("Parallel128", 1)]
+        [InlineData("Parallel128", 2)]
+        [InlineData("Core", 1)]
+        [InlineData("Core", 2)]
+        [InlineData("Scalar", 1)]
+        [InlineData("Scalar", 2)]
+        public unsafe void ImageBinaryDiff_InputValidation_NullPointers_ThrowsDjvuArgumentNullException(string method, int nullIndex)
+        {
+            byte[] validBuffer = new byte[100];
+            fixed (byte* pValid = validBuffer)
+            {
+                byte* p1 = nullIndex == 1 ? null : pValid;
+                byte* p2 = nullIndex == 2 ? null : pValid;
+                var options = new ParallelOptions();
+
+                DjvuNet.Errors.DjvuArgumentNullException ex = null;
+
+                if (method == "Vector256")
+                {
+                    if (!Avx2.IsSupported) Assert.Skip("AVX2 not supported on this CPU.");
+                    ex = Assert.Throws<DjvuNet.Errors.DjvuArgumentNullException>(() => Util.ImageDiffVector256(p1, p2, 12, 2, 36));
+                }
+                else if (method == "Vector128")
+                {
+                    if (!Vector128.IsHardwareAccelerated) Assert.Skip("Vector128 not supported on this CPU.");
+                    ex = Assert.Throws<DjvuNet.Errors.DjvuArgumentNullException>(() => Util.ImageDiffVector128(p1, p2, 12, 2, 36));
+                }
+                else if (method == "Parallel256")
+                {
+                    if (!Avx2.IsSupported) Assert.Skip("AVX2 not supported on this CPU.");
+                    ex = Assert.Throws<DjvuNet.Errors.DjvuArgumentNullException>(() => Util.ImageDiffParallel256(p1, p2, 12, 2, 36, options));
+                }
+                else if (method == "Parallel128")
+                {
+                    if (!Vector128.IsHardwareAccelerated) Assert.Skip("Vector128 not supported on this CPU.");
+                    ex = Assert.Throws<DjvuNet.Errors.DjvuArgumentNullException>(() => Util.ImageDiffParallel128(p1, p2, 12, 2, 36, options));
+                }
+                else if (method == "Core")
+                {
+                    ex = Assert.Throws<DjvuNet.Errors.DjvuArgumentNullException>(() => Util.ImageBinaryDiffCore(p1, p2, 12, 2, 36, 24, 8));
+                }
+                else if (method == "Scalar")
+                {
+                    ex = Assert.Throws<DjvuNet.Errors.DjvuArgumentNullException>(() => Util.ImageBinaryDiffScalar(p1, p2, 12, 2, 36));
+                }
+
+                string expectedParam = nullIndex == 1 ? "scan0_1" : "scan0_2";
+                Assert.Equal(expectedParam, ex.ParamName);
+                Assert.Contains("cannot be null", ex.Message);
+            }
+        }
+
+        [Theory]
+        [InlineData("Vector256", 10)] // 30 bytes < 32 bytes required for AVX2
+        [InlineData("Parallel256", 10)]
+        [InlineData("Vector128", 5)]  // 15 bytes < 16 bytes required for Vector128
+        [InlineData("Parallel128", 5)]
+        public unsafe void ImageBinaryDiff_InputValidation_InvalidWidth_ThrowsDjvuArgumentOutOfRangeException(string method, int width)
+        {
+            IntPtr pValidPtr = IntPtr.Zero;
+            try
+            {
+                pValidPtr = Marshal.AllocHGlobal(100);
+                byte* pValid = (byte*)pValidPtr;
+
+                var options = new ParallelOptions();
+                DjvuNet.Errors.DjvuArgumentOutOfRangeException ex = null;
+                ulong expectedWidthBytes = (ulong)width * 3; // default pixelSize=24 (3 bytes)
+
+                if (method == "Vector256")
+                {
+                    if (!Avx2.IsSupported) Assert.Skip("AVX2 not supported on this CPU.");
+                    ex = Assert.Throws<DjvuNet.Errors.DjvuArgumentOutOfRangeException>(() => Util.ImageDiffVector256(pValid, pValid, (uint)width, 2, 36));
+                }
+                else if (method == "Parallel256")
+                {
+                    if (!Avx2.IsSupported) Assert.Skip("AVX2 not supported on this CPU.");
+                    ex = Assert.Throws<DjvuNet.Errors.DjvuArgumentOutOfRangeException>(() => Util.ImageDiffParallel256(pValid, pValid, (uint)width, 2, 36, options));
+                }
+                else if (method == "Vector128")
+                {
+                    if (!Vector128.IsHardwareAccelerated) Assert.Skip("Vector128 not supported on this CPU.");
+                    ex = Assert.Throws<DjvuNet.Errors.DjvuArgumentOutOfRangeException>(() => Util.ImageDiffVector128(pValid, pValid, (uint)width, 2, 36));
+                }
+                else if (method == "Parallel128")
+                {
+                    if (!Vector128.IsHardwareAccelerated) Assert.Skip("Vector128 not supported on this CPU.");
+                    ex = Assert.Throws<DjvuNet.Errors.DjvuArgumentOutOfRangeException>(() => Util.ImageDiffParallel128(pValid, pValid, (uint)width, 2, 36, options));
+                }
+
+                Assert.Equal("width", ex.ParamName);
+                Assert.Equal(expectedWidthBytes, (ulong)ex.ActualValue);
+                Assert.Contains("Buffer width must be at least", ex.Message);
+            }
+            finally
+            {
+                if (pValidPtr != IntPtr.Zero) Marshal.FreeHGlobal(pValidPtr);
+            }
+        }
+
+        [Theory]
+        [InlineData(6, 10, false)]   // 18 bytes: Exact Vector128 + 2
+        [InlineData(10, 10, false)]  // 30 bytes: Vector128 * 1.8
+        [InlineData(11, 10, false)]  // 33 bytes: > 2x Vector128
+        [InlineData(15, 10, true)]   // 45 bytes: padded
+        public unsafe void ImageDiffVector128_BoundaryEdgeCases_MatchesScalar(int width, int height, bool isPadded)
+        {
+            if (!Vector128.IsHardwareAccelerated) Assert.Skip("Vector128 not supported on this CPU.");
+
+            int pixelSize = 24;
+            int channelSize = 8;
+            uint widthBytes = (uint)width * (uint)(pixelSize / 8);
+            int stride = isPadded ? (int)((widthBytes + 3) & ~3) : (int)widthBytes;
+            int totalBytes = stride * height;
+
+            byte[] buffer1 = new byte[totalBytes];
+            byte[] buffer2 = new byte[totalBytes];
+
+            for (uint i = 0; i < totalBytes; i++)
+            {
+                buffer1[i] = (byte)(i % 251);
+                buffer2[i] = (i % 7 == 0) ? (byte)((buffer1[i] + 5) % 255) : buffer1[i];
+            }
+
+            fixed (byte* p1 = buffer1)
+            fixed (byte* p2 = buffer2)
+            {
+                double expectedScalar = Util.ImageBinaryDiffScalar(p1, p2, (uint)width, (uint)height, stride, pixelSize, channelSize);
+                double actualV128 = Util.ImageDiffVector128(p1, p2, (uint)width, (uint)height, stride, pixelSize, channelSize);
+                Assert.Equal(expectedScalar, actualV128, 7);
+            }
+        }
+
+        [Theory]
+        [InlineData(11, 10, false)]  // 33 bytes: Vector256 + 1 byte
+        [InlineData(16, 10, false)]  // 48 bytes: Vector256 * 1.5
+        [InlineData(21, 10, false)]  // 63 bytes: Pre-2x Vector256
+        [InlineData(22, 10, false)]  // 66 bytes: 2x Vector256 + 2 bytes
+        [InlineData(23, 10, true)]   // 69 bytes: Odd size, padded
+        public unsafe void ImageDiffVector256_BoundaryEdgeCases_MatchesScalar(int width, int height, bool isPadded)
+        {
+            if (!Avx2.IsSupported) Assert.Skip("AVX2 not supported on this CPU.");
+
+            int pixelSize = 24;
+            int channelSize = 8;
+            uint widthBytes = (uint)width * (uint)(pixelSize / 8);
+            int stride = isPadded ? (int)((widthBytes + 3) & ~3) : (int)widthBytes;
+            int totalBytes = stride * height;
+
+            byte[] buffer1 = new byte[totalBytes];
+            byte[] buffer2 = new byte[totalBytes];
+
+            for (uint i = 0; i < totalBytes; i++)
+            {
+                buffer1[i] = (byte)(i % 251);
+                buffer2[i] = (i % 7 == 0) ? (byte)((buffer1[i] + 5) % 255) : buffer1[i];
+            }
+
+            fixed (byte* p1 = buffer1)
+            fixed (byte* p2 = buffer2)
+            {
+                double expectedScalar = Util.ImageBinaryDiffScalar(p1, p2, (uint)width, (uint)height, stride, pixelSize, channelSize);
+                double actualV256 = Util.ImageDiffVector256(p1, p2, (uint)width, (uint)height, stride, pixelSize, channelSize);
+                Assert.Equal(expectedScalar, actualV256, 7);
+            }
+        }
+
+        [Theory]
+        [InlineData(5, 10, false)]     // 15 bytes: Sub-Vector128 -> scalar routing
+        [InlineData(10, 10, false)]    // 30 bytes: Sub-Vector256 -> V128 routing
+        [InlineData(342, 100, false)]  // ~102K bytes -> Single thread routing
+        [InlineData(342, 100, true)]   // Padded single thread routing
+        [InlineData(1024, 100, false)] // ~307K bytes -> Multi thread routing
+        [InlineData(1024, 100, true)]  // Padded multi thread routing
+        public unsafe void ImageBinaryDiffCore_RoutingEdgeCases_MatchesScalar(int width, int height, bool isPadded)
+        {
+            int pixelSize = 24;
+            int channelSize = 8;
+            uint widthBytes = (uint)width * (uint)(pixelSize / 8);
+            int stride = isPadded ? (int)((widthBytes + 3) & ~3) : (int)widthBytes;
+            int totalBytes = stride * height;
+
+            byte[] buffer1 = new byte[totalBytes];
+            byte[] buffer2 = new byte[totalBytes];
+
+            for (uint i = 0; i < totalBytes; i++)
+            {
+                buffer1[i] = (byte)(i % 251);
+                buffer2[i] = (i % 7 == 0) ? (byte)((buffer1[i] + 5) % 255) : buffer1[i];
+            }
+
+            fixed (byte* p1 = buffer1)
+            fixed (byte* p2 = buffer2)
+            {
+                double expectedScalar = Util.ImageBinaryDiffScalar(p1, p2, (uint)width, (uint)height, stride, pixelSize, channelSize);
+                double actualCore = Util.ImageBinaryDiffCore(p1, p2, (uint)width, (uint)height, stride, pixelSize, channelSize);
+                Assert.Equal(expectedScalar, actualCore, 7);
             }
         }
     }

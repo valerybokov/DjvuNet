@@ -18,10 +18,11 @@ using Rectangle = System.Drawing.Rectangle;
 
 namespace DjvuNet.Benchmarks
 {
-    public enum TransformDirection
+    public enum DjvuNetBenchmarkType
     {
         ForwardRgbToYCbCr,
-        ReverseYCbCrToRgb
+        ReverseYCbCrToRgb,
+        ImageBinaryDiff
     }
 
     public abstract class DjvuNetBenchmarkBase
@@ -34,9 +35,12 @@ namespace DjvuNet.Benchmarks
         protected IntPtr[] _nativePixelBuffers;
         protected IntPtr[] _nativePlanarBuffers;
         protected IntPtr _masterBackupBuffer;
+        
+        protected byte[] _managedBuffer1;
+        protected byte[] _managedBuffer2;
 
         public abstract int PixelCount { get; set; }
-        protected abstract TransformDirection BenchmarkDirection { get; }
+        protected abstract DjvuNetBenchmarkType BenchmarkType { get; }
 
         public int ImageWidth => PixelCount switch
         {
@@ -99,14 +103,53 @@ namespace DjvuNet.Benchmarks
             pCr = pCb + PixelCount;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        protected unsafe void GetIterationPointersImageBinaryDiff(int ratioIndex, int stride, byte* pinnedBase1, byte* pinnedBase2, out byte* p1, out byte* p2)
+        {
+            int byteOffset = ratioIndex * ImageHeight * stride;
+            p1 = pinnedBase1 + byteOffset;
+            p2 = pinnedBase2 + byteOffset;
+        }
+
         [GlobalSetup]
         public unsafe virtual void GlobalSetup()
         {
             long pixelBytes = MaxPixels * sizeof(Pixel);
             long planarBytes = MaxPixels * 3 * sizeof(sbyte);
 
+            if (BenchmarkType == DjvuNetBenchmarkType.ImageBinaryDiff)
+            {
+                string imagePath = Path.Combine(Util.ArtifactsPath, "TitanIR-24bgr.png");
+                if (!File.Exists(imagePath)) throw new FileNotFoundException($"Benchmark artifact not found: {imagePath}");
+
+                using (var bmp = new Bitmap(imagePath))
+                {
+                    var rect = new Rectangle(0, 0, MaxWidth, MaxHeight);
+                    BitmapData data = null;
+                    try
+                    {
+                        data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+                        int totalBytes = data.Stride * MaxHeight;
+
+                        _managedBuffer1 = GC.AllocateUninitializedArray<byte>(totalBytes);
+                        _managedBuffer2 = GC.AllocateUninitializedArray<byte>(totalBytes);
+
+                        Marshal.Copy(data.Scan0, _managedBuffer1, 0, totalBytes);
+                        Marshal.Copy(data.Scan0, _managedBuffer2, 0, totalBytes);
+                    }
+                    finally
+                    {
+                        if (data != null)
+                        {
+                            bmp.UnlockBits(data);
+                        }
+                    }
+                }
+                return; // Early exit for ImageBinaryDiff, skip unmanaged allocations below
+            }
+
             _nativePixelBuffers = new IntPtr[InvocationCount];
-            if (BenchmarkDirection == TransformDirection.ForwardRgbToYCbCr)
+            if (BenchmarkType == DjvuNetBenchmarkType.ForwardRgbToYCbCr)
             {
                 _nativePlanarBuffers = new IntPtr[InvocationCount];
             }
@@ -115,7 +158,7 @@ namespace DjvuNet.Benchmarks
             {
                 _masterBackupBuffer = DjvuMarshal.AllocHGlobal((uint)pixelBytes);
 
-                if (BenchmarkDirection == TransformDirection.ForwardRgbToYCbCr)
+                if (BenchmarkType == DjvuNetBenchmarkType.ForwardRgbToYCbCr)
                 {
                     string imagePath = Path.Combine(Util.ArtifactsPath, "TitanIR-24bgr.png");
                     if (!File.Exists(imagePath)) throw new FileNotFoundException($"Benchmark artifact not found: {imagePath}");
@@ -134,7 +177,7 @@ namespace DjvuNet.Benchmarks
                         }
                     }
                 }
-                else if (BenchmarkDirection == TransformDirection.ReverseYCbCrToRgb)
+                else if (BenchmarkType == DjvuNetBenchmarkType.ReverseYCbCrToRgb)
                 {
                     string artifactPath = Path.Combine(Util.ArtifactsPath, "TitanIR-5448x3686-24bpp-YCbCr.bin.tar.gz");
                     if (!File.Exists(artifactPath)) throw new FileNotFoundException($"Benchmark artifact not found: {artifactPath}");
@@ -165,13 +208,13 @@ namespace DjvuNet.Benchmarks
                 }
                 else
                 {
-                    throw new DjvuInvalidOperationException($"Invalid or unsupported TransformDirection: {BenchmarkDirection}");
+                    throw new DjvuInvalidOperationException($"Invalid or unsupported DjvuNetBenchmarkType: {BenchmarkType}");
                 }
 
                 for (int i = 0; i < InvocationCount; i++)
                 {
                     _nativePixelBuffers[i] = DjvuMarshal.AllocHGlobal((uint)pixelBytes);
-                    if (BenchmarkDirection == TransformDirection.ForwardRgbToYCbCr)
+                    if (BenchmarkType == DjvuNetBenchmarkType.ForwardRgbToYCbCr)
                     {
                         _nativePlanarBuffers[i] = DjvuMarshal.AllocHGlobal((uint)planarBytes);
                     }
@@ -187,10 +230,13 @@ namespace DjvuNet.Benchmarks
         [IterationSetup]
         public unsafe virtual void IterationSetup()
         {
-            long pixelBytes = MaxPixels * sizeof(Pixel);
-            for (int i = 0; i < InvocationCount; i++)
+            if (BenchmarkType != DjvuNetBenchmarkType.ImageBinaryDiff)
             {
-                Buffer.MemoryCopy(_masterBackupBuffer.ToPointer(), _nativePixelBuffers[i].ToPointer(), pixelBytes, pixelBytes);
+                long pixelBytes = MaxPixels * sizeof(Pixel);
+                for (int i = 0; i < InvocationCount; i++)
+                {
+                    Buffer.MemoryCopy(_masterBackupBuffer.ToPointer(), _nativePixelBuffers[i].ToPointer(), pixelBytes, pixelBytes);
+                }
             }
             _options = new ParallelOptions { MaxDegreeOfParallelism = ThreadCount };
         }

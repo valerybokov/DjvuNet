@@ -15,7 +15,7 @@ namespace DjvuNet.Benchmarks
         [Params(1024, 4096, 9216, 16384, 36864, 65536, 262144, 1048576, 2096704, 4194304, MaxPixels)]
         public override int PixelCount { get; set; }
 
-        protected override TransformDirection BenchmarkDirection => TransformDirection.ReverseYCbCrToRgb;
+        protected override DjvuNetBenchmarkType BenchmarkType => DjvuNetBenchmarkType.ReverseYCbCrToRgb;
 
         [ParamsSource(nameof(ThreadCountValues))]
         public int ThreadCount { get; set; }
