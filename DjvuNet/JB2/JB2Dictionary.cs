@@ -100,9 +100,11 @@ namespace DjvuNet.JB2
         public virtual void Decode(IBinaryReader gbs, JB2Dictionary zdict)
         {
             Init();
-            JB2Decoder codec = new JB2Decoder();
-            codec.Init(gbs, zdict);
-            codec.Code(this);
+            using (JB2Decoder codec = new JB2Decoder())
+            {
+                codec.Init(gbs, zdict);
+                codec.Code(this);
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

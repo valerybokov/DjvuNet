@@ -242,9 +242,11 @@ namespace DjvuNet.JB2
         {
             Init();
 
-            JB2Decoder codec = new JB2Decoder();
-            codec.Init(gbs, zdict);
-            codec.Code(this);
+            using (JB2Decoder codec = new JB2Decoder())
+            {
+                codec.Init(gbs, zdict);
+                codec.Code(this);
+            }
         }
 
         public override void Init()
