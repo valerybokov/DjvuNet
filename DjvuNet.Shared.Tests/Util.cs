@@ -673,11 +673,9 @@ namespace DjvuNet.Tests
                 return 1.0;
             }
 
-            uint width = (uint)imageData1.Width;
-            uint height = (uint)imageData1.Height;
             int stride = imageData1.Stride;
 
-            return ImageBinaryDiff((byte*)imageData1.Scan0, (byte*)imageData2.Scan0, (int)width, (int)height, stride, pixelSize, channelSize);
+            return ImageBinaryDiff((byte*)imageData1.Scan0, (byte*)imageData2.Scan0, imageData1.Width, imageData1.Height, stride, pixelSize, channelSize);
         }
 
         /// <summary>

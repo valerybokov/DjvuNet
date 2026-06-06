@@ -78,7 +78,6 @@ namespace DjvuNet.Benchmarks
             if (!System.Runtime.Intrinsics.Vector128.IsHardwareAccelerated) return;
 
             int stride = ImageWidth * sizeof(Pixel);
-            uint widthBytes = (uint)ImageWidth * (uint)sizeof(Pixel);
 
             fixed (byte* pinnedBase1 = _managedBuffer1)
             fixed (byte* pinnedBase2 = _managedBuffer2)
@@ -101,7 +100,6 @@ namespace DjvuNet.Benchmarks
             if (!Avx2.IsSupported) return;
 
             int stride = ImageWidth * sizeof(Pixel);
-            uint widthBytes = (uint)ImageWidth * (uint)sizeof(Pixel);
 
             fixed (byte* pinnedBase1 = _managedBuffer1)
             fixed (byte* pinnedBase2 = _managedBuffer2)
@@ -124,7 +122,6 @@ namespace DjvuNet.Benchmarks
             if (!System.Runtime.Intrinsics.Vector128.IsHardwareAccelerated) return;
 
             int stride = ImageWidth * sizeof(Pixel);
-            uint widthBytes = (uint)ImageWidth * (uint)sizeof(Pixel);
 
             fixed (byte* pinnedBase1 = _managedBuffer1)
             fixed (byte* pinnedBase2 = _managedBuffer2)
