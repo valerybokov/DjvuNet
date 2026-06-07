@@ -1,8 +1,7 @@
-﻿using System;
+using System;
 
 namespace DjvuNet.Errors
 {
-    [Serializable]
     public class DjvuInvalidOperationException : InvalidOperationException
     {
         public DjvuInvalidOperationException() : base()
@@ -17,12 +16,5 @@ namespace DjvuNet.Errors
             : base(message, innerException)
         {
         }
-
-#if !NETCOREAPP
-        public DjvuInvalidOperationException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
-            : base(info, context)
-        {
-        }
-#endif
     }
 }

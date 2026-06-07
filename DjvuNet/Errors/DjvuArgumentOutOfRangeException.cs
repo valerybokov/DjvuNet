@@ -1,8 +1,7 @@
-﻿using System;
+using System;
 
 namespace DjvuNet.Errors
 {
-    [Serializable]
     public class DjvuArgumentOutOfRangeException : ArgumentOutOfRangeException
     {
         public DjvuArgumentOutOfRangeException() : base()
@@ -20,13 +19,6 @@ namespace DjvuNet.Errors
         public DjvuArgumentOutOfRangeException(string paramName, string message) : base (paramName, message)
         {
         }
-
-#if !NETCOREAPP
-        public DjvuArgumentOutOfRangeException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
-            : base (info, context)
-        {
-        }
-#endif
 
         public DjvuArgumentOutOfRangeException(string paramName, object actualValue, string message)
             : base(paramName, actualValue, message)

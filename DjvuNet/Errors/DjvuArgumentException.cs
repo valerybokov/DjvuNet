@@ -1,8 +1,7 @@
-﻿using System;
+using System;
 
 namespace DjvuNet.Errors
 {
-    [Serializable]
     public class DjvuArgumentException : ArgumentException
     {
         public DjvuArgumentException() : base()
@@ -27,12 +26,5 @@ namespace DjvuNet.Errors
             : base (message, paramName, innerException)
         {
         }
-
-#if !NETCOREAPP
-        public DjvuArgumentException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
-            : base (info, context)
-        {
-        }
-#endif
     }
 }

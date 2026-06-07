@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace DjvuNet
 {
@@ -6,7 +6,6 @@ namespace DjvuNet
     /// IFFParserException is thrown to indicate an error in parsing IFF 85 formatting
     /// of DjVu file which is not related to DjVu specific formatting.
     /// </summary>
-    [Serializable]
     public class IffParserException : System.FormatException
     {
 
@@ -44,22 +43,5 @@ namespace DjvuNet
             : base(message, innerException)
         {
         }
-#if !NETSTANDARD2_0
-#if !NETCOREAPP
-        /// <summary>
-        /// Initializes a new instance of the DjvuNet.IFFParserException class with serialized data.
-        /// </summary>
-        /// <parameter name="info">
-        /// The object that holds the serialized object data.
-        /// </parameter>
-        /// <parameter name="context">
-        /// The contextual information about the source or destination.
-        /// </parameter>
-        protected IffParserException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context):
-            base (info, context)
-        {
-        }
-#endif
-#endif
     }
 }

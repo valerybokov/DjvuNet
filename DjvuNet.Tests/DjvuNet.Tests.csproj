@@ -82,6 +82,7 @@
     <Compile Include="DataChunks\WmrmChunkTests.cs" />
     <Compile Include="DjvuDocumentTests.cs" />
     <Compile Include="DjvuImageTests.cs" />
+    <Compile Include="Errors\DjvuExceptionUtilTests.cs" />
     <Compile Include="Extentions\ExtentionMethodsTests.cs" />
     <Compile Include="IO\DjvuReaderTests.cs" />
     <Compile Include="IO\DjvuWriterTests.cs" />

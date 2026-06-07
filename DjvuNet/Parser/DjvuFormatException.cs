@@ -1,8 +1,7 @@
-﻿using System;
+using System;
 
 namespace DjvuNet
 {
-    [Serializable]
     public class DjvuFormatException : System.FormatException
     {
         //
@@ -40,23 +39,5 @@ namespace DjvuNet
             : base(message, innerException)
         {
         }
-
-        //
-        // Summary:
-        //     Initializes a new instance of the DjvuNet.IFFParsingException class with serialized
-        //     data.
-        //
-        // Parameters:
-        //   info:
-        //     The object that holds the serialized object data.
-        //
-        //   context:
-        //     The contextual information about the source or destination.
-#if !NETCOREAPP
-        protected DjvuFormatException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context):
-            base (info, context)
-        {
-        }
-#endif
     }
 }
