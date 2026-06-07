@@ -133,6 +133,7 @@
     <Compile Include="DjvuPage.cs" />
     <Compile Include="Errors\DjvuAggregateException.cs" />
     <Compile Include="Errors\DjvuArgumentException.cs" />
+    <Compile Include="Errors\DjvuExceptionUtil.cs" />
     <Compile Include="Errors\DjvuArgumentNullException.cs" />
     <Compile Include="Errors\DjvuArgumentOutOfRangeException.cs" />
     <Compile Include="Errors\DjvuEndOfStreamException.cs" />
